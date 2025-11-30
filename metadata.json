@@ -1,0 +1,5 @@
+{
+  "name": "Command Task Planner",
+  "description": "A smart team task management system featuring Kanban, Gantt, Calendar views, and Gemini-powered AI task automation.",
+  "requestFramePermissions": []
+}

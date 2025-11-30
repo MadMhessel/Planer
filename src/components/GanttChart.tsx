@@ -1,0 +1,182 @@
+
+import React, { useMemo, useState, useEffect } from 'react';
+import { Task, Project } from '../types';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
+
+interface GanttChartProps {
+  tasks: Task[];
+  projects: Project[];
+  onTaskClick: (task: Task) => void;
+  onEditTask: (task: Task) => void;
+}
+
+export const GanttChart: React.FC<GanttChartProps> = ({ tasks, projects, onTaskClick, onEditTask }) => {
+  const [viewDate, setViewDate] = useState(new Date());
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+  
+  // Settings based on device
+  const dayWidth = isMobile ? 30 : 40;
+  const daysToShow = isMobile ? 14 : 30;
+  
+  const startDate = useMemo(() => {
+    const d = new Date(viewDate);
+    d.setDate(d.getDate() - 3); // Start slightly before
+    return d;
+  }, [viewDate]);
+
+  const dates = useMemo(() => {
+    const arr = [];
+    for (let i = 0; i < daysToShow; i++) {
+      const d = new Date(startDate);
+      d.setDate(d.getDate() + i);
+      arr.push(d);
+    }
+    return arr;
+  }, [startDate, daysToShow]);
+
+  const getTaskStyle = (task: Task) => {
+    const start = new Date(task.startDate);
+    const end = new Date(task.dueDate);
+    
+    // Calculate offset days from chart start
+    const diffTimeStart = start.getTime() - startDate.getTime();
+    const diffDaysStart = Math.ceil(diffTimeStart / (1000 * 60 * 60 * 24));
+    
+    // Calculate duration
+    const diffTimeDuration = end.getTime() - start.getTime();
+    const durationDays = Math.max(1, Math.ceil(diffTimeDuration / (1000 * 60 * 60 * 24)));
+    
+    const left = diffDaysStart * dayWidth;
+    const width = durationDays * dayWidth;
+
+    const project = projects.find(p => p.id === task.projectId);
+
+    return {
+      left: `${left}px`,
+      width: `${width}px`,
+      backgroundColor: project?.color || '#ccc',
+    };
+  };
+
+  const handleScroll = (amt: number) => {
+    const newDate = new Date(viewDate);
+    newDate.setDate(newDate.getDate() + amt);
+    setViewDate(newDate);
+  };
+
+  const currentMonthYear = viewDate.toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' });
+
+  return (
+    <div className="flex flex-col h-full bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden pb-20 md:pb-0">
+      {/* Controls */}
+      <div className="flex items-center justify-between p-4 border-b bg-gray-50 flex-shrink-0">
+        <div className="flex flex-col md:flex-row md:items-center gap-1 md:gap-4">
+             <h2 className="font-bold text-gray-800 text-sm md:text-base">Временная шкала</h2>
+             <span className="text-xs md:text-sm font-medium text-indigo-600 capitalize bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-100">
+                {currentMonthYear}
+             </span>
+        </div>
+        
+        <div className="flex gap-2">
+            <button onClick={() => handleScroll(-7)} className="p-1.5 bg-white border border-gray-200 hover:bg-gray-100 rounded-md shadow-sm text-gray-600">
+                <ChevronLeft size={18}/>
+            </button>
+            <button onClick={() => setViewDate(new Date())} className="text-xs font-medium px-3 py-1.5 bg-white border border-gray-200 rounded-md shadow-sm hover:bg-gray-50 text-gray-700">
+                Сегодня
+            </button>
+            <button onClick={() => handleScroll(7)} className="p-1.5 bg-white border border-gray-200 hover:bg-gray-100 rounded-md shadow-sm text-gray-600">
+                <ChevronRight size={18}/>
+            </button>
+        </div>
+      </div>
+
+      <div className="flex flex-1 overflow-hidden relative">
+        {/* Left Sidebar (Task Names) - Hidden on very small screens or reduced */}
+        <div className="w-24 md:w-48 flex-shrink-0 border-r border-gray-200 bg-white sticky left-0 z-20 overflow-y-hidden select-none">
+            <div className="h-10 border-b border-gray-200 bg-gray-50 font-semibold text-xs text-gray-500 flex items-center px-3">
+                Задача
+            </div>
+            {tasks.map(task => (
+                <div 
+                    key={task.id} 
+                    onClick={() => onEditTask(task)}
+                    className="h-12 border-b border-gray-50 flex items-center px-3 text-xs md:text-sm text-gray-700 font-medium truncate bg-white cursor-pointer hover:bg-gray-50 transition-colors" 
+                    title={task.title}
+                >
+                    <span className="truncate">{task.title}</span>
+                </div>
+            ))}
+        </div>
+
+        {/* Timeline Area */}
+        <div className="flex-1 overflow-x-auto overflow-y-auto">
+            <div className="relative min-w-full" style={{ width: `${dates.length * dayWidth}px` }}>
+                {/* Header Days */}
+                <div className="flex h-10 border-b border-gray-200 bg-gray-50 sticky top-0 z-10">
+                    {dates.map((d, i) => (
+                        <div 
+                            key={i} 
+                            className={`flex-shrink-0 border-r border-gray-200 flex flex-col items-center justify-center text-[10px] md:text-xs ${
+                                d.getDay() === 0 || d.getDay() === 6 ? 'bg-gray-100/50' : ''
+                            }`}
+                            style={{ width: `${dayWidth}px` }}
+                        >
+                            <span className={`font-bold ${d.toDateString() === new Date().toDateString() ? 'text-indigo-600' : 'text-gray-700'}`}>
+                                {d.getDate()}
+                            </span>
+                            <span className="text-gray-400">{d.toLocaleDateString('ru-RU', { weekday: 'short'})}</span>
+                        </div>
+                    ))}
+                </div>
+
+                {/* Grid Lines & Bars Container */}
+                <div className="relative">
+                    {/* Vertical Background Lines */}
+                    <div className="absolute top-0 bottom-0 left-0 right-0 flex pointer-events-none">
+                        {dates.map((d, i) => (
+                            <div 
+                                key={i} 
+                                className={`flex-shrink-0 border-r border-gray-100 h-full ${
+                                    d.getDay() === 0 || d.getDay() === 6 ? 'bg-gray-50/50' : ''
+                                }`}
+                                style={{ width: `${dayWidth}px` }}
+                            />
+                        ))}
+                    </div>
+
+                    {/* Today Line */}
+                    <div 
+                        className="absolute top-0 bottom-0 border-l-2 border-red-500 z-10 opacity-40 pointer-events-none dashed"
+                        style={{ 
+                            left: `${Math.ceil((new Date().getTime() - startDate.getTime()) / (1000*60*60*24)) * dayWidth}px`
+                        }} 
+                    />
+
+                    {/* Tasks Rows */}
+                    <div className="relative pt-0">
+                        {tasks.map((task) => (
+                            <div key={task.id} className="h-12 border-b border-gray-50 relative flex items-center group">
+                                <div 
+                                    onClick={() => onEditTask(task)}
+                                    className="absolute h-6 rounded-md shadow-sm text-[10px] text-white flex items-center px-2 whitespace-nowrap overflow-hidden cursor-pointer hover:brightness-110 transition-all z-10"
+                                    style={getTaskStyle(task)}
+                                >
+                                    {!isMobile && <span className="truncate">{task.title}</span>}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </div>
+        </div>
+      </div>
+    </div>
+  );
+};
