@@ -1,7 +1,7 @@
 const express = require('express');
 const path = require('path');
 const fs = require('fs');
-const { GoogleGenerativeAI } = require('@google/genai');
+const { GoogleGenerativeAI } = require("@google/generative-ai");
 const cors = require('cors');
 require('dotenv').config();
 
@@ -20,11 +20,13 @@ app.use((req, res, next) => {
 
 // Initialize Gemini
 // NOTE: GEMINI_API_KEY must be set in Cloud Run Environment Variables
-const apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY || '';
-let genAI = null;
-if (apiKey) {
-    genAI = new GoogleGenerativeAI(apiKey);
+const apiKey = process.env.GOOGLE_API_KEY;
+if (!apiKey) {
+  throw new Error("GOOGLE_API_KEY is not set");
 }
+
+const genAI = new GoogleGenerativeAI(apiKey);
+const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
 // --- API Routes ---
 
@@ -147,7 +149,6 @@ app.post('/api/ai/generate', async (req, res) => {
       КОМАНДА ПОЛЬЗОВАТЕЛЯ: "${command}"
     `;
 
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
     const result = await model.generateContent(prompt);
     const response = await result.response;
     const text = response.text();
