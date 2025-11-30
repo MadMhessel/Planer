@@ -53,18 +53,48 @@ app.get('/api/storage', (req, res) => {
     }
 });
 
-app.post('/api/storage', (req, res) => {
-    console.log('Writing storage request');
+// --- Telegram Notification Endpoint ---
+app.post('/api/telegram/notify', async (req, res) => {
+  const { chatIds, message } = req.body;
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+
+  if (!token) {
+    console.error('TELEGRAM_BOT_TOKEN is not set');
+    return res.status(500).json({ error: 'Server configuration error' });
+  }
+
+  if (!chatIds || !Array.isArray(chatIds) || chatIds.length === 0) {
+    return res.status(400).json({ error: 'No recipients provided' });
+  }
+
+  // Helper to send a single message
+  const sendOne = async (chatId) => {
     try {
-        const current = fs.existsSync(DB_FILE) ? JSON.parse(fs.readFileSync(DB_FILE, 'utf8')) : {};
-        const updated = { ...current, ...req.body };
-        fs.writeFileSync(DB_FILE, JSON.stringify(updated, null, 2));
-        res.json({ success: true });
-    } catch (e) {
-        console.error("Storage write error", e);
-        // Even if write fails (e.g. storage full), return success to client to prevent app crash
-        res.status(200).json({ success: false, error: 'Storage write failed (ephemeral)' });
+      const url = `https://api.telegram.org/bot${token}/sendMessage`;
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: chatId,
+          text: message,
+          parse_mode: 'HTML',
+        }),
+      });
+      const data = await response.json();
+      return { chatId, success: data.ok, error: data.description };
+    } catch (err) {
+      console.error(`Failed to send to ${chatId}:`, err);
+      return { chatId, success: false, error: err.message };
     }
+  };
+
+  // Send to all recipients in parallel
+  const results = await Promise.all(chatIds.map(sendOne));
+  
+  // Log results for debugging
+  console.log('Notification results:', results);
+
+  res.json({ success: true, results });
 });
 
 // AI Endpoint (Proxies request to Gemini to keep key secret)

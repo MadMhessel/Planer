@@ -1,356 +1,353 @@
+import React, { useMemo, useState } from 'react';
+import { Workspace, WorkspaceInvite, WorkspaceMember, User, UserRole } from '../types';
+import { FirestoreService } from '../services/firestore';
 
-import React, { useState, useEffect } from 'react';
-import { User, Project, SystemSettings } from '../types';
-import { Mail, Shield, Folder, Edit, Plus, User as UserIcon, ArrowUpDown, Send, MessageSquare, AlertCircle, CheckCircle2, Lock } from 'lucide-react';
-import { TelegramService } from '../services/telegram';
+type Props = {
+  workspace: Workspace;
+  members: WorkspaceMember[];
+  invites: WorkspaceInvite[];
+  currentUser: User;
+};
 
-interface SettingsViewProps {
-  users: User[];
-  projects: Project[];
-  onEditProject: (project: Project) => void;
-  onCreateProject: () => void;
-  onEditUser: (user: User) => void;
-  onInviteUser: () => void;
-  isDarkMode: boolean;
-  toggleTheme: () => void;
-  currentUser?: User;
-  onUpdateCurrentUser?: (user: User) => void;
-  systemSettings: SystemSettings;
-  onUpdateSystemSettings: (settings: SystemSettings) => void;
-}
+type Tab = 'members' | 'invites';
 
-export const SettingsView: React.FC<SettingsViewProps> = ({ 
-    users, 
-    projects, 
-    onEditProject, 
-    onCreateProject,
-    onEditUser,
-    onInviteUser,
-    isDarkMode,
-    toggleTheme,
-    currentUser,
-    onUpdateCurrentUser,
-    systemSettings,
-    onUpdateSystemSettings
+export const SettingsView: React.FC<Props> = ({
+  workspace,
+  members,
+  invites,
+  currentUser
 }) => {
-  const [projectSortOrder, setProjectSortOrder] = useState<'asc' | 'desc'>('asc');
-  
-  // Telegram State
-  const [tgBotToken, setTgBotToken] = useState('');
-  const [tgChatId, setTgChatId] = useState('');
-  const [tgEnabled, setTgEnabled] = useState(false);
-  const [tgTestStatus, setTgTestStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+  const [activeTab, setActiveTab] = useState<Tab>('members');
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteRole, setInviteRole] = useState<UserRole>('MEMBER');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
 
-  useEffect(() => {
-      // Load user specific settings
-      if (currentUser?.telegram) {
-          setTgChatId(currentUser.telegram.chatId || '');
-          setTgEnabled(currentUser.telegram.enabled || false);
+  const currentMember = useMemo(
+    () => members.find(m => m.userId === currentUser.id) || null,
+    [members, currentUser.id]
+  );
+
+  const canManage = currentMember
+    ? currentMember.role === 'OWNER' || currentMember.role === 'ADMIN'
+    : false;
+
+  const handleInviteSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!canManage) return;
+
+    const email = inviteEmail.trim().toLowerCase();
+    if (!email) return;
+
+    setLoading(true);
+    setError(null);
+    setMessage(null);
+
+    try {
+      const invite = await FirestoreService.createInvite(
+        workspace.id,
+        email,
+        inviteRole,
+        currentUser.id
+      );
+
+      const link = `${window.location.origin}?invite=${invite.token}&workspace=${workspace.id}`;
+      try {
+        await navigator.clipboard.writeText(link);
+        setMessage('Приглашение создано. Ссылка скопирована в буфер обмена.');
+      } catch {
+        setMessage('Приглашение создано. Скопируйте ссылку вручную.');
       }
-      // Load global settings
-      if (systemSettings?.telegramBotToken) {
-          setTgBotToken(systemSettings.telegramBotToken);
-      }
-  }, [currentUser, systemSettings]);
 
-  const getInitials = (name: string) => name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
-
-  const roleColors = {
-    OWNER: 'bg-indigo-100 text-indigo-700 border-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-300 dark:border-indigo-800',
-    ADMIN: 'bg-purple-100 text-purple-700 border-purple-200 dark:bg-purple-900/30 dark:text-purple-300 dark:border-purple-800',
-    MEMBER: 'bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-800',
-    GUEST: 'bg-gray-100 text-gray-700 border-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700',
+      setInviteEmail('');
+    } catch (e: any) {
+      setError(e?.message || 'Не удалось создать приглашение.');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const roleLabels = {
-    OWNER: 'Владелец',
-    ADMIN: 'Администратор',
-    MEMBER: 'Участник',
-    GUEST: 'Гость',
+  const handleRevokeInvite = async (token: string) => {
+    if (!canManage) return;
+    setError(null);
+    setMessage(null);
+
+    try {
+      await FirestoreService.revokeInvite(workspace.id, token);
+    } catch (e: any) {
+      setError(e?.message || 'Не удалось отозвать приглашение.');
+    }
   };
 
-  const sortedProjects = [...projects].sort((a, b) => {
-      return projectSortOrder === 'asc' 
-        ? a.name.localeCompare(b.name) 
-        : b.name.localeCompare(a.name);
+  const handleCopyInviteLink = (inv: WorkspaceInvite) => {
+    const link = `${window.location.origin}?invite=${inv.token}&workspace=${workspace.id}`;
+    navigator.clipboard
+      .writeText(link)
+      .then(() => setMessage('Ссылка на приглашение скопирована.'))
+      .catch(() => setError('Не удалось скопировать ссылку.'));
+  };
+
+  const handleRemoveMember = async (member: WorkspaceMember) => {
+    if (!currentMember || !canManage) return;
+    if (member.role === 'OWNER') return;
+    if (!window.confirm(`Убрать пользователя ${member.email} из пространства?`)) return;
+
+    setError(null);
+    setMessage(null);
+
+    try {
+      await FirestoreService.removeMember(workspace.id, member.id, currentMember);
+    } catch (e: any) {
+      setError(e?.message || 'Не удалось удалить участника.');
+    }
+  };
+
+  const canRemoveMember = (member: WorkspaceMember): boolean => {
+    if (!canManage) return false;
+    if (member.role === 'OWNER') return false;
+    if (member.userId === currentUser.id && currentMember?.role !== 'OWNER') {
+      // не даём обычному админу удалить сам себя через этот экран
+      return false;
+    }
+    return true;
+  };
+
+  const sortedMembers = [...members].sort((a, b) => {
+    const order: Record<UserRole, number> = {
+      OWNER: 0,
+      ADMIN: 1,
+      MEMBER: 2,
+      VIEWER: 3
+    };
+    return order[a.role] - order[b.role];
   });
 
-  const toggleProjectSort = () => {
-      setProjectSortOrder(prev => prev === 'asc' ? 'desc' : 'asc');
-  };
-
-  const handleSaveTelegram = () => {
-      if (!currentUser || !onUpdateCurrentUser) return;
-      
-      // Save User Settings (Chat ID)
-      const updatedUser: User = {
-          ...currentUser,
-          telegram: {
-              chatId: tgChatId,
-              enabled: tgEnabled
-          }
-      };
-      onUpdateCurrentUser(updatedUser);
-
-      // Save System Settings (Bot Token) - Only if Owner
-      if (currentUser.role === 'OWNER') {
-          onUpdateSystemSettings({
-              ...systemSettings,
-              telegramBotToken: tgBotToken
-          });
-      }
-  };
-
-  const handleTestTelegram = async () => {
-      setTgTestStatus('loading');
-      try {
-          // Use the entered token (if owner) or the stored global token
-          const tokenToUse = currentUser?.role === 'OWNER' ? tgBotToken : systemSettings.telegramBotToken;
-          
-          if (!tokenToUse) throw new Error("Bot token not set");
-
-          await TelegramService.testConnection(tokenToUse, tgChatId);
-          setTgTestStatus('success');
-          setTimeout(() => setTgTestStatus('idle'), 3000);
-      } catch (e) {
-          console.error(e);
-          setTgTestStatus('error');
-          setTimeout(() => setTgTestStatus('idle'), 3000);
-      }
-  };
+  const pendingInvites = invites.filter(i => i.status === 'PENDING');
 
   return (
-    <div className="space-y-4 md:space-y-6 pb-24 md:pb-20 max-w-4xl mx-auto">
-        
-      {/* Projects Section */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden transition-colors">
-        <div className="p-4 md:px-6 md:py-4 border-b border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 flex flex-wrap gap-3 items-center justify-between">
-            <div className="flex items-center gap-2">
-                <Folder className="text-gray-400" size={20} />
-                <h2 className="text-lg font-bold text-gray-800 dark:text-white">Проекты</h2>
-            </div>
-            <div className="flex items-center gap-2">
-                <button 
-                    onClick={toggleProjectSort}
-                    className="p-1.5 text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors"
-                    title="Сортировать"
-                >
-                    <ArrowUpDown size={18} />
-                </button>
-                <button 
-                    onClick={onCreateProject}
-                    className="flex items-center gap-1 text-sm bg-indigo-600 text-white px-3 py-1.5 rounded-lg hover:bg-indigo-700 transition-colors shadow-sm"
-                >
-                    <Plus size={16} /> <span className="hidden xs:inline">Создать</span>
-                </button>
-            </div>
+    <div className="space-y-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+        <div>
+          <h2 className="text-lg font-semibold">
+            Настройки пространства: {workspace.name}
+          </h2>
+          <p className="text-xs text-slate-400">
+            Управление участниками, ролями и приглашениями.
+          </p>
         </div>
-        
-        <div className="divide-y divide-gray-100 dark:divide-gray-700">
-            {sortedProjects.map(project => (
-                <div key={project.id} className="p-4 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors group">
-                    <div className="flex items-center gap-3 md:gap-4 overflow-hidden">
-                         <div className="w-8 h-8 md:w-10 md:h-10 rounded-lg shadow-sm flex-shrink-0" style={{ backgroundColor: project.color }}></div>
-                         <div className="min-w-0">
-                             <h3 className="font-semibold text-gray-900 dark:text-gray-100 truncate">{project.name}</h3>
-                             <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{project.description || 'Нет описания'}</p>
-                         </div>
-                    </div>
-                    <button 
-                        onClick={() => onEditProject(project)}
-                        className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-lg transition-colors flex-shrink-0"
+        <div className="text-xs text-slate-400">
+          Владелец: <span className="font-medium">{workspace.ownerId}</span>
+        </div>
+      </div>
+
+      {/* Таб переключения */}
+      <div className="flex border-b border-slate-700 text-xs">
+        <button
+          onClick={() => setActiveTab('members')}
+          className={
+            'px-3 py-2 border-b-2 ' +
+            (activeTab === 'members'
+              ? 'border-sky-500 text-sky-400'
+              : 'border-transparent text-slate-400 hover:text-slate-200')
+          }
+        >
+          Участники ({members.length})
+        </button>
+        <button
+          onClick={() => setActiveTab('invites')}
+          className={
+            'px-3 py-2 border-b-2 ' +
+            (activeTab === 'invites'
+              ? 'border-sky-500 text-sky-400'
+              : 'border-transparent text-slate-400 hover:text-slate-200')
+          }
+        >
+          Приглашения ({pendingInvites.length})
+        </button>
+      </div>
+
+      {error && (
+        <div className="text-xs text-red-400 bg-red-900/30 border border-red-700 rounded-md px-3 py-2">
+          {error}
+        </div>
+      )}
+
+      {message && (
+        <div className="text-xs text-emerald-300 bg-emerald-900/20 border border-emerald-700 rounded-md px-3 py-2">
+          {message}
+        </div>
+      )}
+
+      {/* Вкладка участники */}
+      {activeTab === 'members' && (
+        <div className="space-y-3">
+          <table className="w-full text-xs border border-slate-800 rounded-lg overflow-hidden">
+            <thead className="bg-slate-900/80">
+              <tr>
+                <th className="px-2 py-2 text-left text-slate-400 font-normal">Почта</th>
+                <th className="px-2 py-2 text-left text-slate-400 font-normal">Роль</th>
+                <th className="px-2 py-2 text-left text-slate-400 font-normal">Статус</th>
+                <th className="px-2 py-2 text-right text-slate-400 font-normal">Действия</th>
+              </tr>
+            </thead>
+            <tbody className="bg-slate-900/40">
+              {sortedMembers.map(m => (
+                <tr key={m.id} className="border-t border-slate-800">
+                  <td className="px-2 py-2 text-slate-100">
+                    {m.email}
+                    {m.userId === currentUser.id && (
+                      <span className="ml-1 text-[10px] text-sky-400">(вы)</span>
+                    )}
+                  </td>
+                  <td className="px-2 py-2">
+                    <span className="inline-flex px-2 py-0.5 rounded-full bg-slate-800 text-[11px]">
+                      {m.role}
+                    </span>
+                  </td>
+                  <td className="px-2 py-2 text-slate-300">
+                    {m.status === 'ACTIVE' ? 'Активен' : m.status}
+                  </td>
+                  <td className="px-2 py-2 text-right">
+                    {canRemoveMember(m) && (
+                      <button
+                        onClick={() => handleRemoveMember(m)}
+                        className="px-2 py-1 text-[11px] rounded-md border border-red-500/60 text-red-300 hover:bg-red-900/40"
+                      >
+                        Удалить
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+
+              {sortedMembers.length === 0 && (
+                <tr>
+                  <td colSpan={4} className="px-2 py-3 text-slate-400 text-center">
+                    Участников пока нет.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+
+          {!canManage && (
+            <p className="text-[11px] text-slate-500">
+              У вас нет прав для изменения состава участников. Только владелец или
+              администратор может приглашать и удалять пользователей.
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* Вкладка приглашения */}
+      {activeTab === 'invites' && (
+        <div className="space-y-3">
+          <form
+            onSubmit={handleInviteSubmit}
+            className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-end text-xs"
+          >
+            <div className="flex-1">
+              <label className="block mb-1 text-slate-300">
+                Почта приглашённого
+              </label>
+              <input
+                type="email"
+                value={inviteEmail}
+                onChange={e => setInviteEmail(e.target.value)}
+                placeholder="user@example.com"
+                className="w-full px-2 py-1 rounded-md bg-slate-900 border border-slate-700 text-xs"
+                disabled={!canManage || loading}
+                required
+              />
+            </div>
+            <div>
+              <label className="block mb-1 text-slate-300">
+                Роль
+              </label>
+              <select
+                value={inviteRole}
+                onChange={e => setInviteRole(e.target.value as UserRole)}
+                className="px-2 py-1 rounded-md bg-slate-900 border border-slate-700 text-xs"
+                disabled={!canManage || loading}
+              >
+                <option value="MEMBER">MEMBER</option>
+                <option value="ADMIN">ADMIN</option>
+                <option value="VIEWER">VIEWER</option>
+              </select>
+            </div>
+            <div className="sm:w-[140px]">
+              <button
+                type="submit"
+                disabled={!canManage || loading}
+                className="w-full mt-4 sm:mt-0 px-3 py-2 rounded-md bg-sky-500 text-slate-900 font-medium hover:bg-sky-400 disabled:opacity-50"
+              >
+                {loading ? 'Создание…' : 'Отправить'}
+              </button>
+            </div>
+          </form>
+
+          <table className="w-full text-xs border border-slate-800 rounded-lg overflow-hidden">
+            <thead className="bg-slate-900/80">
+              <tr>
+                <th className="px-2 py-2 text-left text-slate-400 font-normal">Почта</th>
+                <th className="px-2 py-2 text-left text-slate-400 font-normal">Роль</th>
+                <th className="px-2 py-2 text-left text-slate-400 font-normal">Статус</th>
+                <th className="px-2 py-2 text-right text-slate-400 font-normal">Действия</th>
+              </tr>
+            </thead>
+            <tbody className="bg-slate-900/40">
+              {invites.map(inv => (
+                <tr key={inv.id} className="border-t border-slate-800">
+                  <td className="px-2 py-2 text-slate-100">
+                    {inv.email}
+                  </td>
+                  <td className="px-2 py-2">
+                    <span className="inline-flex px-2 py-0.5 rounded-full bg-slate-800 text-[11px]">
+                      {inv.role}
+                    </span>
+                  </td>
+                  <td className="px-2 py-2 text-slate-300">
+                    {inv.status}
+                  </td>
+                  <td className="px-2 py-2 text-right space-x-1">
+                    <button
+                      type="button"
+                      onClick={() => handleCopyInviteLink(inv)}
+                      className="px-2 py-1 text-[11px] rounded-md border border-slate-600 hover:bg-slate-800"
                     >
-                        <Edit size={18} />
+                      Скопировать
                     </button>
-                </div>
-            ))}
+                    {inv.status === 'PENDING' && canManage && (
+                      <button
+                        type="button"
+                        onClick={() => handleRevokeInvite(inv.token)}
+                        className="px-2 py-1 text-[11px] rounded-md border border-red-500/60 text-red-300 hover:bg-red-900/40"
+                      >
+                        Отозвать
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+
+              {invites.length === 0 && (
+                <tr>
+                  <td colSpan={4} className="px-2 py-3 text-slate-400 text-center">
+                    Активных приглашений нет.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+
+          {!canManage && (
+            <p className="text-[11px] text-slate-500">
+              Только владелец или администратор могут создавать и отзывать приглашения.
+            </p>
+          )}
         </div>
-        {projects.length === 0 && (
-             <div className="p-8 text-center text-gray-400 dark:text-gray-500">
-                 <Folder size={48} className="mx-auto mb-2 opacity-20" />
-                 <p>Нет активных проектов</p>
-             </div>
-        )}
-      </div>
-
-      {/* Users Section */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden transition-colors">
-        <div className="p-4 md:px-6 md:py-4 border-b border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 flex items-center gap-2">
-            <Shield className="text-gray-400" size={20} />
-            <h2 className="text-lg font-bold text-gray-800 dark:text-white">Пользователи</h2>
-        </div>
-        
-        <div className="divide-y divide-gray-100 dark:divide-gray-700">
-            {users.map(user => (
-                <div key={user.id} className="p-4 flex flex-col sm:flex-row sm:items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors gap-3 group relative">
-                    <div className="flex items-center gap-3 md:gap-4">
-                        <div className="w-10 h-10 md:w-12 md:h-12 rounded-full bg-gray-100 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 flex items-center justify-center overflow-hidden flex-shrink-0">
-                            {user.avatar ? (
-                                <img src={user.avatar} className="w-full h-full object-cover" alt={user.name} />
-                            ) : (
-                                <span className="font-bold text-gray-500 dark:text-gray-400">{getInitials(user.name)}</span>
-                            )}
-                        </div>
-                        <div className="min-w-0">
-                            <h3 className="font-semibold text-gray-900 dark:text-gray-100 truncate flex items-center gap-2">
-                              {user.name}
-                              {/* Current user indicator */}
-                              {currentUser?.id === user.id && <span className="text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full">Вы</span>}
-                              <button 
-                                onClick={() => onEditUser(user)}
-                                className="text-gray-400 hover:text-indigo-500 p-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                              >
-                                <Edit size={14} />
-                              </button>
-                            </h3>
-                            <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 truncate">
-                                <Mail size={12} /> {user.email}
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div className="flex items-center gap-2 sm:self-center self-start pl-[52px] sm:pl-0">
-                        <span className={`px-3 py-1 rounded-full text-xs font-bold border ${roleColors[user.role] || roleColors.MEMBER}`}>
-                            {roleLabels[user.role]}
-                        </span>
-                    </div>
-                </div>
-            ))}
-        </div>
-        <div className="p-4 bg-gray-50 dark:bg-gray-900 border-t border-gray-100 dark:border-gray-700 text-center">
-            <button 
-                onClick={onInviteUser}
-                className="text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors w-full sm:w-auto py-2"
-            >
-                + Пригласить участника
-            </button>
-        </div>
-      </div>
-
-       {/* Telegram Integration */}
-       {currentUser && onUpdateCurrentUser && (
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden transition-colors">
-              <div className="p-4 md:px-6 md:py-4 border-b border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 flex items-center gap-2 text-[#2AABEE]">
-                  <Send size={20} />
-                  <h2 className="text-lg font-bold text-gray-800 dark:text-white">Интеграция Telegram</h2>
-              </div>
-              <div className="p-4 md:p-6 space-y-4">
-                  <div className="flex items-start justify-between">
-                      <div className="pr-4">
-                          <h4 className="font-medium text-gray-900 dark:text-gray-100">Уведомления в Telegram</h4>
-                          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                              Получайте уведомления о назначенных задачах и изменениях статусов.
-                          </p>
-                      </div>
-                      <label className="relative inline-flex items-center cursor-pointer flex-shrink-0 mt-1">
-                          <input 
-                            type="checkbox" 
-                            className="sr-only peer" 
-                            checked={tgEnabled}
-                            onChange={(e) => {
-                                setTgEnabled(e.target.checked);
-                            }}
-                          />
-                          <div className="w-11 h-6 bg-gray-200 dark:bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#2AABEE]"></div>
-                      </label>
-                  </div>
-
-                  {tgEnabled && (
-                      <div className="bg-gray-50 dark:bg-gray-900/50 p-4 rounded-lg space-y-4 animate-fade-in">
-                          
-                          {/* GLOBAL BOT SETTINGS - VISIBLE ONLY TO OWNER */}
-                          {currentUser.role === 'OWNER' && (
-                            <div className="p-4 border border-indigo-100 dark:border-indigo-900/50 rounded-lg bg-indigo-50/50 dark:bg-indigo-900/20 mb-4">
-                                <div className="flex items-center gap-2 mb-2">
-                                    <Lock size={14} className="text-indigo-600 dark:text-indigo-400"/>
-                                    <label className="text-xs font-bold text-indigo-700 dark:text-indigo-300 uppercase">
-                                        Токен Бота (Глобальная настройка)
-                                    </label>
-                                </div>
-                                <input 
-                                    type="password" 
-                                    value={tgBotToken}
-                                    onChange={(e) => setTgBotToken(e.target.value)}
-                                    className="w-full px-3 py-2 text-sm border border-indigo-200 dark:border-indigo-800 rounded-md dark:bg-gray-800 dark:text-white focus:ring-indigo-500 focus:border-indigo-500"
-                                    placeholder="Введите токен от @BotFather"
-                                />
-                                <p className="text-xs text-indigo-600/70 dark:text-indigo-400/70 mt-1">
-                                    Этот токен будет использоваться для отправки уведомлений ВСЕМ пользователям системы.
-                                </p>
-                            </div>
-                          )}
-
-                          {/* USER SPECIFIC SETTINGS */}
-                          <div>
-                              <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Ваш Chat ID</label>
-                              <input 
-                                type="text" 
-                                value={tgChatId}
-                                onChange={(e) => setTgChatId(e.target.value)}
-                                className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white"
-                                placeholder="Например: 123456789"
-                              />
-                              <p className="text-xs text-gray-400 mt-1">Напишите боту <a href="https://t.me/userinfobot" target="_blank" className="text-indigo-500 hover:underline">@userinfobot</a> чтобы узнать свой ID</p>
-                          </div>
-                          
-                          <div className="flex items-center gap-3 pt-2">
-                              <button 
-                                onClick={handleSaveTelegram}
-                                className="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition-colors"
-                              >
-                                  Сохранить настройки
-                              </button>
-                              <button 
-                                onClick={handleTestTelegram}
-                                disabled={!tgChatId || tgTestStatus === 'loading'}
-                                className="px-4 py-2 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-200 text-sm font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors flex items-center gap-2"
-                              >
-                                  {tgTestStatus === 'loading' && <div className="w-4 h-4 border-2 border-gray-500 border-t-transparent rounded-full animate-spin"></div>}
-                                  {tgTestStatus === 'success' && <CheckCircle2 size={16} className="text-green-500" />}
-                                  {tgTestStatus === 'error' && <AlertCircle size={16} className="text-red-500" />}
-                                  {tgTestStatus === 'idle' && <MessageSquare size={16} />}
-                                  Проверить
-                              </button>
-                          </div>
-                      </div>
-                  )}
-              </div>
-          </div>
-       )}
-
-      {/* General Settings */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden transition-colors">
-          <div className="p-4 md:px-6 md:py-4 border-b border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
-            <h2 className="text-lg font-bold text-gray-800 dark:text-white">Общие настройки</h2>
-          </div>
-          <div className="p-4 md:p-6 space-y-5">
-              <div className="flex items-center justify-between">
-                  <div className="pr-4">
-                      <h4 className="font-medium text-gray-900 dark:text-gray-100 text-sm md:text-base">Системные уведомления</h4>
-                      <p className="text-xs md:text-sm text-gray-500 dark:text-gray-400">Внутри приложения</p>
-                  </div>
-                  <label className="relative inline-flex items-center cursor-pointer flex-shrink-0">
-                    <input type="checkbox" className="sr-only peer" defaultChecked />
-                    <div className="w-11 h-6 bg-gray-200 dark:bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
-                  </label>
-              </div>
-              <div className="flex items-center justify-between">
-                  <div className="pr-4">
-                      <h4 className="font-medium text-gray-900 dark:text-gray-100 text-sm md:text-base">Темная тема</h4>
-                      <p className="text-xs md:text-sm text-gray-500 dark:text-gray-400">Переключить оформление</p>
-                  </div>
-                  <label className="relative inline-flex items-center cursor-pointer flex-shrink-0">
-                    <input 
-                        type="checkbox" 
-                        className="sr-only peer" 
-                        checked={isDarkMode}
-                        onChange={toggleTheme}
-                    />
-                    <div className="w-11 h-6 bg-gray-200 dark:bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
-                  </label>
-              </div>
-          </div>
-      </div>
+      )}
     </div>
   );
 };

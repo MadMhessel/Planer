@@ -1,31 +1,28 @@
 
 export const TelegramService = {
-  sendMessage: async (token: string, chatId: string, message: string): Promise<boolean> => {
-    if (!token || !chatId) return false;
+sendNotification: async (chatIds: string[], message: string): Promise<boolean> => {
+    if (!chatIds || chatIds.length === 0) return false;
 
     try {
-      const url = `https://api.telegram.org/bot${token}/sendMessage`;
-      const response = await fetch(url, {
+      const response = await fetch('/api/telegram/notify', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          chat_id: chatId,
-          text: message,
-          parse_mode: 'HTML',
+          chatIds,
+          message,
         }),
       });
 
-      const data = await response.json();
-      if (!data.ok) {
-        console.error('Telegram API Error:', data.description);
-        throw new Error(data.description);
+      if (!response.ok) {
+        console.error('Failed to send notification via server');
+        return false;
       }
       return true;
     } catch (error) {
-      console.error('Failed to send Telegram message:', error);
-      throw error;
+      console.error('Error calling notification endpoint:', error);
+      return false;
     }
   },
 

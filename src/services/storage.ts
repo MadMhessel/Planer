@@ -1,93 +1,59 @@
-import { Project, Task, User, Notification, SystemSettings } from "../types";
+import { TaskStatus, ViewMode } from '../types';
 
 const STORAGE_KEYS = {
-  TASKS: 'ctp_tasks',
-  PROJECTS: 'ctp_projects',
-  USERS: 'ctp_users',
-  NOTIFICATIONS: 'ctp_notifications',
-  SYSTEM: 'ctp_system_settings',
-};
+  VIEW_MODE: 'ctp_view_mode',
+  SELECTED_WORKSPACE: 'ctp_selected_workspace',
+  THEME: 'ctp_theme',
+  BOARD_GROUP_BY: 'ctp_board_group_by'
+} as const;
 
-// Removed API_URL and apiRequest to prevent 404s on missing endpoints.
-// This service is now a pure LocalStorage fallback.
-
-const getData = async (key: string, defaultValue: any) => {
-    // Pure LocalStorage
-    const local = localStorage.getItem(key);
-    return local ? JSON.parse(local) : defaultValue;
-};
-
-const saveData = async (key: string, value: any) => {
-    // Pure LocalStorage
-    localStorage.setItem(key, JSON.stringify(value));
-};
+type BoardGroupBy = 'status' | 'assignee' | 'project';
 
 export const StorageService = {
-  // --- Tasks ---
-  getTasks: async (): Promise<Task[]> => {
-    return getData(STORAGE_KEYS.TASKS, []);
+  getViewMode(): ViewMode {
+    const raw = localStorage.getItem(STORAGE_KEYS.VIEW_MODE);
+    if (!raw) return 'BOARD';
+    if (['BOARD', 'CALENDAR', 'GANTT', 'LIST', 'DASHBOARD'].includes(raw)) {
+      return raw as ViewMode;
+    }
+    return 'BOARD';
   },
 
-  saveTasks: async (tasks: Task[]): Promise<void> => {
-    await saveData(STORAGE_KEYS.TASKS, tasks);
+  setViewMode(mode: ViewMode) {
+    localStorage.setItem(STORAGE_KEYS.VIEW_MODE, mode);
   },
 
-  // --- Projects ---
-  getProjects: async (): Promise<Project[]> => {
-    return getData(STORAGE_KEYS.PROJECTS, []);
+  getSelectedWorkspaceId(): string | null {
+    return localStorage.getItem(STORAGE_KEYS.SELECTED_WORKSPACE);
   },
 
-  saveProjects: async (projects: Project[]): Promise<void> => {
-    await saveData(STORAGE_KEYS.PROJECTS, projects);
+  setSelectedWorkspaceId(id: string) {
+    localStorage.setItem(STORAGE_KEYS.SELECTED_WORKSPACE, id);
   },
 
-  // --- Users ---
-  getUsers: async (): Promise<User[]> => {
-    return getData(STORAGE_KEYS.USERS, []);
+  getTheme(): 'light' | 'dark' | 'system' {
+    const raw = localStorage.getItem(STORAGE_KEYS.THEME);
+    if (!raw) return 'system';
+    if (['light', 'dark', 'system'].includes(raw)) {
+      return raw as 'light' | 'dark' | 'system';
+    }
+    return 'system';
   },
 
-  saveUsers: async (users: User[]): Promise<void> => {
-    await saveData(STORAGE_KEYS.USERS, users);
+  setTheme(theme: 'light' | 'dark' | 'system') {
+    localStorage.setItem(STORAGE_KEYS.THEME, theme);
   },
 
-  // --- Notifications ---
-  getNotifications: async (): Promise<Notification[]> => {
-    return getData(STORAGE_KEYS.NOTIFICATIONS, []);
+  getBoardGroupBy(): BoardGroupBy {
+    const raw = localStorage.getItem(STORAGE_KEYS.BOARD_GROUP_BY);
+    if (!raw) return 'status';
+    if (['status', 'assignee', 'project'].includes(raw)) {
+      return raw as BoardGroupBy;
+    }
+    return 'status';
   },
 
-  saveNotifications: async (notifications: Notification[]): Promise<void> => {
-    await saveData(STORAGE_KEYS.NOTIFICATIONS, notifications);
-  },
-
-  addNotification: async (notification: Notification): Promise<void> => {
-      const current = await StorageService.getNotifications();
-      const updated = [notification, ...current].slice(0, 50); // Keep last 50
-      await StorageService.saveNotifications(updated);
-  },
-
-  markNotificationRead: async (notificationId: string): Promise<void> => {
-      const current = await StorageService.getNotifications();
-      const updated = current.map(n => n.id === notificationId ? { ...n, isRead: true } : n);
-      await StorageService.saveNotifications(updated);
-  },
-
-  markAllNotificationsRead: async (userId: string): Promise<void> => {
-      const current = await StorageService.getNotifications();
-      const updated = current.map(n => n.userId === userId ? { ...n, isRead: true } : n);
-      await StorageService.saveNotifications(updated);
-  },
-
-  // --- System Settings ---
-  getSystemSettings: async (): Promise<SystemSettings> => {
-    return getData(STORAGE_KEYS.SYSTEM, {});
-  },
-
-  saveSystemSettings: async (settings: SystemSettings): Promise<void> => {
-    await saveData(STORAGE_KEYS.SYSTEM, settings);
-  },
-
-  // Helper to generate IDs
-  generateId: (): string => {
-    return Math.random().toString(36).substring(2, 9);
+  setBoardGroupBy(groupBy: BoardGroupBy) {
+    localStorage.setItem(STORAGE_KEYS.BOARD_GROUP_BY, groupBy);
   }
 };

@@ -1,180 +1,269 @@
+import React, { useEffect, useMemo, useState } from 'react';
+import { Task, TaskPriority, TaskStatus, Project, User } from '../types';
+import { Plus, MoreHorizontal } from 'lucide-react';
 
-import React, { useState } from 'react';
-import { Task, Project, User, TaskStatus } from '../types';
-import { MoreHorizontal, Plus, Edit, Trash2, X } from 'lucide-react';
-
-interface KanbanBoardProps {
+type Props = {
   tasks: Task[];
   projects: Project[];
   users: User[];
   onTaskClick: (task: Task) => void;
-  onStatusChange: (taskId: string, newStatus: TaskStatus) => void;
-  onEditTask: (task: Task) => void;
-  onDeleteTask: (taskId: string) => void;
-}
+  onStatusChange: (task: Task, status: TaskStatus) => void;
+  onCreateTask: () => void;
+};
 
-const COLUMNS: { id: TaskStatus; title: string; color: string }[] = [
-  { id: TaskStatus.TODO, title: 'К выполнению', color: 'bg-gray-200' },
-  { id: TaskStatus.IN_PROGRESS, title: 'В работе', color: 'bg-blue-200' },
-  { id: TaskStatus.REVIEW, title: 'На проверке', color: 'bg-purple-200' },
-  { id: TaskStatus.DONE, title: 'Готово', color: 'bg-green-200' },
+type Column = {
+  id: TaskStatus;
+  title: string;
+};
+
+const columns: Column[] = [
+  { id: TaskStatus.TODO,        title: 'В планах' },
+  { id: TaskStatus.IN_PROGRESS, title: 'В работе' },
+  { id: TaskStatus.REVIEW,      title: 'На проверке' },
+  { id: TaskStatus.HOLD,        title: 'Пауза' },
+  { id: TaskStatus.DONE,        title: 'Готово' }
 ];
 
-export const KanbanBoard: React.FC<KanbanBoardProps> = ({ tasks, projects, users, onTaskClick, onStatusChange, onEditTask, onDeleteTask }) => {
-  const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
+export const KanbanBoard: React.FC<Props> = ({
+  tasks,
+  projects,
+  users,
+  onTaskClick,
+  onStatusChange,
+  onCreateTask
+}) => {
+  const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
+  const [dragOverColumn, setDragOverColumn] = useState<TaskStatus | null>(null);
+  const [isTouchDevice, setIsTouchDevice] = useState(false);
 
-  const handleDragStart = (e: React.DragEvent, taskId: string) => {
-    e.dataTransfer.setData('taskId', taskId);
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const touch =
+        ('ontouchstart' in window) ||
+        (navigator as any).maxTouchPoints > 0;
+      setIsTouchDevice(touch);
+    }
+  }, []);
+
+  const tasksByStatus = useMemo(() => {
+    const map: Record<TaskStatus, Task[]> = {
+      [TaskStatus.TODO]: [],
+      [TaskStatus.IN_PROGRESS]: [],
+      [TaskStatus.REVIEW]: [],
+      [TaskStatus.DONE]: [],
+      [TaskStatus.HOLD]: []
+    };
+
+    for (const t of tasks) {
+      if (map[t.status]) {
+        map[t.status].push(t);
+      }
+    }
+
+    return map;
+  }, [tasks]);
+
+  const getProjectName = (projectId?: string) => {
+    if (!projectId) return '';
+    const p = projects.find(p => p.id === projectId);
+    return p?.name || '';
   };
 
-  const handleDragOver = (e: React.DragEvent) => {
+  const getUserShort = (id?: string) => {
+    if (!id) return '';
+    const u = users.find(u => u.id === id);
+    if (!u) return '';
+    if (u.displayName) {
+      const parts = u.displayName.split(' ');
+      return parts[0];
+    }
+    return u.email;
+  };
+
+  const handleDragStart = (taskId: string) => (e: React.DragEvent) => {
+    if (isTouchDevice) return;
+    setDraggedTaskId(taskId);
+    e.dataTransfer.setData('text/plain', taskId);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleDragOver = (col: TaskStatus) => (e: React.DragEvent) => {
+    if (isTouchDevice) return;
     e.preventDefault();
+    setDragOverColumn(col);
   };
 
-  const handleDrop = (e: React.DragEvent, status: TaskStatus) => {
-    const taskId = e.dataTransfer.getData('taskId');
-    if (taskId) {
-        onStatusChange(taskId, status);
+  const handleDrop = (col: TaskStatus) => (e: React.DragEvent) => {
+    if (isTouchDevice) return;
+    e.preventDefault();
+    const id = e.dataTransfer.getData('text/plain') || draggedTaskId;
+    if (!id) return;
+    const task = tasks.find(t => t.id === id);
+    if (!task || task.status === col) return;
+    onStatusChange(task, col);
+    setDraggedTaskId(null);
+    setDragOverColumn(null);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedTaskId(null);
+    setDragOverColumn(null);
+  };
+
+  const priorityLabel = (p: TaskPriority) => {
+    switch (p) {
+      case TaskPriority.LOW:
+        return 'Низкий';
+      case TaskPriority.NORMAL:
+        return 'Обычный';
+      case TaskPriority.HIGH:
+        return 'Высокий';
+      case TaskPriority.CRITICAL:
+        return 'Критичный';
+      default:
+        return p;
     }
   };
 
-  const getInitials = (name: string) => name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+  const priorityColor = (p: TaskPriority) => {
+    switch (p) {
+      case TaskPriority.LOW:
+        return 'bg-emerald-900/40 text-emerald-300 border-emerald-700/60';
+      case TaskPriority.NORMAL:
+        return 'bg-slate-800 text-slate-200 border-slate-600/70';
+      case TaskPriority.HIGH:
+        return 'bg-amber-900/40 text-amber-300 border-amber-700/60';
+      case TaskPriority.CRITICAL:
+        return 'bg-red-900/50 text-red-300 border-red-700/80';
+      default:
+        return 'bg-slate-800 text-slate-200 border-slate-600/70';
+    }
+  };
 
   return (
-    // Container with snap scrolling for mobile
-    <div 
-        className="flex h-full overflow-x-auto overflow-y-hidden pb-4 gap-4 md:gap-6 snap-x snap-mandatory px-0.5 md:px-0 scrollbar-hide"
-        onClick={() => setActiveMenuId(null)} // Close menus on outside click
-    >
-      {COLUMNS.map((col) => {
-        const colTasks = tasks.filter(t => t.status === col.id);
-        
-        return (
-          <div 
-            key={col.id} 
-            className="flex-shrink-0 w-[80vw] md:w-80 flex flex-col max-h-full snap-center bg-gray-100/50 md:bg-gray-100 rounded-xl border border-gray-200/60 md:border-transparent"
-            onDragOver={handleDragOver}
-            onDrop={(e) => handleDrop(e, col.id)}
+    <div className="flex flex-col gap-3">
+      <div className="flex items-center justify-between gap-2">
+        <h2 className="text-sm font-semibold text-slate-100">
+          Канбан-доска
+        </h2>
+        <button
+          onClick={onCreateTask}
+          className="flex items-center gap-1 px-3 py-1.5 text-xs rounded-lg bg-sky-500 text-slate-900 font-medium hover:bg-sky-400"
+        >
+          <Plus className="w-3 h-3" />
+          <span>Новая задача</span>
+        </button>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-2 md:gap-3">
+        {columns.map(col => (
+          <div
+            key={col.id}
+            className={
+              'flex flex-col rounded-xl bg-slate-900/70 border border-slate-700 min-h-[120px]' +
+              (dragOverColumn === col.id
+                ? ' ring-1 ring-sky-500/70'
+                : '')
+            }
+            onDragOver={handleDragOver(col.id)}
+            onDrop={handleDrop(col.id)}
           >
-            {/* Column Header */}
-            <div className="p-3 md:p-4 flex justify-between items-center bg-white md:bg-gray-50 rounded-t-xl border-b border-gray-200 sticky top-0 z-10">
-              <div className="flex items-center gap-2">
-                 <div className={`w-3 h-3 rounded-full ${col.color}`} />
-                 <h3 className="font-bold text-sm text-gray-700">{col.title}</h3>
-                 <span className="bg-gray-100 text-gray-500 text-xs px-2 py-0.5 rounded-full font-medium">{colTasks.length}</span>
-              </div>
+            <div className="flex items-center justify-between px-3 py-2 border-b border-slate-700 text-xs">
+              <span className="font-semibold text-slate-100">
+                {col.title}
+              </span>
+              <span className="text-[11px] text-slate-400">
+                {tasksByStatus[col.id].length}
+              </span>
             </div>
-            
-            {/* Tasks Area */}
-            <div className="p-2 md:p-3 flex-1 overflow-y-auto space-y-3 min-h-0">
-              {colTasks.map(task => {
-                const project = projects.find(p => p.id === task.projectId);
-                const user = users.find(u => u.id === task.assigneeId);
-                const isMenuOpen = activeMenuId === task.id;
-                
-                return (
-                  <div
-                    key={task.id}
-                    draggable
-                    onDragStart={(e) => handleDragStart(e, task.id)}
-                    className="bg-white p-3 rounded-lg shadow-sm border border-gray-200 cursor-move hover:shadow-md transition-all active:scale-95 group relative select-none"
-                  >
-                    <div className="flex justify-between items-start mb-2">
-                      {project ? (
-                         <span className="text-[10px] font-bold px-2 py-0.5 rounded text-white" style={{ backgroundColor: project.color }}>
-                            {project.name}
-                         </span>
-                      ) : <span />}
-                      
-                      {/* Context Menu Trigger */}
-                      <div className="relative">
-                          <button 
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                setActiveMenuId(isMenuOpen ? null : task.id);
-                            }}
-                            className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded transition-colors"
-                          >
-                            <MoreHorizontal size={16} />
-                          </button>
-                          
-                          {/* Dropdown Menu */}
-                          {isMenuOpen && (
-                            <div className="absolute right-0 top-full mt-1 w-32 bg-white rounded-lg shadow-xl border border-gray-100 z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-100">
-                                <button 
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        onEditTask(task);
-                                        setActiveMenuId(null);
-                                    }}
-                                    className="w-full flex items-center gap-2 px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 text-left"
-                                >
-                                    <Edit size={12} /> Редактировать
-                                </button>
-                                <button 
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        if (confirm('Удалить задачу?')) onDeleteTask(task.id);
-                                    }}
-                                    className="w-full flex items-center gap-2 px-3 py-2 text-xs text-red-600 hover:bg-red-50 text-left border-t border-gray-50"
-                                >
-                                    <Trash2 size={12} /> Удалить
-                                </button>
-                            </div>
-                          )}
-                      </div>
+
+            <div className="flex-1 p-2 space-y-2 overflow-y-auto">
+              {tasksByStatus[col.id].map(task => (
+                <div
+                  key={task.id}
+                  className={
+                    'rounded-lg border px-2 py-2 text-xs bg-slate-900/90 cursor-pointer ' +
+                    (draggedTaskId === task.id && !isTouchDevice
+                      ? 'opacity-60'
+                      : 'hover:border-sky-500/70')
+                  }
+                  draggable={!isTouchDevice}
+                  onDragStart={handleDragStart(task.id)}
+                  onDragEnd={handleDragEnd}
+                  onClick={() => onTaskClick(task)}
+                >
+                  <div className="flex items-start justify-between gap-1">
+                    <div className="font-medium text-slate-100 line-clamp-2">
+                      {task.title}
                     </div>
-                    
-                    <div onClick={() => onEditTask(task)} className="cursor-pointer">
-                        <h4 className="text-sm font-semibold text-gray-800 mb-3 leading-snug">{task.title}</h4>
-                        
-                        <div className="flex justify-between items-end">
-                            <div className="flex items-center -space-x-1.5">
-                                {user ? (
-                                    user.avatar ? (
-                                        <img src={user.avatar} className="w-6 h-6 rounded-full border-2 border-white" alt={user.name} title={user.name} />
-                                    ) : (
-                                        <div className="w-6 h-6 rounded-full bg-indigo-100 border-2 border-white flex items-center justify-center text-[8px] font-bold text-indigo-700" title={user.name}>
-                                            {getInitials(user.name)}
-                                        </div>
-                                    )
-                                ) : (
-                                    <div className="w-6 h-6 rounded-full bg-gray-100 border-2 border-white flex items-center justify-center text-[10px] text-gray-400">?</div>
-                                )}
-                            </div>
-                            <div className={`text-[10px] font-medium px-1.5 py-0.5 rounded border ${
-                                new Date(task.dueDate) < new Date() ? 'bg-red-50 text-red-600 border-red-100' : 'bg-gray-50 text-gray-500 border-gray-100'
-                            }`}>
-                                {new Date(task.dueDate).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}
-                            </div>
-                        </div>
+                    {/* Меню "ещё" — для тач-версии будет "Move to" */}
+                    <div className="relative shrink-0">
+                      <MoreHorizontal className="w-4 h-4 text-slate-500" />
                     </div>
                   </div>
-                );
-              })}
-              
-              {/* Empty State */}
-              {colTasks.length === 0 && (
-                  <div className="h-32 border-2 border-dashed border-gray-200 rounded-lg flex flex-col items-center justify-center text-gray-400 text-sm bg-gray-50/50">
-                      <span className="text-xs">Нет задач</span>
+
+                  {task.description && (
+                    <p className="mt-1 text-[11px] text-slate-400 line-clamp-2">
+                      {task.description}
+                    </p>
+                  )}
+
+                  <div className="mt-2 flex flex-wrap items-center gap-1">
+                    {task.projectId && (
+                      <span className="px-2 py-0.5 rounded-full bg-slate-800 text-[10px] text-slate-200">
+                        {getProjectName(task.projectId)}
+                      </span>
+                    )}
+
+                    {task.assigneeId && (
+                      <span className="px-2 py-0.5 rounded-full bg-slate-800 text-[10px] text-slate-200">
+                        {getUserShort(task.assigneeId)}
+                      </span>
+                    )}
+
+                    <span
+                      className={
+                        'ml-auto px-2 py-0.5 rounded-full border text-[10px] ' +
+                        priorityColor(task.priority)
+                      }
+                    >
+                      {priorityLabel(task.priority)}
+                    </span>
                   </div>
+
+                  {/* Для тач-устройств — явное управление статусом без drag'n'drop */}
+                  {isTouchDevice && (
+                    <div className="mt-2">
+                      <label className="text-[10px] text-slate-400">
+                        Переместить:
+                      </label>
+                      <select
+                        value={task.status}
+                        onChange={e =>
+                          onStatusChange(task, e.target.value as TaskStatus)
+                        }
+                        className="mt-1 w-full px-2 py-1 rounded-md bg-slate-900 border border-slate-700 text-[11px]"
+                      >
+                        {columns.map(c => (
+                          <option key={c.id} value={c.id}>
+                            {c.title}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                </div>
+              ))}
+
+              {tasksByStatus[col.id].length === 0 && (
+                <div className="text-[11px] text-slate-500 text-center py-3">
+                  Нет задач
+                </div>
               )}
             </div>
-             
-             {/* Footer Action */}
-             <div className="p-3">
-                <button 
-                    onClick={() => onEditTask({ status: col.id } as Task)} // Pass partial task to pre-fill status
-                    className="w-full py-2 flex items-center justify-center gap-2 text-xs font-semibold text-gray-500 hover:bg-white hover:shadow-sm rounded-lg transition-all border border-transparent hover:border-gray-200"
-                >
-                    <Plus size={16} /> Добавить задачу
-                </button>
-            </div>
           </div>
-        );
-      })}
-       {/* Spacer for end of scroll */}
-       <div className="w-4 flex-shrink-0 md:hidden" />
+        ))}
+      </div>
     </div>
   );
 };

@@ -1,19 +1,16 @@
-// This service communicates with our own Cloud Run server
-const API_BASE = '/api';
+import type { Task } from '../types';
 
-export const APIService = {
-  aiGenerate: async (command: string, context: any) => {
-    const response = await fetch(`${API_BASE}/ai/generate`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ command, context })
-    });
-
-    if (!response.ok) {
-      throw new Error('AI Generation failed');
+export const ApiService = {
+  async syncTaskToTelegram(task: Task) {
+    // Placeholder for future Telegram integration
+    try {
+      await fetch('/api/telegram/sync-task', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ task })
+      });
+    } catch (e) {
+      console.warn('Failed to sync task to Telegram:', e);
     }
-    return response.json();
   }
 };

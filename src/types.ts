@@ -13,65 +13,95 @@ export enum TaskPriority {
   CRITICAL = 'CRITICAL'
 }
 
-export interface TelegramConfig {
-  chatId?: string;
-  enabled?: boolean;
-}
-
-export interface User {
-  id: string; // Firebase UID
-  name: string;
-  email: string;
-  avatar?: string;
-  role?: 'OWNER' | 'ADMIN' | 'MEMBER' | 'GUEST';
-  telegram?: TelegramConfig;
-}
-
-export interface Workspace {
+export type Task = {
   id: string;
-  name: string;
-  ownerId: string;
-  allowedEmails: string[];
-  createdAt: string;
-}
-
-export interface Project {
-  id: string;
-  name: string;
-  description?: string;
-  color: string;
-  workspaceId: string;
-}
-
-export interface Task {
-  id: string;
-  projectId: string;
-  workspaceId: string;
   title: string;
   description?: string;
   status: TaskStatus;
-  priority: TaskPriority;
+  projectId?: string;
   assigneeId?: string;
-  startDate: string;
-  dueDate: string;
-  tags: string[];
-  dependencies: string[];
+  createdAt: string; // ISO string
+  updatedAt: string; // ISO string
+  dueDate?: string;  // ISO date string
+  startDate?: string; // ISO date string
+  priority: TaskPriority;
+  tags?: string[];
+  estimatedHours?: number;
+  loggedHours?: number;
+  dependencies?: string[];
+  workspaceId: string;
+};
+
+export type Project = {
+  id: string;
+  name: string;
+  description?: string;
+  color?: string;
+  ownerId: string;
   createdAt: string;
   updatedAt: string;
-  createdBy: string;
-}
+  startDate?: string;
+  endDate?: string;
+  status?: 'ACTIVE' | 'ARCHIVED' | 'PLANNED';
+  workspaceId: string;
+};
 
-export interface Notification {
+export type UserRole = 'OWNER' | 'ADMIN' | 'MEMBER' | 'VIEWER';
+
+export type User = {
+  id: string;
+  email: string;
+  displayName?: string;
+  photoURL?: string;
+  role: UserRole;
+  isActive: boolean;
+  createdAt: string;
+  lastLoginAt?: string;
+  telegramChatId?: string;
+};
+
+export type Workspace = {
+  id: string;
+  name: string;
+  description?: string;
+  createdAt: string;
+  ownerId: string;
+  plan?: 'FREE' | 'PRO' | 'TEAM';
+};
+
+export type WorkspaceMember = {
   id: string;
   userId: string;
-  message: string;
-  type: 'info' | 'success' | 'warning' | 'error';
-  isRead: boolean;
+  email: string;
+  role: UserRole;
+  joinedAt: string;
+  invitedBy?: string;
+  status: 'ACTIVE' | 'PENDING' | 'REMOVED';
+  telegramChatId?: string;
+};
+
+export type InviteStatus = 'PENDING' | 'ACCEPTED' | 'EXPIRED' | 'REVOKED';
+
+export type WorkspaceInvite = {
+  id: string;
+  token: string;
+  email: string;
+  role: UserRole;
+  workspaceId: string;
+  invitedBy: string;
+  status: InviteStatus;
   createdAt: string;
-}
+  expiresAt: string;
+};
 
-export type ViewMode = 'LIST' | 'BOARD' | 'CALENDAR' | 'GANTT' | 'DASHBOARD' | 'SETTINGS';
+// Simplified notification type for the NotificationCenter
+export type Notification = {
+  id: string;
+  type: 'TASK_ASSIGNED' | 'TASK_UPDATED' | 'PROJECT_UPDATED' | 'SYSTEM';
+  title: string;
+  message: string;
+  createdAt: string;
+  read: boolean;
+};
 
-export interface SystemSettings {
-  telegramBotToken?: string;
-}
+export type ViewMode = 'BOARD' | 'CALENDAR' | 'GANTT' | 'LIST' | 'DASHBOARD';

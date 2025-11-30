@@ -1,62 +1,89 @@
 import { 
-  createUserWithEmailAndPassword, 
-  signInWithEmailAndPassword, 
-  signOut, 
-  updateProfile,
-  onAuthStateChanged
+  GoogleAuthProvider, 
+  onAuthStateChanged, 
+  signInWithPopup, 
+  signOut 
 } from 'firebase/auth';
 import { auth, db } from '../firebase';
-import { doc, setDoc, getDoc } from 'firebase/firestore';
-import { User } from '../types';
+import { User, UserRole } from '../types';
+import { doc, getDoc, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
+
+const provider = new GoogleAuthProvider();
 
 export const AuthService = {
-  subscribeToAuth: (callback: (user: User | null) => void) => {
+  subscribeToAuth(callback: (user: User | null) => void) {
     return onAuthStateChanged(auth, async (firebaseUser) => {
-      if (firebaseUser) {
-        // Fetch custom user data from Firestore 'users' collection to get extended fields like Telegram
-        const docRef = doc(db, 'users', firebaseUser.uid);
-        const docSnap = await getDoc(docRef);
-        
-        let customData = {};
-        if (docSnap.exists()) {
-            customData = docSnap.data();
-        }
-
-        const user: User = {
-            id: firebaseUser.uid,
-            name: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'User',
-            email: firebaseUser.email || '',
-            avatar: firebaseUser.photoURL || '',
-            role: 'MEMBER',
-            ...customData
-        };
-        callback(user);
-      } else {
+      if (!firebaseUser) {
         callback(null);
+        return;
+      }
+
+      const userRef = doc(db, 'users', firebaseUser.uid);
+      const snapshot = await getDoc(userRef);
+
+      if (!snapshot.exists()) {
+        // New user – create default profile
+        const newUser: User = {
+          id: firebaseUser.uid,
+          email: firebaseUser.email || '',
+          displayName: firebaseUser.displayName || firebaseUser.email || '',
+          photoURL: firebaseUser.photoURL || undefined,
+          role: 'MEMBER',
+          isActive: true,
+          createdAt: new Date().toISOString(),
+          lastLoginAt: new Date().toISOString()
+        };
+
+        await setDoc(userRef, newUser);
+        callback(newUser);
+      } else {
+        const data = snapshot.data() as User;
+        // Update lastLoginAt for existing user
+        await updateDoc(userRef, {
+          lastLoginAt: serverTimestamp()
+        });
+        callback({
+          ...data,
+          id: snapshot.id
+        });
       }
     });
   },
 
-  login: async (email: string, pass: string) => {
-    await signInWithEmailAndPassword(auth, email, pass);
-  },
+  async loginWithGoogle(): Promise<User> {
+    const result = await signInWithPopup(auth, provider);
+    const firebaseUser = result.user;
 
-  register: async (name: string, email: string, pass: string) => {
-    const cred = await createUserWithEmailAndPassword(auth, email, pass);
-    if (cred.user) {
-        await updateProfile(cred.user, { displayName: name });
-        // Create user profile doc
-        await setDoc(doc(db, 'users', cred.user.uid), {
-            id: cred.user.uid,
-            name: name,
-            email: email,
-            createdAt: new Date().toISOString(),
-            role: email.toLowerCase() === 'crazymhessel@gmail.com' ? 'OWNER' : 'MEMBER'
-        });
+    const userRef = doc(db, 'users', firebaseUser.uid);
+    const snapshot = await getDoc(userRef);
+
+    if (!snapshot.exists()) {
+      const newUser: User = {
+        id: firebaseUser.uid,
+        email: firebaseUser.email || '',
+        displayName: firebaseUser.displayName || firebaseUser.email || '',
+        photoURL: firebaseUser.photoURL || undefined,
+        role: 'MEMBER',
+        isActive: true,
+        createdAt: new Date().toISOString(),
+        lastLoginAt: new Date().toISOString()
+      };
+
+      await setDoc(userRef, newUser);
+      return newUser;
+    } else {
+      const data = snapshot.data() as User;
+      await updateDoc(userRef, {
+        lastLoginAt: serverTimestamp()
+      });
+      return {
+        ...data,
+        id: snapshot.id
+      };
     }
   },
 
-  logout: async () => {
+  async logout() {
     await signOut(auth);
   }
 };

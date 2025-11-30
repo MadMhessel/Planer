@@ -1,105 +1,91 @@
-import React, { useRef, useEffect, useState } from 'react';
-import { Bell, Check, CheckCheck, Info, AlertTriangle, AlertCircle, X } from 'lucide-react';
+import React, { useState } from 'react';
+import { Bell, X } from 'lucide-react';
 import { Notification } from '../types';
 
-interface NotificationCenterProps {
+type Props = {
   notifications: Notification[];
-  onMarkRead: (id: string) => void;
-  onMarkAllRead: () => void;
-  unreadCount: number;
-}
+  onClear: () => void;
+};
 
-export const NotificationCenter: React.FC<NotificationCenterProps> = ({ 
-  notifications, 
-  onMarkRead, 
-  onMarkAllRead,
-  unreadCount 
+export const NotificationCenter: React.FC<Props> = ({
+  notifications,
+  onClear
 }) => {
-  const [isOpen, setIsOpen] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement>(null);
+  const [open, setOpen] = useState(false);
 
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  const getIcon = (type: string) => {
-      switch(type) {
-          case 'success': return <CheckCheck size={16} className="text-green-500" />;
-          case 'warning': return <AlertTriangle size={16} className="text-orange-500" />;
-          case 'error': return <AlertCircle size={16} className="text-red-500" />;
-          default: return <Info size={16} className="text-blue-500" />;
-      }
-  };
+  const unread = notifications.filter(n => !n.read);
 
   return (
-    <div className="relative" ref={dropdownRef}>
-      <button 
-        onClick={() => setIsOpen(!isOpen)}
-        className="p-2 relative rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 transition-colors"
+    <>
+      {/* Плавающая кнопка колокольчика */}
+      <button
+        onClick={() => setOpen(v => !v)}
+        className="fixed bottom-4 right-4 z-30 rounded-full bg-sky-500 text-slate-900 p-3 shadow-lg hover:bg-sky-400 md:hidden"
       >
-        <Bell size={20} />
-        {unreadCount > 0 && (
-          <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full ring-2 ring-white dark:ring-gray-800 animate-pulse" />
+        <Bell className="w-5 h-5" />
+        {unread.length > 0 && (
+          <span className="absolute -top-1 -right-1 bg-red-500 text-[10px] text-white rounded-full min-w-[16px] h-[16px] flex items-center justify-center">
+            {unread.length > 9 ? '9+' : unread.length}
+          </span>
         )}
       </button>
 
-      {isOpen && (
-        <div className="absolute right-0 mt-2 w-80 md:w-96 bg-white dark:bg-gray-800 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-          <div className="p-3 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-900/50">
-            <h3 className="font-semibold text-gray-800 dark:text-white text-sm">Уведомления</h3>
-            {unreadCount > 0 && (
-                <button 
-                    onClick={onMarkAllRead}
-                    className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline font-medium"
-                >
-                    Прочитать все
-                </button>
-            )}
-          </div>
-
-          <div className="max-h-[300px] overflow-y-auto">
-            {notifications.length === 0 ? (
-              <div className="p-8 text-center text-gray-400 dark:text-gray-500 flex flex-col items-center">
-                  <Bell size={32} className="opacity-20 mb-2" />
-                  <span className="text-sm">Нет новых уведомлений</span>
+      {/* Панель уведомлений */}
+      {open && (
+        <div className="fixed inset-x-0 bottom-0 md:bottom-4 md:right-4 md:left-auto md:w-80 z-30">
+          <div className="mx-2 mb-2 md:mx-0 rounded-2xl bg-slate-900 border border-slate-700 shadow-2xl max-h-[60vh] flex flex-col">
+            <div className="flex items-center justify-between px-3 py-2 border-b border-slate-700">
+              <div className="flex items-center gap-2 text-sm font-medium">
+                <Bell className="w-4 h-4" />
+                <span>Уведомления</span>
               </div>
-            ) : (
-              <div className="divide-y divide-gray-100 dark:divide-gray-700">
-                {notifications.map(notification => (
-                  <div 
-                    key={notification.id} 
-                    className={`p-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors flex gap-3 ${!notification.isRead ? 'bg-blue-50/50 dark:bg-blue-900/10' : ''}`}
-                    onClick={() => !notification.isRead && onMarkRead(notification.id)}
+              <div className="flex items-center gap-2 text-[11px] text-slate-400">
+                {notifications.length > 0 && (
+                  <button
+                    onClick={onClear}
+                    className="hover:text-slate-200"
                   >
-                    <div className="mt-0.5 flex-shrink-0">
-                        {getIcon(notification.type)}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                        <p className={`text-sm text-gray-800 dark:text-gray-200 leading-snug ${!notification.isRead ? 'font-medium' : ''}`}>
-                            {notification.message}
-                        </p>
-                        <p className="text-xs text-gray-400 mt-1">
-                            {new Date(notification.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-                            {' • '}
-                            {new Date(notification.createdAt).toLocaleDateString()}
-                        </p>
-                    </div>
-                    {!notification.isRead && (
-                        <div className="w-2 h-2 rounded-full bg-blue-500 mt-2 flex-shrink-0" />
-                    )}
-                  </div>
-                ))}
+                    Очистить
+                  </button>
+                )}
+                <button
+                  onClick={() => setOpen(false)}
+                  className="p-1 rounded-md hover:bg-slate-700"
+                >
+                  <X className="w-3 h-3" />
+                </button>
               </div>
-            )}
+            </div>
+
+            <div className="flex-1 overflow-y-auto text-xs">
+              {notifications.length === 0 && (
+                <div className="px-3 py-4 text-slate-400">
+                  Пока нет уведомлений.
+                </div>
+              )}
+
+              {notifications.map(n => (
+                <div
+                  key={n.id}
+                  className="px-3 py-2 border-b border-slate-800 last:border-b-0"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium text-slate-100">
+                      {n.title}
+                    </span>
+                    <span className="text-[10px] text-slate-500">
+                      {new Date(n.createdAt).toLocaleString()}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-slate-300">
+                    {n.message}
+                  </p>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 };

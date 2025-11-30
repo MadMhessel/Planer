@@ -1,205 +1,236 @@
 import React from 'react';
-import { ViewMode, User, Notification } from '../types';
-import { LayoutDashboard, List, Kanban, Calendar, GitGraph, Settings, Menu, X, Command, Plus, LogOut } from 'lucide-react';
-import { NotificationCenter } from './NotificationCenter';
+import {
+  Bell,
+  LayoutDashboard,
+  Calendar,
+  KanbanSquare,
+  ListTodo,
+  BarChart3,
+  Settings,
+  LogOut,
+  Sun,
+  Moon,
+  Monitor,
+  ChevronDown
+} from 'lucide-react';
+import { Workspace, User, ViewMode, Notification } from '../types';
 
-interface LayoutProps {
-  currentView: ViewMode;
-  onViewChange: (view: ViewMode) => void;
-  onCreateTask: () => void;
-  children: React.ReactNode;
-  user: User | null;
+type AppView = ViewMode | 'SETTINGS';
+
+type LayoutProps = {
+  currentUser: User;
   onLogout: () => void;
+  view: AppView;
+  onChangeView: (view: AppView) => void;
+  workspaces: Workspace[];
+  currentWorkspaceId: string | null;
+  onWorkspaceChange: (id: string) => void;
+  onCreateWorkspace: (name: string) => void;
   notifications: Notification[];
-  onMarkNotificationRead: (id: string) => void;
-  onMarkAllNotificationsRead: () => void;
-}
+  onThemeChange: (theme: 'light' | 'dark' | 'system') => void;
+  canManageCurrentWorkspace: boolean;
+  children: React.ReactNode;
+};
 
-export const Layout: React.FC<LayoutProps> = ({ 
-    currentView, 
-    onViewChange, 
-    onCreateTask, 
-    children, 
-    user, 
-    onLogout,
-    notifications,
-    onMarkNotificationRead,
-    onMarkAllNotificationsRead
+const viewButtons: { id: AppView; label: string; icon: React.ComponentType<any> }[] = [
+  { id: 'BOARD', label: 'Доска', icon: KanbanSquare },
+  { id: 'CALENDAR', label: 'Календарь', icon: Calendar },
+  { id: 'GANTT', label: 'Гант', icon: BarChart3 },
+  { id: 'LIST', label: 'Список', icon: ListTodo },
+  { id: 'DASHBOARD', label: 'Аналитика', icon: LayoutDashboard },
+  { id: 'SETTINGS', label: 'Настройки', icon: Settings }
+];
+
+export const Layout: React.FC<LayoutProps> = ({
+  currentUser,
+  onLogout,
+  view,
+  onChangeView,
+  workspaces,
+  currentWorkspaceId,
+  onWorkspaceChange,
+  onCreateWorkspace,
+  notifications,
+  onThemeChange,
+  canManageCurrentWorkspace,
+  children
 }) => {
-  const [isSidebarOpen, setSidebarOpen] = React.useState(false);
-  const [isMobile, setIsMobile] = React.useState(false);
+  const currentWorkspace = workspaces.find(w => w.id === currentWorkspaceId) || null;
 
-  React.useEffect(() => {
-    const handleResize = () => {
-      const mobile = window.innerWidth < 768;
-      setIsMobile(mobile);
-      if (!mobile) {
-        setSidebarOpen(true);
-      } else {
-        setSidebarOpen(false);
-      }
-    };
-    
-    handleResize();
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
+  const unreadCount = notifications.filter(n => !n.read).length;
 
-  const navItems = [
-    { id: 'DASHBOARD' as ViewMode, icon: LayoutDashboard, label: 'Обзор' },
-    { id: 'LIST' as ViewMode, icon: List, label: 'Список задач' },
-    { id: 'BOARD' as ViewMode, icon: Kanban, label: 'Канбан доска' },
-    { id: 'CALENDAR' as ViewMode, icon: Calendar, label: 'Календарь' },
-    { id: 'GANTT' as ViewMode, icon: GitGraph, label: 'Диаграмма Ганта' },
-  ];
-
-  const handleNavClick = (view: ViewMode) => {
-    onViewChange(view);
-    if (isMobile) setSidebarOpen(false);
+  const handleCreateWorkspaceClick = () => {
+    const name = window.prompt('Название рабочего пространства');
+    if (name && name.trim()) {
+      onCreateWorkspace(name.trim());
+    }
   };
 
-  const getInitials = (name: string) => name ? name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : '??';
-
-  const unreadCount = notifications.filter(n => !n.isRead).length;
+  const handleThemeClick = (mode: 'light' | 'dark' | 'system') => {
+    onThemeChange(mode);
+  };
 
   return (
-    <div className="flex h-screen bg-gray-50 dark:bg-gray-900 overflow-hidden relative transition-colors duration-200">
-      
-      {isMobile && isSidebarOpen && (
-        <div 
-          className="fixed inset-0 bg-black/60 z-40 backdrop-blur-sm transition-opacity"
-          onClick={() => setSidebarOpen(false)}
-        />
-      )}
-
-      <aside 
-        className={`
-          fixed md:relative z-50 h-full bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700
-          transition-all duration-300 ease-in-out flex flex-col w-72 md:w-64 shadow-xl md:shadow-none
-          ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0 md:w-20 lg:w-64'}
-        `}
-      >
-        <div className="h-16 flex items-center px-6 border-b border-gray-100 dark:border-gray-700 justify-between">
-           <div className="flex items-center gap-3 overflow-hidden">
-             <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white flex-shrink-0 shadow-sm">
-               <Command size={18} />
-             </div>
-             <span className={`font-bold text-gray-800 dark:text-white text-lg whitespace-nowrap transition-opacity duration-300 ${!isMobile && !isSidebarOpen ? 'md:hidden lg:block' : ''}`}>
-               Планировщик
-             </span>
-           </div>
-           {isMobile && (
-             <button onClick={() => setSidebarOpen(false)} className="text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 p-1 rounded-md">
-               <X size={24} />
-             </button>
-           )}
-        </div>
-
-        {/* User Profile Snippet in Sidebar */}
-        <div className="p-4 border-b border-gray-100 dark:border-gray-700">
-            <div className={`flex items-center gap-3 ${!isMobile && !isSidebarOpen ? 'justify-center lg:justify-start' : ''}`}>
-                <div className="w-9 h-9 rounded-full bg-indigo-100 dark:bg-indigo-900 border border-indigo-200 dark:border-indigo-700 flex items-center justify-center text-indigo-700 dark:text-indigo-300 font-bold text-sm flex-shrink-0">
-                    {user?.avatar ? <img src={user.avatar} className="w-full h-full rounded-full object-cover"/> : getInitials(user?.name || '')}
-                </div>
-                <div className={`min-w-0 transition-opacity duration-200 ${!isMobile && !isSidebarOpen ? 'hidden lg:block' : 'block'}`}>
-                    <p className="text-sm font-semibold text-gray-800 dark:text-gray-200 truncate">{user?.name}</p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{user?.email}</p>
-                </div>
+    <div className="min-h-screen bg-slate-900 text-slate-100 flex flex-col">
+      {/* Верхняя панель */}
+      <header className="border-b border-slate-700 bg-slate-900/80 backdrop-blur sticky top-0 z-20">
+        <div className="max-w-6xl mx-auto px-4 py-2 flex items-center gap-3">
+          {/* Логотип / название */}
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-xl bg-sky-500 flex items-center justify-center text-sm font-bold">
+              CTP
             </div>
-        </div>
+            <div className="flex flex-col leading-tight">
+              <span className="font-semibold text-sm">Command Task Planner</span>
+              <span className="text-xs text-slate-400">Командный планировщик задач</span>
+            </div>
+          </div>
 
-        <nav className="p-4 space-y-2 flex-1 overflow-y-auto scrollbar-hide">
-          {navItems.map(item => (
+          {/* Рабочие пространства */}
+          <div className="ml-4 flex items-center gap-2">
+            <div className="relative">
+              <select
+                className="bg-slate-800 border border-slate-700 rounded-md text-sm px-2 py-1 pr-6"
+                value={currentWorkspaceId || ''}
+                onChange={e => onWorkspaceChange(e.target.value)}
+              >
+                {workspaces.length === 0 && (
+                  <option value="">Нет пространств</option>
+                )}
+                {workspaces.map(w => (
+                  <option key={w.id} value={w.id}>
+                    {w.name}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="w-4 h-4 text-slate-400 absolute right-1.5 top-1.5 pointer-events-none" />
+            </div>
             <button
-              key={item.id}
-              onClick={() => handleNavClick(item.id)}
-              className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg transition-colors whitespace-nowrap group relative
-                ${currentView === item.id 
-                  ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 font-medium' 
-                  : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white'
-                }`}
+              onClick={handleCreateWorkspaceClick}
+              className="text-xs px-2 py-1 rounded-md border border-slate-600 hover:bg-slate-800"
             >
-              <item.icon size={22} strokeWidth={currentView === item.id ? 2.5 : 2} className="flex-shrink-0" />
-              <span className={`transition-opacity duration-200 ${!isMobile && !isSidebarOpen ? 'md:hidden lg:block' : ''}`}>
-                {item.label}
-              </span>
-              
-              {!isMobile && !isSidebarOpen && (
-                <div className="absolute left-full ml-2 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 group-hover:opacity-100 pointer-events-none md:hidden lg:hidden z-50 whitespace-nowrap">
-                  {item.label}
-                </div>
-              )}
+              + Создать
             </button>
-          ))}
-        </nav>
+          </div>
 
-        <div className="p-4 border-t border-gray-100 dark:border-gray-700 space-y-2">
-             <button 
-                onClick={() => handleNavClick('SETTINGS')}
-                className={`w-full flex items-center gap-3 px-3 py-2 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors whitespace-nowrap rounded-lg ${currentView === 'SETTINGS' ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300' : ''}`}
-             >
-                <Settings size={22} className="flex-shrink-0" />
-                <span className={`${!isMobile && !isSidebarOpen ? 'md:hidden lg:block' : ''}`}>Настройки</span>
-             </button>
-             
-             <button 
-                onClick={onLogout}
-                className="w-full flex items-center gap-3 px-3 py-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors whitespace-nowrap"
-             >
-                <LogOut size={22} className="flex-shrink-0" />
-                <span className={`${!isMobile && !isSidebarOpen ? 'md:hidden lg:block' : ''}`}>Выйти</span>
-             </button>
-        </div>
-      </aside>
-
-      <div className="flex-1 flex flex-col overflow-hidden w-full relative bg-gray-50 dark:bg-gray-900 transition-colors">
-        
-        <header className="h-16 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between px-4 lg:px-6 flex-shrink-0 shadow-sm z-30 transition-colors">
-             <div className="flex items-center gap-3">
-                <button 
-                  onClick={() => setSidebarOpen(!isSidebarOpen)} 
-                  className="p-2 -ml-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg text-gray-600 dark:text-gray-300 focus:outline-none md:hidden"
+          {/* Центр — переключение представлений */}
+          <nav className="ml-6 hidden md:flex items-center gap-1 text-xs">
+            {viewButtons.map(btn => {
+              const Icon = btn.icon;
+              const active = view === btn.id;
+              return (
+                <button
+                  key={btn.id}
+                  onClick={() => onChangeView(btn.id)}
+                  className={
+                    'flex items-center gap-1 px-2 py-1 rounded-md transition ' +
+                    (active
+                      ? 'bg-sky-500 text-slate-900'
+                      : 'text-slate-300 hover:bg-slate-800')
+                  }
                 >
-                    <Menu size={24} />
+                  <Icon className="w-3 h-3" />
+                  <span>{btn.label}</span>
                 </button>
-                <h1 className="text-lg font-bold text-gray-800 dark:text-white truncate max-w-[150px] sm:max-w-none">
-                    {currentView === 'SETTINGS' ? 'Настройки' : navItems.find(i => i.id === currentView)?.label}
-                </h1>
-             </div>
-             
-             <div className="flex items-center gap-2 sm:gap-4">
-                 <button 
-                    onClick={onCreateTask}
-                    className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 rounded-lg transition-colors shadow-sm active:scale-95"
-                 >
-                     <Plus size={18} />
-                     <span className="hidden sm:inline font-medium">Создать</span>
-                 </button>
-                 
-                 <div className="h-8 w-px bg-gray-200 dark:bg-gray-700 mx-1 hidden sm:block"></div>
-                 
-                 <NotificationCenter 
-                    notifications={notifications}
-                    onMarkRead={onMarkNotificationRead}
-                    onMarkAllRead={onMarkAllNotificationsRead}
-                    unreadCount={unreadCount}
-                 />
+              );
+            })}
+          </nav>
 
-                 <div className="hidden sm:flex items-center gap-2">
-                     <span className="text-sm text-gray-500 dark:text-gray-400">Команда:</span>
-                     <select className="text-sm font-medium bg-gray-50 dark:bg-gray-700 dark:text-white border-transparent focus:border-indigo-500 focus:ring-0 rounded-md py-1 px-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600">
-                         <option>Acme Corp</option>
-                     </select>
-                 </div>
-             </div>
-        </header>
-
-        <main className="flex-1 overflow-x-hidden overflow-y-auto p-3 md:p-6 w-full relative">
-            <div className="max-w-7xl mx-auto h-full flex flex-col">
-              {children}
+          {/* Справа */}
+          <div className="ml-auto flex items-center gap-3">
+            {/* Переключатель темы */}
+            <div className="flex items-center gap-1 bg-slate-800 rounded-full p-0.5 text-xs">
+              <button
+                onClick={() => handleThemeClick('light')}
+                className="p-1 rounded-full hover:bg-slate-700"
+                title="Светлая"
+              >
+                <Sun className="w-3 h-3" />
+              </button>
+              <button
+                onClick={() => handleThemeClick('system')}
+                className="p-1 rounded-full hover:bg-slate-700"
+                title="Системная"
+              >
+                <Monitor className="w-3 h-3" />
+              </button>
+              <button
+                onClick={() => handleThemeClick('dark')}
+                className="p-1 rounded-full hover:bg-slate-700"
+                title="Тёмная"
+              >
+                <Moon className="w-3 h-3" />
+              </button>
             </div>
-        </main>
-      </div>
+
+            {/* Уведомления */}
+            <div className="relative">
+              <button
+                className="relative p-1 rounded-full hover:bg-slate-800"
+                title="Уведомления"
+              >
+                <Bell className="w-5 h-5 text-slate-300" />
+                {unreadCount > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-red-500 text-[10px] rounded-full min-w-[16px] h-[16px] flex items-center justify-center">
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </span>
+                )}
+              </button>
+            </div>
+
+            {/* Текущий пользователь */}
+            <div className="flex items-center gap-2">
+              <div className="hidden sm:flex flex-col text-xs leading-tight">
+                <span className="font-medium">
+                  {currentUser.displayName || currentUser.email}
+                </span>
+                {currentWorkspace && (
+                  <span className="text-slate-400 truncate max-w-[120px]">
+                    {currentWorkspace.name}
+                  </span>
+                )}
+              </div>
+              <button
+                onClick={onLogout}
+                className="flex items-center gap-1 px-2 py-1 rounded-md text-xs border border-slate-600 hover:bg-slate-800"
+              >
+                <LogOut className="w-3 h-3" />
+                <span className="hidden sm:inline">Выйти</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Навигация по видам для мобилки */}
+        <div className="md:hidden px-2 pb-2">
+          <div className="flex flex-wrap gap-1 text-[11px]">
+            {viewButtons.map(btn => {
+              const Icon = btn.icon;
+              const active = view === btn.id;
+              return (
+                <button
+                  key={btn.id}
+                  onClick={() => onChangeView(btn.id)}
+                  className={
+                    'flex items-center gap-1 px-2 py-1 rounded-md transition ' +
+                    (active
+                      ? 'bg-sky-500 text-slate-900'
+                      : 'text-slate-300 bg-slate-800')
+                  }
+                >
+                  <Icon className="w-3 h-3" />
+                  <span>{btn.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </header>
+
+      {/* Основной контент */}
+      <main className="flex-1 max-w-6xl mx-auto w-full px-2 sm:px-4 py-3">
+        {children}
+      </main>
     </div>
   );
 };

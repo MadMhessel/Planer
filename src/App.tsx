@@ -5,70 +5,72 @@ import { KanbanBoard } from './components/KanbanBoard';
 import { CalendarView } from './components/CalendarView';
 import { GanttChart } from './components/GanttChart';
 import { Dashboard } from './components/Dashboard';
-import { AICommandBar } from './components/AICommandBar';
 import { TaskModal } from './components/TaskModal';
 import { ProjectModal } from './components/ProjectModal';
 import { UserModal } from './components/UserModal';
 import { SettingsView } from './components/SettingsView';
 import { AuthView } from './components/AuthView';
 import { WorkspaceSelector } from './components/WorkspaceSelector';
+import { NotificationCenter } from './components/NotificationCenter';
+import { AcceptInviteView } from './components/AcceptInviteView';
 
 import { AuthService } from './services/auth';
-import { APIService } from './services/api';
+import { FirestoreService } from './services/firestore';
+import { StorageService } from './services/storage';
+import { ApiService } from './services/api';
+import { GeminiService } from './services/gemini';
 import { TelegramService } from './services/telegram';
-import { 
-  subscribeToTasks, 
-  subscribeToProjects, 
-  subscribeToMembers, 
-  subscribeToWorkspaces,
-  subscribeToNotifications,
-  joinWorkspace,
-  addTask,
-  updateTask,
-  deleteTask,
-  addProject,
-  updateProject,
-  deleteProject,
-  addNotification,
-  markNotificationRead,
-  markAllNotificationsRead,
-  getSystemSettings,
-  saveSystemSettings,
-  updateUserProfile
-} from './services/firestore';
 
-import { Task, Project, User, ViewMode, TaskStatus, TaskPriority, Notification, Workspace, SystemSettings } from './types';
-import { Loader } from 'lucide-react';
+import { Project, Task, TaskPriority, TaskStatus, User, ViewMode, Workspace, WorkspaceInvite, WorkspaceMember } from './types';
 
-function App() {
-  // Auth
+type AppView =
+  | 'BOARD'
+  | 'CALENDAR'
+  | 'GANTT'
+  | 'LIST'
+  | 'DASHBOARD'
+  | 'SETTINGS';
+
+type InviteContext = {
+  workspaceId: string;
+  token: string;
+};
+// Helper to extract Chat IDs based on task assignee
+const getRecipientsForTask = (task: Partial<Task>, allMembers: WorkspaceMember[]): string[] => {
+  if (!task.assigneeId) return [];
+  
+  // Find the member corresponding to the assignee
+  const assignee = allMembers.find(m => m.userId === task.assigneeId);
+  
+  // Return their chat ID if it exists
+  if (assignee && assignee.telegramChatId) {
+    return [assignee.telegramChatId];
+  }
+  return [];
+};
+
+const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  // Data
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
-  const [currentWorkspace, setCurrentWorkspace] = useState<Workspace | null>(null);
+  const [currentWorkspaceId, setCurrentWorkspaceId] = useState<string | null>(null);
+  const [members, setMembers] = useState<WorkspaceMember[]>([]);
+  const [invites, setInvites] = useState<WorkspaceInvite[]>([]);
+
   const [tasks, setTasks] = useState<Task[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
-  const [users, setUsers] = useState<User[]>([]);
-  const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [systemSettings, setSystemSettings] = useState<SystemSettings>({});
-  
-  // UI State
-  const [view, setView] = useState<ViewMode>('DASHBOARD');
-  const [isDataLoading, setIsDataLoading] = useState(false);
-  const [isAIProcessing, setIsAIProcessing] = useState(false);
-  const [isDarkMode, setIsDarkMode] = useState(false);
-  const [notification, setNotification] = useState<{message: string, type: 'success' | 'error'} | null>(null);
-  
-  // Modals
+  const [notifications, setNotifications] = useState<any[]>([]);
+
+  const [view, setView] = useState<AppView>('BOARD');
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [isProjectModalOpen, setIsProjectModalOpen] = useState(false);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
+
+  const [inviteContext, setInviteContext] = useState<InviteContext | null>(null);
 
   // 1. Auth Listener
   useEffect(() => {
@@ -77,324 +79,501 @@ function App() {
       setAuthLoading(false);
       
       // Theme init
-      const savedTheme = localStorage.getItem('theme');
-      if (savedTheme === 'dark' || (!savedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-        setIsDarkMode(true);
-        document.documentElement.classList.add('dark');
-      }
-
-      if (user) {
-          const settings = await getSystemSettings();
-          setSystemSettings(settings);
-      }
+      const savedTheme = StorageService.getTheme();
+      applyTheme(savedTheme);
     });
+
     return () => unsubscribe();
   }, []);
 
-  // 2. Workspaces Listener
+  // 2. Workspace, members, tasks, projects subscriptions
   useEffect(() => {
-    if (!currentUser) {
-      setWorkspaces([]);
-      return;
-    }
-    const unsub = subscribeToWorkspaces(currentUser.email, (wsList) => {
-      setWorkspaces(wsList);
-      if (!currentWorkspace && wsList.length > 0) {
-          setCurrentWorkspace(wsList[0]);
-      } else if (currentWorkspace && !wsList.find(w => w.id === currentWorkspace.id)) {
-          // If current workspace was removed or access lost
-          setCurrentWorkspace(wsList.length > 0 ? wsList[0] : null);
+    if (!currentUser) return;
+
+    const unsubWorkspaces = FirestoreService.subscribeToWorkspaces(currentUser, (ws) => {
+      setWorkspaces(ws);
+
+      if (!currentWorkspaceId && ws.length > 0) {
+        const saved = StorageService.getSelectedWorkspaceId();
+        const found = ws.find(x => x.id === saved) || ws[0];
+        setCurrentWorkspaceId(found.id);
       }
     });
-    return () => unsub();
-  }, [currentUser]);
-
-  // 3. Data Listeners
-  useEffect(() => {
-    if (!currentWorkspace || !currentUser) {
-      setTasks([]);
-      setProjects([]);
-      setUsers([]);
-      return;
-    }
-
-    setIsDataLoading(true);
-    
-    // Join workspace logic
-    joinWorkspace(currentWorkspace.id, currentUser).catch(console.error);
-
-    const unsubTasks = subscribeToTasks(currentWorkspace.id, (t) => setTasks(t));
-    const unsubProjects = subscribeToProjects(currentWorkspace.id, (p) => setProjects(p));
-    const unsubMembers = subscribeToMembers(currentWorkspace.id, (u) => setUsers(u));
-    const unsubNotifs = subscribeToNotifications(currentUser.id, (n) => setNotifications(n));
-
-    setIsDataLoading(false);
 
     return () => {
-      unsubTasks();
-      unsubProjects();
-      unsubMembers();
-      unsubNotifs();
+      unsubWorkspaces && unsubWorkspaces();
     };
-  }, [currentWorkspace, currentUser]);
+  }, [currentUser]);
 
-  // --- Handlers ---
+  useEffect(() => {
+    if (!currentWorkspaceId || !currentUser) return;
 
-  const handleAuth = async (isLogin: boolean, ...args: string[]) => {
-      try {
-          if (isLogin) await AuthService.login(args[0], args[1]);
-          else await AuthService.register(args[0], args[1], args[2]);
-      } catch (e: any) {
-          setErrorMsg(e.message);
-      }
-  };
+    StorageService.setSelectedWorkspaceId(currentWorkspaceId);
 
-  const showNotification = (message: string, type: 'success' | 'error' = 'success') => {
-      setNotification({ message, type });
-      setTimeout(() => setNotification(null), 3000);
-  }
+    const unsubTasks = FirestoreService.subscribeToTasks(currentWorkspaceId, setTasks);
+    const unsubProjects = FirestoreService.subscribeToProjects(currentWorkspaceId, setProjects);
+    const unsubMembers = FirestoreService.subscribeToMembers(currentWorkspaceId, setMembers);
+    const unsubInvites = FirestoreService.subscribeToInvites(currentWorkspaceId, setInvites);
 
-  const toggleTheme = () => {
-      const newMode = !isDarkMode;
-      setIsDarkMode(newMode);
-      if (newMode) {
-          document.documentElement.classList.add('dark');
-          localStorage.setItem('theme', 'dark');
-      } else {
-          document.documentElement.classList.remove('dark');
-          localStorage.setItem('theme', 'light');
-      }
-  };
-
-  // --- CRUD & Actions ---
-
-  const addSystemNotification = async (msg: string, type: 'info' | 'success' | 'warning' | 'error' = 'info') => {
-    if (!currentUser) return;
-    
-    const notif: any = {
-        userId: currentUser.id,
-        message: msg,
-        type: type,
-        isRead: false,
-        createdAt: new Date().toISOString()
+    return () => {
+      unsubTasks && unsubTasks();
+      unsubProjects && unsubProjects();
+      unsubMembers && unsubMembers();
+      unsubInvites && unsubInvites();
     };
-    await addNotification(currentUser.id, notif);
+  }, [currentWorkspaceId, currentUser]);
 
-    const globalBotToken = systemSettings.telegramBotToken;
-    const userChatId = currentUser.telegram?.chatId;
-    const isTgEnabled = currentUser.telegram?.enabled;
+  // 3. Restore view mode from localStorage
+  useEffect(() => {
+    const mode = StorageService.getViewMode();
+    setView(mode as AppView);
+  }, []);
 
-    if (isTgEnabled && globalBotToken && userChatId) {
-        const icons = {
-            'info': 'ℹ️',
-            'success': '✅',
-            'warning': '⚠️',
-            'error': '❌'
-        };
-        const tgMsg = `${icons[type]} <b>Командный Планировщик</b>\n\n${msg}`;
-        TelegramService.sendMessage(globalBotToken, userChatId, tgMsg).catch(console.error);
+  const applyTheme = (theme: 'light' | 'dark' | 'system') => {
+    const root = document.documentElement;
+    let finalTheme = theme;
+
+    if (theme === 'system') {
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      finalTheme = prefersDark ? 'dark' : 'light';
     }
-};
 
-  const handleSaveTask = async (task: Task) => {
-    if (!currentWorkspace) return;
-    try {
-        if (tasks.some(t => t.id === task.id)) {
-            await updateTask(currentWorkspace.id, task);
-            showNotification("Задача обновлена");
-            await addSystemNotification(`Задача "<b>${task.title}</b>" обновлена`, 'info');
-        } else {
-            const { id, ...newTask } = task;
-            await addTask(currentWorkspace.id, newTask);
-            showNotification("Задача создана");
-            await addSystemNotification(`Новая задача: "<b>${task.title}</b>"`, 'success');
+    if (finalTheme === 'dark') {
+      root.classList.add('dark');
+    } else {
+      root.classList.remove('dark');
+    }
+
+    StorageService.setTheme(theme);
+  };
+
+  const handleThemeChange = (theme: 'light' | 'dark' | 'system') => {
+    applyTheme(theme);
+  };
+
+  const handleChangeView = (newView: AppView) => {
+    setView(newView);
+    if (['BOARD', 'CALENDAR', 'GANTT', 'LIST', 'DASHBOARD'].includes(newView)) {
+      StorageService.setViewMode(newView as ViewMode);
+    }
+  };
+
+  const handleWorkspaceChange = (workspaceId: string) => {
+    setCurrentWorkspaceId(workspaceId);
+  };
+
+  const handleCreateWorkspace = async (name: string) => {
+    if (!currentUser) return;
+    const workspace = await FirestoreService.createWorkspace(name, currentUser);
+    setCurrentWorkspaceId(workspace.id);
+  };
+
+const handleAddTask = async (partial: Partial<Task>) => {
+    if (!currentWorkspaceId || !currentUser) return;
+
+    const now = new Date().toISOString();
+    
+    // Подготовка объекта задачи (из вашего оригинального кода)
+    const taskData: Omit<Task, 'id' | 'createdAt' | 'updatedAt'> = {
+      title: partial.title || 'Новая задача',
+      description: partial.description || '',
+      status: partial.status || TaskStatus.TODO,
+      projectId: partial.projectId,
+      assigneeId: partial.assigneeId,
+      createdAt: now,
+      updatedAt: now,
+      dueDate: partial.dueDate,
+      startDate: partial.startDate,
+      priority: partial.priority || TaskPriority.NORMAL,
+      tags: partial.tags || [],
+      estimatedHours: partial.estimatedHours,
+      loggedHours: partial.loggedHours,
+      dependencies: partial.dependencies || [],
+      workspaceId: currentWorkspaceId
+    };
+
+    // 1. Создаем задачу в Firestore
+    const created = await FirestoreService.createTask(taskData);
+    
+    // (Опционально) Старый вызов ApiService, если он еще нужен, можно оставить или убрать:
+    // await ApiService.syncTaskToTelegram(created); 
+
+    // 2. УВЕДОМЛЕНИЕ: Новая задача
+    const recipients = getRecipientsForTask(created, members);
+    if (recipients.length > 0) {
+        // Формируем сообщение
+        const text = `🆕 <b>Новая задача</b>\n\n📝 ${created.title}\n📅 Срок: ${created.dueDate || 'Не указан'}`;
+        // Отправляем через ваш новый сервис
+        await TelegramService.sendNotification(recipients, text);
+    }
+  };
+
+const handleUpdateTask = async (taskId: string, updates: Partial<Task>) => {
+    // 1. Получаем старое состояние задачи для сравнения
+    const oldTask = tasks.find(t => t.id === taskId);
+    
+    // 2. Обновляем в Firestore
+    await FirestoreService.updateTask(taskId, updates);
+
+    // 3. УВЕДОМЛЕНИЕ: Смена статуса, дедлайна или исполнителя
+    if (oldTask) {
+        // Объединяем старое и новое, чтобы получить актуальное состояние
+        const newTaskState = { ...oldTask, ...updates } as Task; 
+        const recipients = getRecipientsForTask(newTaskState, members);
+        
+        if (recipients.length > 0) {
+            let message = '';
+            
+            // Сценарий A: Изменился статус
+            if (updates.status && updates.status !== oldTask.status) {
+                message = `🔄 <b>Обновление статуса</b>\n\n📝 ${oldTask.title}\n${oldTask.status} ➡️ <b>${updates.status}</b>`;
+            }
+            
+            // Сценарий B: Изменился дедлайн
+            else if (updates.dueDate && updates.dueDate !== oldTask.dueDate) {
+                 message = `📅 <b>Обновление сроков</b>\n\n📝 ${oldTask.title}\nНовый дедлайн: ${updates.dueDate}`;
+            }
+
+            // Сценарий C: Назначили нового исполнителя (если исполнитель отличается от старого)
+            else if (updates.assigneeId && updates.assigneeId !== oldTask.assigneeId) {
+                 message = `👉 <b>Вам назначена задача</b>\n\n📝 ${oldTask.title}`;
+            }
+
+            if (message) {
+                await TelegramService.sendNotification(recipients, message);
+            }
         }
-    } catch (e) { console.error(e); }
+    }
   };
 
-  const handleDeleteTask = async (taskId: string) => {
-      if (!currentWorkspace) return;
-      const task = tasks.find(t => t.id === taskId);
-      await deleteTask(currentWorkspace.id, taskId);
-      if (task) await addSystemNotification(`Задача "<b>${task.title}</b>" удалена`, 'warning');
+ const handleDeleteTask = async (taskId: string) => {
+    // Находим задачу перед удалением, чтобы знать название и кому отправлять уведомление
+    const taskToDelete = tasks.find(t => t.id === taskId);
+    
+    await FirestoreService.deleteTask(taskId);
+    
+    // УВЕДОМЛЕНИЕ: Удаление
+    if (taskToDelete) {
+        const recipients = getRecipientsForTask(taskToDelete, members);
+        if (recipients.length > 0) {
+             const text = `🗑️ <b>Задача удалена</b>\n\n📝 ${taskToDelete.title}`;
+             await TelegramService.sendNotification(recipients, text);
+        }
+    }
   };
 
-  const handleSaveProject = async (project: Project) => {
-      if (!currentWorkspace) return;
-      try {
-          if (projects.some(p => p.id === project.id)) {
-              await updateProject(currentWorkspace.id, project);
-              showNotification("Проект обновлен");
-          } else {
-              const { id, ...newProj } = project;
-              await addProject(currentWorkspace.id, newProj);
-              showNotification("Проект создан");
-          }
-      } catch (e) { console.error(e); }
+  const handleAddProject = async (partial: Partial<Project>) => {
+    if (!currentWorkspaceId || !currentUser) return;
+
+    const now = new Date().toISOString();
+    const project: Omit<Project, 'id' | 'createdAt' | 'updatedAt'> = {
+      name: partial.name || 'Новый проект',
+      description: partial.description || '',
+      color: partial.color,
+      ownerId: currentUser.id,
+      createdAt: now,
+      updatedAt: now,
+      startDate: partial.startDate,
+      endDate: partial.endDate,
+      status: partial.status || 'ACTIVE',
+      workspaceId: currentWorkspaceId
+    };
+
+    await FirestoreService.createProject(project);
+  };
+
+  const handleUpdateProject = async (projectId: string, updates: Partial<Project>) => {
+    await FirestoreService.updateProject(projectId, updates);
   };
 
   const handleDeleteProject = async (projectId: string) => {
-      if (!currentWorkspace) return;
-      await deleteProject(currentWorkspace.id, projectId);
-      showNotification("Проект удален");
+    await FirestoreService.deleteProject(projectId);
   };
 
-  const handleSaveUser = async (user: User) => {
-      try {
-          await updateUserProfile(user);
-          showNotification("Профиль сохранен");
-          // If current user updated themselves
-          if (currentUser?.id === user.id) {
-              setCurrentUser({...currentUser, ...user});
-          }
-      } catch (e) {
-          showNotification("Ошибка сохранения профиля", 'error');
-      }
+  const handleCommand = async (command: string) => {
+    if (!currentWorkspaceId) return;
+
+    const projectNames = projects.map(p => p.name);
+    const userNames = members.map(m => m.email);
+
+    const suggestions = await GeminiService.suggestTasksFromCommand(command, {
+      projectNames,
+      userNames
+    });
+
+    for (const suggestion of suggestions) {
+      await handleAddTask(suggestion);
+    }
+
+    setNotifications(prev => [
+      {
+        id: Date.now().toString(),
+        type: 'SYSTEM',
+        title: 'Команда обработана',
+        message: `Создано задач: ${suggestions.length}`,
+        createdAt: new Date().toISOString(),
+        read: false
+      },
+      ...prev
+    ]);
+
+    await TelegramService.sendNotification(`Создано задач из команды: ${suggestions.length}`);
   };
 
-  const handleAICommand = async (command: string) => {
-      if (!currentWorkspace || !currentUser) return;
-      setIsAIProcessing(true);
-      try {
-          const response = await APIService.aiGenerate(command, { projects, users });
-          
-          if (response.action === 'create_task') {
-              const data = response.data;
-              const newTask: any = {
-                title: data.title || 'New Task',
-                description: data.description || '',
-                projectId: data.projectId || projects[0]?.id || '',
-                status: TaskStatus.TODO,
-                priority: (data.priority as TaskPriority) || TaskPriority.NORMAL,
-                assigneeId: data.assigneeId || currentUser.id,
-                startDate: data.startDate || new Date().toISOString(),
-                dueDate: data.dueDate || new Date().toISOString(),
-                tags: [],
-                dependencies: [],
-                createdAt: new Date().toISOString(),
-                updatedAt: new Date().toISOString(),
-                createdBy: currentUser.id
-              };
-              await addTask(currentWorkspace.id, newTask);
-              showNotification(`ИИ: ${response.summary || 'Задача создана'}`);
-          } else if (response.action === 'create_project') {
-               const newProj: any = {
-                   name: response.data.projectName,
-                   description: response.data.projectDescription,
-                   color: '#6366f1',
-                   workspaceId: currentWorkspace.id
-               };
-               await addProject(currentWorkspace.id, newProj);
-               showNotification(`ИИ: ${response.summary || 'Проект создан'}`);
-          }
-      } catch (e) {
-          console.error("AI Error", e);
-          showNotification("Ошибка ИИ ассистента", 'error');
-      } finally {
-          setIsAIProcessing(false);
-      }
+  const handleAuth = async (isLogin: boolean, ...args: string[]) => {
+    if (!isLogin) {
+      await AuthService.loginWithGoogle();
+    }
   };
 
-  // --- Render ---
+  const currentWorkspace = workspaces.find(w => w.id === currentWorkspaceId) || null;
+  const workspaceMembersMap: Record<string, WorkspaceMember> = {};
+  members.forEach(m => {
+    workspaceMembersMap[m.userId] = m;
+  });
 
-  if (authLoading) return <div className="h-screen flex items-center justify-center"><Loader className="animate-spin" /></div>;
+  const canManageWorkspace = (user: User | null): boolean => {
+    if (!user || !currentWorkspaceId) return false;
+    const member = members.find(m => m.userId === user.id);
+    if (!member) return false;
+    return member.role === 'OWNER' || member.role === 'ADMIN';
+  };
+
+  // Parse invite from URL
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    const inviteToken = url.searchParams.get('invite');
+    const workspaceId = url.searchParams.get('workspace');
+
+    if (inviteToken && workspaceId) {
+      setInviteContext({ workspaceId, token: inviteToken });
+    }
+  }, []);
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-900 text-slate-100">
+        <div className="animate-pulse text-lg">Загрузка...</div>
+      </div>
+    );
+  }
 
   if (!currentUser) {
-      return (
-          <AuthView 
-            isLoading={false} 
-            error={errorMsg}
-            onLogin={(e, p) => handleAuth(true, e, p)}
-            onRegister={(n, e, p) => handleAuth(false, n, e, p)}
-          />
-      );
+    return (
+      <AuthView
+        onAuth={handleAuth}
+      />
+    );
+  }
+
+  if (inviteContext) {
+    return (
+      <AcceptInviteView
+        currentUser={currentUser}
+        inviteContext={inviteContext}
+        onClose={() => setInviteContext(null)}
+      />
+    );
   }
 
   return (
-    <Layout 
-        currentView={view} 
-        onViewChange={setView} 
-        onCreateTask={() => { setEditingTask(null); setIsTaskModalOpen(true); }}
-        user={currentUser}
-        onLogout={AuthService.logout}
-        notifications={notifications}
-        onMarkNotificationRead={(id) => markNotificationRead(currentUser.id, id)}
-        onMarkAllNotificationsRead={() => markAllNotificationsRead(currentUser.id)}
+    <Layout
+      currentUser={currentUser}
+      onLogout={AuthService.logout}
+      view={view}
+      onChangeView={handleChangeView}
+      workspaces={workspaces}
+      currentWorkspaceId={currentWorkspaceId}
+      onWorkspaceChange={handleWorkspaceChange}
+      onCreateWorkspace={handleCreateWorkspace}
+      notifications={notifications}
+      onThemeChange={handleThemeChange}
+      canManageCurrentWorkspace={canManageWorkspace(currentUser)}
     >
-        <div className="absolute top-4 left-20 md:left-4 z-50 md:z-auto w-48 md:w-auto">
-             <WorkspaceSelector 
-                workspaces={workspaces}
-                currentWorkspace={currentWorkspace}
-                onSelect={setCurrentWorkspace}
-                currentUser={currentUser}
-                onLogout={AuthService.logout}
-             />
+      {!currentWorkspace && (
+        <div className="p-6 text-slate-200">
+          <h2 className="text-xl font-semibold mb-2">Добро пожаловать!</h2>
+          <p className="text-slate-400 mb-4">
+            Создайте первое рабочее пространство, чтобы начать планирование задач.
+          </p>
         </div>
+      )}
 
-        {notification && (
-            <div className={`fixed top-4 right-4 z-[100] px-4 py-2 rounded-lg shadow-lg text-white text-sm font-medium animate-fade-in-down
-                ${notification.type === 'success' ? 'bg-green-600' : 'bg-red-600'}`}>
-                {notification.message}
-            </div>
-        )}
+      {currentWorkspace && (
+        <>
+          <WorkspaceSelector
+            workspaces={workspaces}
+            currentWorkspaceId={currentWorkspaceId}
+            onWorkspaceChange={handleWorkspaceChange}
+            onCreateWorkspace={handleCreateWorkspace}
+          />
 
-        {currentWorkspace ? (
-            <>
-                {view === 'DASHBOARD' && <Dashboard tasks={tasks} projects={projects} users={users} />}
-                {view === 'LIST' && <TaskList tasks={tasks} projects={projects} users={users} onTaskClick={t => {setEditingTask(t); setIsTaskModalOpen(true)}} onEditTask={t => {setEditingTask(t); setIsTaskModalOpen(true)}} />}
-                {view === 'BOARD' && <KanbanBoard tasks={tasks} projects={projects} users={users} onTaskClick={t => {setEditingTask(t); setIsTaskModalOpen(true)}} onStatusChange={(id, s) => { const t = tasks.find(x => x.id === id); if(t) handleSaveTask({...t, status: s}) }} onEditTask={t => {setEditingTask(t); setIsTaskModalOpen(true)}} onDeleteTask={handleDeleteTask} />}
-                {view === 'CALENDAR' && <CalendarView tasks={tasks} projects={projects} onTaskClick={() => {}} onEditTask={t => {setEditingTask(t); setIsTaskModalOpen(true)}} />}
-                {view === 'GANTT' && <GanttChart tasks={tasks} projects={projects} onTaskClick={() => {}} onEditTask={t => {setEditingTask(t); setIsTaskModalOpen(true)}} />}
-                {view === 'SETTINGS' && <SettingsView 
-                    users={users} 
-                    projects={projects}
-                    onCreateProject={() => { setEditingProject(null); setIsProjectModalOpen(true); }}
-                    onEditProject={(p) => { setEditingProject(p); setIsProjectModalOpen(true); }}
-                    onEditUser={(u) => { setEditingUser(u); setIsUserModalOpen(true); }}
-                    onInviteUser={() => { setEditingUser(null); setIsUserModalOpen(true); }}
-                    isDarkMode={isDarkMode}
-                    toggleTheme={toggleTheme}
-                    currentUser={currentUser}
-                    onUpdateCurrentUser={handleSaveUser}
-                    systemSettings={systemSettings}
-                    onUpdateSystemSettings={saveSystemSettings}
-                />}
-            </>
-        ) : (
-            <div className="flex h-full items-center justify-center text-gray-500">
-                Создайте или выберите команду для начала работы
-            </div>
-        )}
+          {view === 'BOARD' && (
+            <KanbanBoard
+              tasks={tasks}
+              projects={projects}
+              users={members.map(m => ({
+                id: m.userId,
+                email: m.email,
+                displayName: m.email,
+                role: m.role,
+                isActive: m.status === 'ACTIVE',
+                createdAt: m.joinedAt
+              }))}
+              onTaskClick={t => {
+                setEditingTask(t);
+                setIsTaskModalOpen(true);
+              }}
+              onStatusChange={(task, status) => handleUpdateTask(task.id, { status })}
+              onCreateTask={() => {
+                setEditingTask(null);
+                setIsTaskModalOpen(true);
+              }}
+            />
+          )}
 
-      <AICommandBar onCommand={handleAICommand} isProcessing={isAIProcessing} />
+          {view === 'CALENDAR' && (
+            <CalendarView
+              tasks={tasks}
+              onTaskClick={t => {
+                setEditingTask(t);
+                setIsTaskModalOpen(true);
+              }}
+              onCreateTask={(date) => {
+                setEditingTask({
+                  id: '',
+                  title: '',
+                  status: TaskStatus.TODO,
+                  createdAt: new Date().toISOString(),
+                  updatedAt: new Date().toISOString(),
+                  workspaceId: currentWorkspaceId!,
+                  dueDate: date,
+                  priority: TaskPriority.NORMAL
+                } as Task);
+                setIsTaskModalOpen(true);
+              }}
+            />
+          )}
 
-      <TaskModal 
-        isOpen={isTaskModalOpen}
-        onClose={() => setIsTaskModalOpen(false)}
-        onSave={handleSaveTask}
-        onDelete={handleDeleteTask}
-        task={editingTask}
-        projects={projects}
-        users={users}
-      />
-      
-      <ProjectModal
-        isOpen={isProjectModalOpen}
-        onClose={() => setIsProjectModalOpen(false)}
-        onSave={handleSaveProject}
-        onDelete={handleDeleteProject}
-        project={editingProject}
-      />
+          {view === 'GANTT' && (
+            <GanttChart
+              tasks={tasks}
+              projects={projects}
+            />
+          )}
 
-      <UserModal
-        isOpen={isUserModalOpen}
-        onClose={() => setIsUserModalOpen(false)}
-        onSave={handleSaveUser}
-        onDelete={() => {}} 
-        user={editingUser}
-      />
+          {view === 'LIST' && (
+            <TaskList
+              tasks={tasks}
+              projects={projects}
+              users={members.map(m => ({
+                id: m.userId,
+                email: m.email,
+                displayName: m.email,
+                role: m.role,
+                isActive: m.status === 'ACTIVE',
+                createdAt: m.joinedAt
+              }))}
+              onTaskClick={t => {
+                setEditingTask(t);
+                setIsTaskModalOpen(true);
+              }}
+              onCreateTask={() => {
+                setEditingTask(null);
+                setIsTaskModalOpen(true);
+              }}
+            />
+          )}
+
+          {view === 'DASHBOARD' && (
+            <Dashboard
+              tasks={tasks}
+              projects={projects}
+            />
+          )}
+
+          {view === 'SETTINGS' && currentWorkspace && (
+            <SettingsView
+              workspace={currentWorkspace}
+              members={members}
+              invites={invites}
+              currentUser={currentUser}
+            />
+          )}
+
+          <NotificationCenter
+            notifications={notifications}
+            onClear={() => setNotifications([])}
+          />
+
+          <TaskModal
+            isOpen={isTaskModalOpen}
+            task={editingTask}
+            projects={projects}
+            users={members.map(m => ({
+              id: m.userId,
+              email: m.email,
+              displayName: m.email,
+              role: m.role,
+              isActive: m.status === 'ACTIVE',
+              createdAt: m.joinedAt
+            }))}
+            onClose={() => setIsTaskModalOpen(false)}
+            onSave={async (t) => {
+              if (!currentWorkspaceId) return;
+
+              if (t.id) {
+                await handleUpdateTask(t.id, t);
+              } else {
+                await handleAddTask(t);
+              }
+
+              setIsTaskModalOpen(false);
+            }}
+            onDelete={async (t) => {
+              if (t.id) {
+                await handleDeleteTask(t.id);
+              }
+              setIsTaskModalOpen(false);
+            }}
+          />
+
+          <ProjectModal
+            isOpen={isProjectModalOpen}
+            project={editingProject}
+            onClose={() => setIsProjectModalOpen(false)}
+            onSave={async (p) => {
+              if (p.id) {
+                await handleUpdateProject(p.id, p);
+              } else {
+                await handleAddProject(p);
+              }
+              setIsProjectModalOpen(false);
+            }}
+            onDelete={async (p) => {
+              if (p.id) {
+                await handleDeleteProject(p.id);
+              }
+              setIsProjectModalOpen(false);
+            }}
+          />
+
+          <UserModal
+            isOpen={isUserModalOpen}
+            user={editingUser}
+            onClose={() => setIsUserModalOpen(false)}
+            onSave={async (u) => {
+              // Placeholder: пользовательские настройки/профиль
+              setEditingUser(null);
+              setIsUserModalOpen(false);
+            }}
+          />
+
+          {/* AI Command bar будет внутри Layout или отдельным компонентом */}
+        </>
+      )}
     </Layout>
   );
-}
+};
 
 export default App;

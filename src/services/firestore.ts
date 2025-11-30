@@ -1,184 +1,332 @@
+// src/services/firestore.ts
 import { 
-  collection, 
-  doc, 
-  addDoc, 
-  updateDoc, 
-  deleteDoc, 
-  onSnapshot, 
-  query, 
-  where, 
-  getDocs,
-  setDoc,
+  collection,
+  doc,
   getDoc,
-  orderBy
+  getDocs,
+  onSnapshot,
+  orderBy,
+  query,
+  serverTimestamp,
+  setDoc,
+  updateDoc,
+  where,
+  deleteDoc,
+  addDoc,
+  runTransaction
 } from 'firebase/firestore';
 import { db } from '../firebase';
-import { Task, Project, User, Workspace, Notification, SystemSettings } from '../types';
+import { InviteStatus, Project, Task, TaskPriority, TaskStatus, User, UserRole, Workspace, WorkspaceInvite, WorkspaceMember } from '../types';
 
-// --- Workspaces ---
+export const FirestoreService = {
+  // --- Workspaces ---
 
-export const subscribeToWorkspaces = (email: string, onUpdate: (workspaces: Workspace[]) => void) => {
-  const q = query(
-    collection(db, 'workspaces'), 
-    where('allowedEmails', 'array-contains', email)
-  );
+  async createWorkspace(name: string, owner: User): Promise<Workspace> {
+    const workspaceRef = doc(collection(db, 'workspaces'));
+    const now = new Date().toISOString();
 
-  return onSnapshot(q, (snapshot) => {
-    const workspaces = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Workspace));
-    onUpdate(workspaces);
-  });
-};
+    const workspace: Workspace = {
+      id: workspaceRef.id,
+      name,
+      description: '',
+      createdAt: now,
+      ownerId: owner.id,
+      plan: 'FREE'
+    };
 
-export const createWorkspace = async (name: string, owner: User) => {
-  const wsData = {
-    name,
-    ownerId: owner.id,
-    allowedEmails: [owner.email],
-    createdAt: new Date().toISOString()
-  };
-  const docRef = await addDoc(collection(db, 'workspaces'), wsData);
-  
-  await setDoc(doc(db, `workspaces/${docRef.id}/members`, owner.id), {
-    id: owner.id,
-    name: owner.name,
-    email: owner.email,
-    role: 'OWNER',
-    joinedAt: new Date().toISOString()
-  });
-  
-  return docRef.id;
-};
+    await setDoc(workspaceRef, workspace);
 
-export const inviteUserToWorkspace = async (workspaceId: string, email: string) => {
-  const wsRef = doc(db, 'workspaces', workspaceId);
-  const wsDoc = await getDocs(query(collection(db, 'workspaces'), where('__name__', '==', workspaceId)));
-  if (!wsDoc.empty) {
-      const data = wsDoc.docs[0].data();
-      const currentEmails = data.allowedEmails || [];
-      if (!currentEmails.includes(email)) {
-          await updateDoc(wsRef, {
-              allowedEmails: [...currentEmails, email]
-          });
-      }
-  }
-};
+    const member: WorkspaceMember = {
+      id: owner.id,
+      userId: owner.id,
+      email: owner.email,
+      role: 'OWNER',
+      joinedAt: now,
+      invitedBy: owner.id,
+      status: 'ACTIVE'
+    };
 
-// --- Members ---
+    const memberRef = doc(collection(workspaceRef, 'members'), owner.id);
+    await setDoc(memberRef, member);
 
-export const subscribeToMembers = (workspaceId: string, onUpdate: (users: User[]) => void) => {
-  const membersRef = collection(db, `workspaces/${workspaceId}/members`);
-  return onSnapshot(membersRef, (snapshot) => {
-    const users = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as User));
-    onUpdate(users);
-  });
-};
+    return workspace;
+  },
 
-export const joinWorkspace = async (workspaceId: string, user: User) => {
-    const memberRef = doc(db, `workspaces/${workspaceId}/members`, user.id);
-    await setDoc(memberRef, {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        role: 'MEMBER',
-        avatar: user.avatar || '',
-        telegram: user.telegram || {},
-        joinedAt: new Date().toISOString()
-    }, { merge: true });
-};
-
-// --- Tasks ---
-
-export const subscribeToTasks = (workspaceId: string, onUpdate: (tasks: Task[]) => void) => {
-  const q = query(collection(db, `workspaces/${workspaceId}/tasks`));
-  return onSnapshot(q, (snapshot) => {
-    const tasks = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Task));
-    onUpdate(tasks);
-  });
-};
-
-export const addTask = async (workspaceId: string, task: Omit<Task, 'id'>) => {
-  await addDoc(collection(db, `workspaces/${workspaceId}/tasks`), task);
-};
-
-export const updateTask = async (workspaceId: string, task: Task) => {
-  const { id, ...data } = task;
-  await updateDoc(doc(db, `workspaces/${workspaceId}/tasks`, id), data as any);
-};
-
-export const deleteTask = async (workspaceId: string, taskId: string) => {
-  await deleteDoc(doc(db, `workspaces/${workspaceId}/tasks`, taskId));
-};
-
-// --- Projects ---
-
-export const subscribeToProjects = (workspaceId: string, onUpdate: (projects: Project[]) => void) => {
-  const q = query(collection(db, `workspaces/${workspaceId}/projects`));
-  return onSnapshot(q, (snapshot) => {
-    const projects = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Project));
-    onUpdate(projects);
-  });
-};
-
-export const addProject = async (workspaceId: string, project: Omit<Project, 'id'>) => {
-  await addDoc(collection(db, `workspaces/${workspaceId}/projects`), project);
-};
-
-export const updateProject = async (workspaceId: string, project: Project) => {
-  const { id, ...data } = project;
-  await updateDoc(doc(db, `workspaces/${workspaceId}/projects`, id), data as any);
-};
-
-export const deleteProject = async (workspaceId: string, projectId: string) => {
-  await deleteDoc(doc(db, `workspaces/${workspaceId}/projects`, projectId));
-};
-
-// --- Notifications & Settings ---
-
-export const subscribeToNotifications = (userId: string, onUpdate: (notes: Notification[]) => void) => {
-    const q = query(collection(db, `users/${userId}/notifications`), orderBy('createdAt', 'desc'));
-    return onSnapshot(q, (snapshot) => {
-        const notes = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Notification));
-        onUpdate(notes);
-    });
-};
-
-export const addNotification = async (userId: string, notification: Omit<Notification, 'id'>) => {
-    await addDoc(collection(db, `users/${userId}/notifications`), notification);
-};
-
-export const markNotificationRead = async (userId: string, notificationId: string) => {
-    await updateDoc(doc(db, `users/${userId}/notifications`, notificationId), { isRead: true });
-};
-
-export const markAllNotificationsRead = async (userId: string) => {
-    const q = query(collection(db, `users/${userId}/notifications`), where('isRead', '==', false));
-    const snapshot = await getDocs(q);
-    const batchPromises = snapshot.docs.map(d => updateDoc(d.ref, { isRead: true }));
-    await Promise.all(batchPromises);
-};
-
-// --- Global Settings ---
-
-export const getSystemSettings = async (): Promise<SystemSettings> => {
-    const docRef = doc(db, 'settings', 'global');
-    const snap = await getDoc(docRef);
-    if (snap.exists()) {
-        return snap.data() as SystemSettings;
+  subscribeToWorkspaces(user: User, callback: (workspaces: Workspace[]) => void) {
+    if (!user.email) {
+      callback([]);
+      return () => {};
     }
-    return {};
-};
 
-export const saveSystemSettings = async (settings: SystemSettings) => {
-    await setDoc(doc(db, 'settings', 'global'), settings, { merge: true });
-};
+    const q = query(
+      collection(db, 'workspaces'),
+      where('ownerId', '==', user.id)
+    );
 
-export const updateUserProfile = async (user: User) => {
-    const userRef = doc(db, 'users', user.id);
-    await setDoc(userRef, {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        telegram: user.telegram || {},
-        avatar: user.avatar || ''
-    }, { merge: true });
+    return onSnapshot(q, async (snapshot) => {
+      const workspaces: Workspace[] = [];
+      for (const docSnap of snapshot.docs) {
+        const w = docSnap.data() as Workspace;
+        workspaces.push({ ...w, id: docSnap.id });
+      }
+      callback(workspaces);
+    });
+  },
+
+  async getWorkspaceMembers(workspaceId: string): Promise<WorkspaceMember[]> {
+    const membersRef = collection(db, 'workspaces', workspaceId, 'members');
+    const snapshot = await getDocs(membersRef);
+    return snapshot.docs.map(docSnap => ({
+      ...(docSnap.data() as WorkspaceMember),
+      id: docSnap.id
+    }));
+  },
+
+  subscribeToMembers(workspaceId: string, callback: (members: WorkspaceMember[]) => void) {
+    const membersRef = collection(db, 'workspaces', workspaceId, 'members');
+    return onSnapshot(membersRef, (snapshot) => {
+      const members: WorkspaceMember[] = snapshot.docs.map(docSnap => ({
+        ...(docSnap.data() as WorkspaceMember),
+        id: docSnap.id
+      }));
+      callback(members);
+    });
+  },
+
+  // --- Invites ---
+
+  async createInvite(workspaceId: string, email: string, role: UserRole, invitedBy: string): Promise<WorkspaceInvite> {
+    // создаём документ заранее и используем его id как token
+    const inviteRef = doc(collection(db, 'workspaces', workspaceId, 'invites'));
+    const token = inviteRef.id;
+
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000); // 7 дней
+
+    const invite: WorkspaceInvite = {
+      id: token,
+      token,
+      email: email.toLowerCase(),
+      role,
+      workspaceId,
+      invitedBy,
+      status: 'PENDING',
+      createdAt: now.toISOString(),
+      expiresAt: expiresAt.toISOString()
+    };
+
+    await setDoc(inviteRef, invite);
+
+    return invite;
+  },
+
+  async revokeInvite(workspaceId: string, token: string) {
+    const inviteRef = doc(db, 'workspaces', workspaceId, 'invites', token);
+    const inviteSnap = await getDoc(inviteRef);
+
+    if (!inviteSnap.exists()) return;
+
+    const invite = inviteSnap.data() as WorkspaceInvite;
+    if (invite.status !== 'PENDING') return;
+
+    await updateDoc(inviteRef, {
+      status: 'REVOKED',
+      revokedAt: serverTimestamp()
+    } as any);
+  },
+
+  async getInvite(workspaceId: string, token: string): Promise<WorkspaceInvite | null> {
+    const inviteRef = doc(db, 'workspaces', workspaceId, 'invites', token);
+    const snap = await getDoc(inviteRef);
+    if (!snap.exists()) return null;
+    return { ...(snap.data() as WorkspaceInvite), id: snap.id };
+  },
+
+  async acceptInvite(workspaceId: string, token: string, user: User): Promise<void> {
+    const workspaceRef = doc(db, 'workspaces', workspaceId);
+    const inviteRef = doc(db, 'workspaces', workspaceId, 'invites', token);
+    const memberRef = doc(db, 'workspaces', workspaceId, 'members', user.id);
+
+    await runTransaction(db, async (transaction) => {
+      const inviteSnap = await transaction.get(inviteRef);
+      if (!inviteSnap.exists()) {
+        throw new Error('Приглашение не найдено');
+      }
+
+      const invite = inviteSnap.data() as WorkspaceInvite;
+      if (invite.status !== 'PENDING') {
+        throw new Error('Приглашение уже использовано или отозвано');
+      }
+
+      const now = new Date();
+      if (new Date(invite.expiresAt) < now) {
+        throw new Error('Срок действия приглашения истёк');
+      }
+
+      if (invite.email.toLowerCase() !== user.email.toLowerCase()) {
+        throw new Error('Это приглашение предназначено для другого пользователя');
+      }
+
+      const memberSnap = await transaction.get(memberRef);
+      if (!memberSnap.exists()) {
+        const newMember: WorkspaceMember = {
+          id: user.id,
+          userId: user.id,
+          email: user.email,
+          role: invite.role,
+          joinedAt: now.toISOString(),
+          invitedBy: invite.invitedBy,
+          status: 'ACTIVE'
+        };
+        transaction.set(memberRef, newMember);
+      } else {
+        transaction.update(memberRef, {
+          role: invite.role,
+          status: 'ACTIVE',
+          joinedAt: now.toISOString()
+        } as any);
+      }
+
+      transaction.update(inviteRef, {
+        status: 'ACCEPTED',
+        acceptedAt: serverTimestamp()
+      } as any);
+
+      const workspaceSnap = await transaction.get(workspaceRef);
+      if (!workspaceSnap.exists()) {
+        throw new Error('Рабочее пространство не найдено');
+      }
+    });
+  },
+
+  async removeMember(workspaceId: string, memberId: string, actingUser: WorkspaceMember) {
+    const memberRef = doc(db, 'workspaces', workspaceId, 'members', memberId);
+    const memberSnap = await getDoc(memberRef);
+    if (!memberSnap.exists()) return;
+
+    const member = memberSnap.data() as WorkspaceMember;
+
+    if (member.role === 'OWNER') {
+      throw new Error('Нельзя удалить владельца рабочей области');
+    }
+
+    if (actingUser.role === 'MEMBER' || actingUser.role === 'VIEWER') {
+      throw new Error('Недостаточно прав для удаления участника');
+    }
+
+    await deleteDoc(memberRef);
+  },
+
+  subscribeToInvites(workspaceId: string, callback: (invites: WorkspaceInvite[]) => void) {
+    const invitesRef = collection(db, 'workspaces', workspaceId, 'invites');
+    return onSnapshot(invitesRef, (snapshot) => {
+      const invites: WorkspaceInvite[] = snapshot.docs.map(docSnap => ({
+        ...(docSnap.data() as WorkspaceInvite),
+        id: docSnap.id
+      }));
+      callback(invites);
+    });
+  },
+
+  // --- Tasks ---
+
+  subscribeToTasks(workspaceId: string, callback: (tasks: Task[]) => void) {
+    const q = query(
+      collection(db, 'tasks'),
+      where('workspaceId', '==', workspaceId),
+      orderBy('createdAt', 'desc')
+    );
+
+    return onSnapshot(q, (snapshot) => {
+      const tasks: Task[] = snapshot.docs.map(docSnap => ({
+        ...(docSnap.data() as Task),
+        id: docSnap.id
+      }));
+      callback(tasks);
+    });
+  },
+
+  async createTask(task: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>): Promise<Task> {
+    const docRef = await addDoc(collection(db, 'tasks'), {
+      ...task,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    });
+
+    const docSnap = await getDoc(docRef);
+    return {
+      ...(docSnap.data() as Task),
+      id: docSnap.id
+    };
+  },
+
+  async updateTask(taskId: string, updates: Partial<Task>) {
+    const taskRef = doc(db, 'tasks', taskId);
+    await updateDoc(taskRef, {
+      ...updates,
+      updatedAt: new Date().toISOString()
+    } as any);
+  },
+
+  async deleteTask(taskId: string) {
+    const taskRef = doc(db, 'tasks', taskId);
+    await deleteDoc(taskRef);
+  },
+
+  // --- Projects ---
+
+  subscribeToProjects(workspaceId: string, callback: (projects: Project[]) => void) {
+    const q = query(
+      collection(db, 'projects'),
+      where('workspaceId', '==', workspaceId),
+      orderBy('createdAt', 'desc')
+    );
+
+    return onSnapshot(q, (snapshot) => {
+      const projects: Project[] = snapshot.docs.map(docSnap => ({
+        ...(docSnap.data() as Project),
+        id: docSnap.id
+      }));
+      callback(projects);
+    });
+  },
+
+  async createProject(project: Omit<Project, 'id' | 'createdAt' | 'updatedAt'>): Promise<Project> {
+    const docRef = await addDoc(collection(db, 'projects'), {
+      ...project,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    });
+
+    const docSnap = await getDoc(docRef);
+    return {
+      ...(docSnap.data() as Project),
+      id: docSnap.id
+    };
+  },
+
+  async updateProject(projectId: string, updates: Partial<Project>) {
+    const projectRef = doc(db, 'projects', projectId);
+    await updateDoc(projectRef, {
+      ...updates,
+      updatedAt: new Date().toISOString()
+    } as any);
+  },
+
+  async deleteProject(projectId: string) {
+    const projectRef = doc(db, 'projects', projectId);
+    await deleteDoc(projectRef);
+  },
+
+  // --- Users ---
+
+  async getUserById(userId: string): Promise<User | null> {
+    const userRef = doc(db, 'users', userId);
+    const snap = await getDoc(userRef);
+    if (!snap.exists()) return null;
+    return {
+      ...(snap.data() as User),
+      id: snap.id
+    };
+  }
 };
