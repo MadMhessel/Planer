@@ -13,6 +13,7 @@ import { AuthView } from './components/AuthView';
 import { WorkspaceSelector } from './components/WorkspaceSelector';
 import { NotificationCenter } from './components/NotificationCenter';
 import { AcceptInviteView } from './components/AcceptInviteView';
+import { AICommandBar } from './components/AICommandBar';
 
 import { AuthService } from './services/auth';
 import { FirestoreService } from './services/firestore';
@@ -35,18 +36,35 @@ type InviteContext = {
   workspaceId: string;
   token: string;
 };
-// Helper to extract Chat IDs based on task assignee
-const getRecipientsForTask = (task: Partial<Task>, allMembers: WorkspaceMember[]): string[] => {
-  if (!task.assigneeId) return [];
+// Helper to extract Chat IDs based on task assignee and creator
+const getRecipientsForTask = (task: Partial<Task>, allMembers: WorkspaceMember[], creatorId?: string): string[] => {
+  const recipients: string[] = [];
   
-  // Find the member corresponding to the assignee
-  const assignee = allMembers.find(m => m.userId === task.assigneeId);
-  
-  // Return their chat ID if it exists
-  if (assignee && assignee.telegramChatId) {
-    return [assignee.telegramChatId];
+  // Добавляем исполнителя задачи
+  if (task.assigneeId) {
+    const assignee = allMembers.find(m => m.userId === task.assigneeId);
+    if (assignee?.telegramChatId) {
+      recipients.push(assignee.telegramChatId);
+    }
   }
-  return [];
+  
+  // Добавляем создателя задачи (если он не исполнитель)
+  if (creatorId && creatorId !== task.assigneeId) {
+    const creator = allMembers.find(m => m.userId === creatorId);
+    if (creator?.telegramChatId && !recipients.includes(creator.telegramChatId)) {
+      recipients.push(creator.telegramChatId);
+    }
+  }
+  
+  return recipients;
+};
+
+// Helper to get all workspace members with Telegram chat IDs
+const getAllTelegramRecipients = (allMembers: WorkspaceMember[]): string[] => {
+  return allMembers
+    .filter(m => m.telegramChatId && m.status === 'ACTIVE')
+    .map(m => m.telegramChatId!)
+    .filter((id, index, self) => self.indexOf(id) === index); // Убираем дубликаты
 };
 
 const App: React.FC = () => {
@@ -71,6 +89,8 @@ const App: React.FC = () => {
   const [editingUser, setEditingUser] = useState<User | null>(null);
 
   const [inviteContext, setInviteContext] = useState<InviteContext | null>(null);
+  const [isProcessingCommand, setIsProcessingCommand] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
 
   // 1. Auth Listener
   useEffect(() => {
@@ -173,7 +193,7 @@ const handleAddTask = async (partial: Partial<Task>) => {
 
     const now = new Date().toISOString();
     
-    // Подготовка объекта задачи (из вашего оригинального кода)
+    // Подготовка объекта задачи
     const taskData: Omit<Task, 'id' | 'createdAt' | 'updatedAt'> = {
       title: partial.title || 'Новая задача',
       description: partial.description || '',
@@ -195,15 +215,46 @@ const handleAddTask = async (partial: Partial<Task>) => {
     // 1. Создаем задачу в Firestore
     const created = await FirestoreService.createTask(taskData);
     
-    // (Опционально) Старый вызов ApiService, если он еще нужен, можно оставить или убрать:
-    // await ApiService.syncTaskToTelegram(created); 
+    // 2. Добавляем локальное уведомление
+    const assignee = created.assigneeId ? members.find(m => m.userId === created.assigneeId) : null;
+    const assigneeName = assignee ? (assignee.email) : 'Не назначен';
+    
+    setNotifications(prev => [
+      {
+        id: Date.now().toString(),
+        type: 'TASK_ASSIGNED',
+        title: 'Новая задача создана',
+        message: `Задача "${created.title}" ${created.assigneeId ? `назначена ${assigneeName}` : 'создана'}`,
+        createdAt: new Date().toISOString(),
+        read: false
+      },
+      ...prev
+    ]);
 
-    // 2. УВЕДОМЛЕНИЕ: Новая задача
-    const recipients = getRecipientsForTask(created, members);
+    // 3. Отправляем уведомление в Telegram
+    const recipients = getRecipientsForTask(created, members, currentUser.id);
     if (recipients.length > 0) {
-        // Формируем сообщение
-        const text = `🆕 <b>Новая задача</b>\n\n📝 ${created.title}\n📅 Срок: ${created.dueDate || 'Не указан'}`;
-        // Отправляем через ваш новый сервис
+        const projectName = created.projectId ? projects.find(p => p.id === created.projectId)?.name : null;
+        const priorityText = {
+          [TaskPriority.LOW]: 'Низкий',
+          [TaskPriority.NORMAL]: 'Обычный',
+          [TaskPriority.HIGH]: 'Высокий',
+          [TaskPriority.CRITICAL]: 'Критический'
+        }[created.priority] || 'Обычный';
+        
+        let text = `🆕 <b>Новая задача</b>\n\n📝 <b>${created.title}</b>`;
+        if (created.description) {
+          text += `\n\n${created.description}`;
+        }
+        if (projectName) {
+          text += `\n📁 Проект: ${projectName}`;
+        }
+        if (created.dueDate) {
+          const dueDate = new Date(created.dueDate).toLocaleDateString('ru-RU');
+          text += `\n📅 Срок: ${dueDate}`;
+        }
+        text += `\n⚡ Приоритет: ${priorityText}`;
+        
         await TelegramService.sendNotification(recipients, text);
     }
   };
@@ -219,29 +270,85 @@ const handleUpdateTask = async (taskId: string, updates: Partial<Task>) => {
     if (oldTask) {
         // Объединяем старое и новое, чтобы получить актуальное состояние
         const newTaskState = { ...oldTask, ...updates } as Task; 
-        const recipients = getRecipientsForTask(newTaskState, members);
+        const recipients = getRecipientsForTask(newTaskState, members, currentUser?.id);
         
-        if (recipients.length > 0) {
-            let message = '';
-            
-            // Сценарий A: Изменился статус
-            if (updates.status && updates.status !== oldTask.status) {
-                message = `🔄 <b>Обновление статуса</b>\n\n📝 ${oldTask.title}\n${oldTask.status} ➡️ <b>${updates.status}</b>`;
-            }
-            
-            // Сценарий B: Изменился дедлайн
-            else if (updates.dueDate && updates.dueDate !== oldTask.dueDate) {
-                 message = `📅 <b>Обновление сроков</b>\n\n📝 ${oldTask.title}\nНовый дедлайн: ${updates.dueDate}`;
-            }
+        let notificationTitle = '';
+        let notificationMessage = '';
+        let telegramMessage = '';
+        
+        // Сценарий A: Изменился статус
+        if (updates.status && updates.status !== oldTask.status) {
+          const statusText: Record<TaskStatus, string> = {
+            [TaskStatus.TODO]: 'К выполнению',
+            [TaskStatus.IN_PROGRESS]: 'В работе',
+            [TaskStatus.REVIEW]: 'На проверке',
+            [TaskStatus.DONE]: 'Готово',
+            [TaskStatus.HOLD]: 'Отложено'
+          };
+          
+          const oldStatusText = statusText[oldTask.status] || oldTask.status;
+          const newStatusText = statusText[updates.status] || updates.status;
+          
+          notificationTitle = 'Статус задачи изменен';
+          notificationMessage = `Задача "${oldTask.title}" изменена: ${oldStatusText} → ${newStatusText}`;
+          telegramMessage = `🔄 <b>Обновление статуса</b>\n\n📝 <b>${oldTask.title}</b>\n\n${oldStatusText} ➡️ <b>${newStatusText}</b>`;
+        }
+        
+        // Сценарий B: Изменился дедлайн
+        else if (updates.dueDate && updates.dueDate !== oldTask.dueDate) {
+          const newDueDate = new Date(updates.dueDate).toLocaleDateString('ru-RU');
+          notificationTitle = 'Срок задачи изменен';
+          notificationMessage = `Задача "${oldTask.title}" - новый срок: ${newDueDate}`;
+          telegramMessage = `📅 <b>Обновление сроков</b>\n\n📝 <b>${oldTask.title}</b>\n\nНовый дедлайн: <b>${newDueDate}</b>`;
+        }
 
-            // Сценарий C: Назначили нового исполнителя (если исполнитель отличается от старого)
-            else if (updates.assigneeId && updates.assigneeId !== oldTask.assigneeId) {
-                 message = `👉 <b>Вам назначена задача</b>\n\n📝 ${oldTask.title}`;
-            }
+        // Сценарий C: Назначили нового исполнителя
+        else if (updates.assigneeId && updates.assigneeId !== oldTask.assigneeId) {
+          const newAssignee = members.find(m => m.userId === updates.assigneeId);
+          const newAssigneeName = newAssignee ? newAssignee.email : 'Неизвестно';
+          notificationTitle = 'Задача назначена';
+          notificationMessage = `Задача "${oldTask.title}" назначена ${newAssigneeName}`;
+          telegramMessage = `👉 <b>Вам назначена задача</b>\n\n📝 <b>${oldTask.title}</b>`;
+        }
 
-            if (message) {
-                await TelegramService.sendNotification(recipients, message);
-            }
+        // Сценарий D: Изменился приоритет
+        else if (updates.priority && updates.priority !== oldTask.priority) {
+          const priorityText: Record<TaskPriority, string> = {
+            [TaskPriority.LOW]: 'Низкий',
+            [TaskPriority.NORMAL]: 'Обычный',
+            [TaskPriority.HIGH]: 'Высокий',
+            [TaskPriority.CRITICAL]: 'Критический'
+          };
+          notificationTitle = 'Приоритет задачи изменен';
+          notificationMessage = `Задача "${oldTask.title}" - приоритет изменен на ${priorityText[updates.priority]}`;
+          telegramMessage = `⚡ <b>Изменен приоритет</b>\n\n📝 <b>${oldTask.title}</b>\n\nНовый приоритет: <b>${priorityText[updates.priority]}</b>`;
+        }
+
+        // Сценарий E: Изменилось название или описание
+        else if (updates.title || updates.description) {
+          notificationTitle = 'Задача обновлена';
+          notificationMessage = `Задача "${updates.title || oldTask.title}" была обновлена`;
+          telegramMessage = `✏️ <b>Задача обновлена</b>\n\n📝 <b>${updates.title || oldTask.title}</b>`;
+        }
+
+        // Добавляем локальное уведомление
+        if (notificationTitle) {
+          setNotifications(prev => [
+            {
+              id: Date.now().toString(),
+              type: 'TASK_UPDATED',
+              title: notificationTitle,
+              message: notificationMessage,
+              createdAt: new Date().toISOString(),
+              read: false
+            },
+            ...prev
+          ]);
+        }
+
+        // Отправляем в Telegram
+        if (telegramMessage && recipients.length > 0) {
+          await TelegramService.sendNotification(recipients, telegramMessage);
         }
     }
   };
@@ -254,11 +361,25 @@ const handleUpdateTask = async (taskId: string, updates: Partial<Task>) => {
     
     // УВЕДОМЛЕНИЕ: Удаление
     if (taskToDelete) {
-        const recipients = getRecipientsForTask(taskToDelete, members);
-        if (recipients.length > 0) {
-             const text = `🗑️ <b>Задача удалена</b>\n\n📝 ${taskToDelete.title}`;
-             await TelegramService.sendNotification(recipients, text);
-        }
+      // Добавляем локальное уведомление
+      setNotifications(prev => [
+        {
+          id: Date.now().toString(),
+          type: 'TASK_UPDATED',
+          title: 'Задача удалена',
+          message: `Задача "${taskToDelete.title}" была удалена`,
+          createdAt: new Date().toISOString(),
+          read: false
+        },
+        ...prev
+      ]);
+
+      // Отправляем в Telegram
+      const recipients = getRecipientsForTask(taskToDelete, members, currentUser?.id);
+      if (recipients.length > 0) {
+        const text = `🗑️ <b>Задача удалена</b>\n\n📝 <b>${taskToDelete.title}</b>`;
+        await TelegramService.sendNotification(recipients, text);
+      }
     }
   };
 
@@ -279,45 +400,181 @@ const handleUpdateTask = async (taskId: string, updates: Partial<Task>) => {
       workspaceId: currentWorkspaceId
     };
 
-    await FirestoreService.createProject(project);
-  };
-
-  const handleUpdateProject = async (projectId: string, updates: Partial<Project>) => {
-    await FirestoreService.updateProject(projectId, updates);
-  };
-
-  const handleDeleteProject = async (projectId: string) => {
-    await FirestoreService.deleteProject(projectId);
-  };
-
-  const handleCommand = async (command: string) => {
-    if (!currentWorkspaceId) return;
-
-    const projectNames = projects.map(p => p.name);
-    const userNames = members.map(m => m.email);
-
-    const suggestions = await GeminiService.suggestTasksFromCommand(command, {
-      projectNames,
-      userNames
-    });
-
-    for (const suggestion of suggestions) {
-      await handleAddTask(suggestion);
-    }
-
+    const created = await FirestoreService.createProject(project);
+    
+    // Добавляем локальное уведомление
     setNotifications(prev => [
       {
         id: Date.now().toString(),
-        type: 'SYSTEM',
-        title: 'Команда обработана',
-        message: `Создано задач: ${suggestions.length}`,
+        type: 'PROJECT_UPDATED',
+        title: 'Проект создан',
+        message: `Проект "${created.name}" был создан`,
         createdAt: new Date().toISOString(),
         read: false
       },
       ...prev
     ]);
 
-    await TelegramService.sendNotification(`Создано задач из команды: ${suggestions.length}`);
+    // Отправляем в Telegram всем участникам workspace
+    const recipients = getAllTelegramRecipients(members);
+    if (recipients.length > 0) {
+      const text = `📁 <b>Новый проект</b>\n\n<b>${created.name}</b>${created.description ? `\n\n${created.description}` : ''}`;
+      await TelegramService.sendNotification(recipients, text);
+    }
+  };
+
+  const handleUpdateProject = async (projectId: string, updates: Partial<Project>) => {
+    const oldProject = projects.find(p => p.id === projectId);
+    await FirestoreService.updateProject(projectId, updates);
+    
+    if (oldProject) {
+      // Добавляем локальное уведомление
+      setNotifications(prev => [
+        {
+          id: Date.now().toString(),
+          type: 'PROJECT_UPDATED',
+          title: 'Проект обновлен',
+          message: `Проект "${oldProject.name}" был обновлен`,
+          createdAt: new Date().toISOString(),
+          read: false
+        },
+        ...prev
+      ]);
+
+      // Отправляем в Telegram всем участникам workspace
+      const recipients = getAllTelegramRecipients(members);
+      if (recipients.length > 0 && (updates.name || updates.description || updates.status)) {
+        const projectName = updates.name || oldProject.name;
+        let text = `📁 <b>Проект обновлен</b>\n\n<b>${projectName}</b>`;
+        if (updates.status) {
+          text += `\n\nСтатус: <b>${updates.status}</b>`;
+        }
+        await TelegramService.sendNotification(recipients, text);
+      }
+    }
+  };
+
+  const handleDeleteProject = async (projectId: string) => {
+    const projectToDelete = projects.find(p => p.id === projectId);
+    await FirestoreService.deleteProject(projectId);
+    
+    if (projectToDelete) {
+      // Добавляем локальное уведомление
+      setNotifications(prev => [
+        {
+          id: Date.now().toString(),
+          type: 'PROJECT_UPDATED',
+          title: 'Проект удален',
+          message: `Проект "${projectToDelete.name}" был удален`,
+          createdAt: new Date().toISOString(),
+          read: false
+        },
+        ...prev
+      ]);
+
+      // Отправляем в Telegram всем участникам workspace
+      const recipients = getAllTelegramRecipients(members);
+      if (recipients.length > 0) {
+        const text = `🗑️ <b>Проект удален</b>\n\n<b>${projectToDelete.name}</b>`;
+        await TelegramService.sendNotification(recipients, text);
+      }
+    }
+  };
+
+  const handleCommand = async (command: string) => {
+    if (!currentWorkspaceId || !currentUser) return;
+
+    setIsProcessingCommand(true);
+    try {
+      const projectNames = projects.map(p => p.name);
+      const userNames = members.map(m => m.email);
+
+      const suggestions = await GeminiService.suggestTasksFromCommand(command, {
+        projectNames,
+        userNames
+      });
+
+      // Преобразуем projectName и assigneeName в ID
+      const processedSuggestions = suggestions.map(suggestion => {
+        const processed: Partial<Task> = { ...suggestion };
+        
+        // Преобразуем projectName в projectId
+        if (suggestion.projectName && !suggestion.projectId) {
+          const project = projects.find(p => p.name === suggestion.projectName);
+          if (project) {
+            processed.projectId = project.id;
+          }
+          delete processed.projectName;
+        }
+        
+        // Преобразуем assigneeName в assigneeId
+        if (suggestion.assigneeName && !suggestion.assigneeId) {
+          const member = members.find(m => m.email === suggestion.assigneeName);
+          if (member) {
+            processed.assigneeId = member.userId;
+          }
+          delete processed.assigneeName;
+        }
+
+        return processed;
+      });
+
+      let createdCount = 0;
+      for (const suggestion of processedSuggestions) {
+        try {
+          await handleAddTask(suggestion);
+          createdCount++;
+        } catch (error) {
+          console.error('Failed to create task:', error);
+        }
+      }
+
+      setNotifications(prev => [
+        {
+          id: Date.now().toString(),
+          type: 'SYSTEM',
+          title: 'Команда обработана',
+          message: `Создано задач: ${createdCount}`,
+          createdAt: new Date().toISOString(),
+          read: false
+        },
+        ...prev
+      ]);
+
+      // Отправляем уведомление только если есть получатели
+      const allRecipients: string[] = [];
+      processedSuggestions.forEach(s => {
+        if (s.assigneeId) {
+          const member = members.find(m => m.userId === s.assigneeId);
+          if (member?.telegramChatId) {
+            allRecipients.push(member.telegramChatId);
+          }
+        }
+      });
+      
+      if (allRecipients.length > 0 && createdCount > 0) {
+        const uniqueRecipients = [...new Set(allRecipients)];
+        await TelegramService.sendNotification(
+          uniqueRecipients, 
+          `🤖 <b>AI создал задачи</b>\n\nСоздано задач из команды: <b>${createdCount}</b>`
+        );
+      }
+    } catch (error) {
+      console.error('Error processing AI command:', error);
+      setNotifications(prev => [
+        {
+          id: Date.now().toString(),
+          type: 'SYSTEM',
+          title: 'Ошибка обработки команды',
+          message: error instanceof Error ? error.message : 'Не удалось обработать команду',
+          createdAt: new Date().toISOString(),
+          read: false
+        },
+        ...prev
+      ]);
+    } finally {
+      setIsProcessingCommand(false);
+    }
   };
 
   const handleAuth = async (isLogin: boolean, ...args: string[]) => {
@@ -389,6 +646,7 @@ const handleUpdateTask = async (taskId: string, updates: Partial<Task>) => {
       notifications={notifications}
       onThemeChange={handleThemeChange}
       canManageCurrentWorkspace={canManageWorkspace(currentUser)}
+      onNotificationsToggle={() => setNotificationsOpen(prev => !prev)}
     >
       {!currentWorkspace && (
         <div className="p-6 text-slate-200">
@@ -459,6 +717,14 @@ const handleUpdateTask = async (taskId: string, updates: Partial<Task>) => {
             <GanttChart
               tasks={tasks}
               projects={projects}
+              onTaskClick={t => {
+                setEditingTask(t);
+                setIsTaskModalOpen(true);
+              }}
+              onEditTask={t => {
+                setEditingTask(t);
+                setIsTaskModalOpen(true);
+              }}
             />
           )}
 
@@ -478,8 +744,8 @@ const handleUpdateTask = async (taskId: string, updates: Partial<Task>) => {
                 setEditingTask(t);
                 setIsTaskModalOpen(true);
               }}
-              onCreateTask={() => {
-                setEditingTask(null);
+              onEditTask={t => {
+                setEditingTask(t);
                 setIsTaskModalOpen(true);
               }}
             />
@@ -498,12 +764,27 @@ const handleUpdateTask = async (taskId: string, updates: Partial<Task>) => {
               members={members}
               invites={invites}
               currentUser={currentUser}
+              onNotification={(title, message, type = 'SYSTEM') => {
+                setNotifications(prev => [
+                  {
+                    id: Date.now().toString(),
+                    type,
+                    title,
+                    message,
+                    createdAt: new Date().toISOString(),
+                    read: false
+                  },
+                  ...prev
+                ]);
+              }}
             />
           )}
 
           <NotificationCenter
             notifications={notifications}
             onClear={() => setNotifications([])}
+            isOpen={notificationsOpen}
+            onToggle={() => setNotificationsOpen(prev => !prev)}
           />
 
           <TaskModal
@@ -569,7 +850,10 @@ const handleUpdateTask = async (taskId: string, updates: Partial<Task>) => {
             }}
           />
 
-          {/* AI Command bar будет внутри Layout или отдельным компонентом */}
+          <AICommandBar
+            onCommand={handleCommand}
+            isProcessing={isProcessingCommand}
+          />
         </>
       )}
     </Layout>

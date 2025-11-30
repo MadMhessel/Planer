@@ -7,6 +7,7 @@ type Props = {
   members: WorkspaceMember[];
   invites: WorkspaceInvite[];
   currentUser: User;
+  onNotification?: (title: string, message: string, type?: 'TASK_ASSIGNED' | 'TASK_UPDATED' | 'PROJECT_UPDATED' | 'SYSTEM') => void;
 };
 
 type Tab = 'members' | 'invites';
@@ -15,7 +16,8 @@ export const SettingsView: React.FC<Props> = ({
   workspace,
   members,
   invites,
-  currentUser
+  currentUser,
+  onNotification
 }) => {
   const [activeTab, setActiveTab] = useState<Tab>('members');
   const [inviteEmail, setInviteEmail] = useState('');
@@ -60,6 +62,15 @@ export const SettingsView: React.FC<Props> = ({
         setMessage('Приглашение создано. Скопируйте ссылку вручную.');
       }
 
+      // Добавляем уведомление
+      if (onNotification) {
+        onNotification(
+          'Приглашение создано',
+          `Приглашение отправлено на ${email} с ролью ${inviteRole}`,
+          'SYSTEM'
+        );
+      }
+
       setInviteEmail('');
     } catch (e: any) {
       setError(e?.message || 'Не удалось создать приглашение.');
@@ -73,8 +84,18 @@ export const SettingsView: React.FC<Props> = ({
     setError(null);
     setMessage(null);
 
+    const invite = invites.find(i => i.token === token);
     try {
       await FirestoreService.revokeInvite(workspace.id, token);
+      
+      // Добавляем уведомление
+      if (onNotification && invite) {
+        onNotification(
+          'Приглашение отозвано',
+          `Приглашение для ${invite.email} было отозвано`,
+          'SYSTEM'
+        );
+      }
     } catch (e: any) {
       setError(e?.message || 'Не удалось отозвать приглашение.');
     }
@@ -98,6 +119,15 @@ export const SettingsView: React.FC<Props> = ({
 
     try {
       await FirestoreService.removeMember(workspace.id, member.id, currentMember);
+      
+      // Добавляем уведомление
+      if (onNotification) {
+        onNotification(
+          'Участник удален',
+          `Пользователь ${member.email} был удален из рабочего пространства`,
+          'SYSTEM'
+        );
+      }
     } catch (e: any) {
       setError(e?.message || 'Не удалось удалить участника.');
     }
@@ -126,10 +156,10 @@ export const SettingsView: React.FC<Props> = ({
   const pendingInvites = invites.filter(i => i.status === 'PENDING');
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+    <div className="space-y-5">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 rounded-xl bg-slate-900/40 backdrop-blur-sm border border-slate-700/30">
         <div>
-          <h2 className="text-lg font-semibold">
+          <h2 className="text-xl font-bold bg-gradient-to-r from-sky-400 to-indigo-400 bg-clip-text text-transparent mb-1">
             Настройки пространства: {workspace.name}
           </h2>
           <p className="text-xs text-slate-400">
@@ -137,19 +167,19 @@ export const SettingsView: React.FC<Props> = ({
           </p>
         </div>
         <div className="text-xs text-slate-400">
-          Владелец: <span className="font-medium">{workspace.ownerId}</span>
+          Владелец: <span className="font-semibold text-slate-300">{workspace.ownerId}</span>
         </div>
       </div>
 
       {/* Таб переключения */}
-      <div className="flex border-b border-slate-700 text-xs">
+      <div className="flex border-b border-slate-700/50 text-sm bg-slate-900/40 backdrop-blur-sm rounded-t-xl p-1">
         <button
           onClick={() => setActiveTab('members')}
           className={
-            'px-3 py-2 border-b-2 ' +
+            'px-4 py-2 rounded-lg font-semibold transition-all ' +
             (activeTab === 'members'
-              ? 'border-sky-500 text-sky-400'
-              : 'border-transparent text-slate-400 hover:text-slate-200')
+              ? 'bg-gradient-to-r from-sky-500 to-indigo-600 text-white shadow-lg shadow-sky-500/30'
+              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50')
           }
         >
           Участники ({members.length})
@@ -157,10 +187,10 @@ export const SettingsView: React.FC<Props> = ({
         <button
           onClick={() => setActiveTab('invites')}
           className={
-            'px-3 py-2 border-b-2 ' +
+            'px-4 py-2 rounded-lg font-semibold transition-all ' +
             (activeTab === 'invites'
-              ? 'border-sky-500 text-sky-400'
-              : 'border-transparent text-slate-400 hover:text-slate-200')
+              ? 'bg-gradient-to-r from-sky-500 to-indigo-600 text-white shadow-lg shadow-sky-500/30'
+              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50')
           }
         >
           Приглашения ({pendingInvites.length})
@@ -168,13 +198,13 @@ export const SettingsView: React.FC<Props> = ({
       </div>
 
       {error && (
-        <div className="text-xs text-red-400 bg-red-900/30 border border-red-700 rounded-md px-3 py-2">
+        <div className="text-xs text-red-400 bg-red-900/30 border border-red-700/50 rounded-lg px-4 py-3 backdrop-blur-sm shadow-lg">
           {error}
         </div>
       )}
 
       {message && (
-        <div className="text-xs text-emerald-300 bg-emerald-900/20 border border-emerald-700 rounded-md px-3 py-2">
+        <div className="text-xs text-emerald-300 bg-emerald-900/20 border border-emerald-700/50 rounded-lg px-4 py-3 backdrop-blur-sm shadow-lg">
           {message}
         </div>
       )}
@@ -193,26 +223,32 @@ export const SettingsView: React.FC<Props> = ({
             </thead>
             <tbody className="bg-slate-900/40">
               {sortedMembers.map(m => (
-                <tr key={m.id} className="border-t border-slate-800">
-                  <td className="px-2 py-2 text-slate-100">
+                <tr key={m.id} className="border-t border-slate-800/50 hover:bg-slate-800/40 transition-colors">
+                  <td className="px-4 py-3 text-slate-100 font-medium">
                     {m.email}
                     {m.userId === currentUser.id && (
-                      <span className="ml-1 text-[10px] text-sky-400">(вы)</span>
+                      <span className="ml-2 px-1.5 py-0.5 rounded text-[10px] font-bold bg-sky-500/20 text-sky-400 border border-sky-500/30">(вы)</span>
                     )}
                   </td>
-                  <td className="px-2 py-2">
-                    <span className="inline-flex px-2 py-0.5 rounded-full bg-slate-800 text-[11px]">
+                  <td className="px-4 py-3">
+                    <span className="inline-flex px-3 py-1 rounded-full bg-slate-800/80 border border-slate-700/50 text-[11px] font-semibold">
                       {m.role}
                     </span>
                   </td>
-                  <td className="px-2 py-2 text-slate-300">
-                    {m.status === 'ACTIVE' ? 'Активен' : m.status}
+                  <td className="px-4 py-3">
+                    <span className={`px-2 py-1 rounded text-[11px] font-medium ${
+                      m.status === 'ACTIVE' 
+                        ? 'bg-emerald-900/30 text-emerald-400 border border-emerald-700/50' 
+                        : 'bg-slate-800 text-slate-400'
+                    }`}>
+                      {m.status === 'ACTIVE' ? 'Активен' : m.status}
+                    </span>
                   </td>
-                  <td className="px-2 py-2 text-right">
+                  <td className="px-4 py-3 text-right">
                     {canRemoveMember(m) && (
                       <button
                         onClick={() => handleRemoveMember(m)}
-                        className="px-2 py-1 text-[11px] rounded-md border border-red-500/60 text-red-300 hover:bg-red-900/40"
+                        className="px-3 py-1.5 text-[11px] rounded-lg border border-red-500/60 text-red-300 hover:bg-red-900/40 hover:border-red-500/80 transition-all font-medium"
                       >
                         Удалить
                       </button>
@@ -287,34 +323,42 @@ export const SettingsView: React.FC<Props> = ({
             </div>
           </form>
 
-          <table className="w-full text-xs border border-slate-800 rounded-lg overflow-hidden">
-            <thead className="bg-slate-900/80">
+          <table className="w-full text-xs border border-slate-700/50 rounded-xl overflow-hidden bg-slate-900/40 backdrop-blur-sm shadow-lg">
+            <thead className="bg-gradient-to-r from-slate-800/80 to-slate-900/80">
               <tr>
-                <th className="px-2 py-2 text-left text-slate-400 font-normal">Почта</th>
-                <th className="px-2 py-2 text-left text-slate-400 font-normal">Роль</th>
-                <th className="px-2 py-2 text-left text-slate-400 font-normal">Статус</th>
-                <th className="px-2 py-2 text-right text-slate-400 font-normal">Действия</th>
+                <th className="px-4 py-3 text-left text-slate-300 font-semibold">Почта</th>
+                <th className="px-4 py-3 text-left text-slate-300 font-semibold">Роль</th>
+                <th className="px-4 py-3 text-left text-slate-300 font-semibold">Статус</th>
+                <th className="px-4 py-3 text-right text-slate-300 font-semibold">Действия</th>
               </tr>
             </thead>
-            <tbody className="bg-slate-900/40">
+            <tbody className="bg-slate-900/60">
               {invites.map(inv => (
-                <tr key={inv.id} className="border-t border-slate-800">
-                  <td className="px-2 py-2 text-slate-100">
+                <tr key={inv.id} className="border-t border-slate-800/50 hover:bg-slate-800/40 transition-colors">
+                  <td className="px-4 py-3 text-slate-100 font-medium">
                     {inv.email}
                   </td>
-                  <td className="px-2 py-2">
-                    <span className="inline-flex px-2 py-0.5 rounded-full bg-slate-800 text-[11px]">
+                  <td className="px-4 py-3">
+                    <span className="inline-flex px-3 py-1 rounded-full bg-slate-800/80 border border-slate-700/50 text-[11px] font-semibold">
                       {inv.role}
                     </span>
                   </td>
-                  <td className="px-2 py-2 text-slate-300">
-                    {inv.status}
+                  <td className="px-4 py-3">
+                    <span className={`px-2 py-1 rounded text-[11px] font-medium ${
+                      inv.status === 'PENDING'
+                        ? 'bg-amber-900/30 text-amber-400 border border-amber-700/50'
+                        : inv.status === 'ACCEPTED'
+                        ? 'bg-emerald-900/30 text-emerald-400 border border-emerald-700/50'
+                        : 'bg-slate-800 text-slate-400'
+                    }`}>
+                      {inv.status}
+                    </span>
                   </td>
-                  <td className="px-2 py-2 text-right space-x-1">
+                  <td className="px-4 py-3 text-right space-x-2">
                     <button
                       type="button"
                       onClick={() => handleCopyInviteLink(inv)}
-                      className="px-2 py-1 text-[11px] rounded-md border border-slate-600 hover:bg-slate-800"
+                      className="px-3 py-1.5 text-[11px] rounded-lg border border-slate-600/50 hover:bg-slate-800/80 hover:border-slate-500 transition-all font-medium"
                     >
                       Скопировать
                     </button>
@@ -322,7 +366,7 @@ export const SettingsView: React.FC<Props> = ({
                       <button
                         type="button"
                         onClick={() => handleRevokeInvite(inv.token)}
-                        className="px-2 py-1 text-[11px] rounded-md border border-red-500/60 text-red-300 hover:bg-red-900/40"
+                        className="px-3 py-1.5 text-[11px] rounded-lg border border-red-500/60 text-red-300 hover:bg-red-900/40 hover:border-red-500/80 transition-all font-medium"
                       >
                         Отозвать
                       </button>

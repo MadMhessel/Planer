@@ -42,6 +42,14 @@ export const GanttChart: React.FC<GanttChartProps> = ({ tasks, projects, onTaskC
   }, [startDate, daysToShow]);
 
   const getTaskStyle = (task: Task) => {
+    if (!task.startDate || !task.dueDate) {
+      return {
+        left: '0px',
+        width: '0px',
+        backgroundColor: '#ccc',
+      };
+    }
+    
     const start = new Date(task.startDate);
     const end = new Date(task.dueDate);
     
@@ -74,24 +82,24 @@ export const GanttChart: React.FC<GanttChartProps> = ({ tasks, projects, onTaskC
   const currentMonthYear = viewDate.toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' });
 
   return (
-    <div className="flex flex-col h-full bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden pb-20 md:pb-0">
+    <div className="flex flex-col h-full bg-white dark:bg-slate-800/80 backdrop-blur-sm rounded-xl shadow-lg border border-gray-200 dark:border-slate-700/50 overflow-hidden pb-20 md:pb-0">
       {/* Controls */}
-      <div className="flex items-center justify-between p-4 border-b bg-gray-50 flex-shrink-0">
-        <div className="flex flex-col md:flex-row md:items-center gap-1 md:gap-4">
-             <h2 className="font-bold text-gray-800 text-sm md:text-base">Временная шкала</h2>
-             <span className="text-xs md:text-sm font-medium text-indigo-600 capitalize bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-100">
+      <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-slate-700/50 bg-gradient-to-r from-gray-50 to-white dark:from-slate-800 dark:to-slate-900 flex-shrink-0">
+        <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-4">
+             <h2 className="font-bold text-gray-800 dark:text-slate-100 text-base md:text-lg bg-gradient-to-r from-sky-400 to-indigo-400 bg-clip-text text-transparent">Временная шкала</h2>
+             <span className="text-xs md:text-sm font-semibold text-indigo-600 dark:text-indigo-400 capitalize bg-indigo-50 dark:bg-indigo-900/30 px-3 py-1 rounded-lg border border-indigo-200 dark:border-indigo-700/50">
                 {currentMonthYear}
              </span>
         </div>
         
         <div className="flex gap-2">
-            <button onClick={() => handleScroll(-7)} className="p-1.5 bg-white border border-gray-200 hover:bg-gray-100 rounded-md shadow-sm text-gray-600">
+            <button onClick={() => handleScroll(-7)} className="p-2 bg-white dark:bg-slate-700/50 border border-gray-200 dark:border-slate-600 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg shadow-md hover:shadow-lg transition-all text-gray-600 dark:text-slate-300">
                 <ChevronLeft size={18}/>
             </button>
-            <button onClick={() => setViewDate(new Date())} className="text-xs font-medium px-3 py-1.5 bg-white border border-gray-200 rounded-md shadow-sm hover:bg-gray-50 text-gray-700">
+            <button onClick={() => setViewDate(new Date())} className="text-xs font-semibold px-4 py-2 bg-white dark:bg-slate-700/50 border border-gray-200 dark:border-slate-600 rounded-lg shadow-md hover:shadow-lg hover:bg-gray-50 dark:hover:bg-slate-700 transition-all text-gray-700 dark:text-slate-200">
                 Сегодня
             </button>
-            <button onClick={() => handleScroll(7)} className="p-1.5 bg-white border border-gray-200 hover:bg-gray-100 rounded-md shadow-sm text-gray-600">
+            <button onClick={() => handleScroll(7)} className="p-2 bg-white dark:bg-slate-700/50 border border-gray-200 dark:border-slate-600 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg shadow-md hover:shadow-lg transition-all text-gray-600 dark:text-slate-300">
                 <ChevronRight size={18}/>
             </button>
         </div>

@@ -141,51 +141,51 @@ export const KanbanBoard: React.FC<Props> = ({
   };
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between gap-2">
-        <h2 className="text-sm font-semibold text-slate-100">
+        <h2 className="text-lg font-bold text-slate-100 bg-gradient-to-r from-sky-400 to-indigo-400 bg-clip-text text-transparent">
           Канбан-доска
         </h2>
         <button
           onClick={onCreateTask}
-          className="flex items-center gap-1 px-3 py-1.5 text-xs rounded-lg bg-sky-500 text-slate-900 font-medium hover:bg-sky-400"
+          className="flex items-center gap-1.5 px-4 py-2 text-sm rounded-lg bg-gradient-to-r from-sky-500 to-indigo-600 text-white font-semibold hover:from-sky-600 hover:to-indigo-700 shadow-lg shadow-sky-500/30 transition-all hover:shadow-xl hover:shadow-sky-500/40 hover:-translate-y-0.5"
         >
-          <Plus className="w-3 h-3" />
+          <Plus className="w-4 h-4" />
           <span>Новая задача</span>
         </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-2 md:gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-3 md:gap-4">
         {columns.map(col => (
           <div
             key={col.id}
             className={
-              'flex flex-col rounded-xl bg-slate-900/70 border border-slate-700 min-h-[120px]' +
+              'flex flex-col rounded-xl bg-slate-900/80 backdrop-blur-sm border border-slate-700/50 min-h-[200px] shadow-lg transition-all ' +
               (dragOverColumn === col.id
-                ? ' ring-1 ring-sky-500/70'
-                : '')
+                ? ' ring-2 ring-sky-500/70 border-sky-500/50 shadow-sky-500/20'
+                : 'hover:border-slate-600/50')
             }
             onDragOver={handleDragOver(col.id)}
             onDrop={handleDrop(col.id)}
           >
-            <div className="flex items-center justify-between px-3 py-2 border-b border-slate-700 text-xs">
-              <span className="font-semibold text-slate-100">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-slate-700/50 bg-slate-800/30 rounded-t-xl">
+              <span className="font-bold text-sm text-slate-100">
                 {col.title}
               </span>
-              <span className="text-[11px] text-slate-400">
+              <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-700/50 text-slate-300">
                 {tasksByStatus[col.id].length}
               </span>
             </div>
 
-            <div className="flex-1 p-2 space-y-2 overflow-y-auto">
+            <div className="flex-1 p-3 space-y-2.5 overflow-y-auto">
               {tasksByStatus[col.id].map(task => (
                 <div
                   key={task.id}
                   className={
-                    'rounded-lg border px-2 py-2 text-xs bg-slate-900/90 cursor-pointer ' +
+                    'rounded-lg border px-3 py-2.5 text-xs bg-slate-800/60 backdrop-blur-sm cursor-pointer transition-all shadow-md hover:shadow-lg ' +
                     (draggedTaskId === task.id && !isTouchDevice
-                      ? 'opacity-60'
-                      : 'hover:border-sky-500/70')
+                      ? 'opacity-60 scale-95'
+                      : 'hover:border-sky-500/70 hover:bg-slate-800/80 hover:-translate-y-0.5')
                   }
                   draggable={!isTouchDevice}
                   onDragStart={handleDragStart(task.id)}
@@ -197,9 +197,17 @@ export const KanbanBoard: React.FC<Props> = ({
                       {task.title}
                     </div>
                     {/* Меню "ещё" — для тач-версии будет "Move to" */}
-                    <div className="relative shrink-0">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        // Можно добавить контекстное меню в будущем
+                      }}
+                      className="relative shrink-0 p-1 hover:bg-slate-800 rounded transition-colors"
+                      title="Дополнительные действия"
+                    >
                       <MoreHorizontal className="w-4 h-4 text-slate-500" />
-                    </div>
+                    </button>
                   </div>
 
                   {task.description && (

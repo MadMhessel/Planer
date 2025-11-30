@@ -1,7 +1,10 @@
 
 export const TelegramService = {
-sendNotification: async (chatIds: string[], message: string): Promise<boolean> => {
-    if (!chatIds || chatIds.length === 0) return false;
+  sendNotification: async (chatIds: string[], message: string): Promise<boolean> => {
+    if (!chatIds || chatIds.length === 0) {
+      console.warn('TelegramService: No recipients provided');
+      return false;
+    }
 
     try {
       const response = await fetch('/api/telegram/notify', {
@@ -16,20 +19,28 @@ sendNotification: async (chatIds: string[], message: string): Promise<boolean> =
       });
 
       if (!response.ok) {
-        console.error('Failed to send notification via server');
+        const errorData = await response.json().catch(() => ({}));
+        console.error('Failed to send notification via server:', errorData);
         return false;
       }
-      return true;
+      
+      const result = await response.json();
+      if (result.success) {
+        console.log('Telegram notification sent successfully to', chatIds.length, 'recipients');
+        return true;
+      } else {
+        console.warn('Telegram notification partially failed:', result);
+        return false;
+      }
     } catch (error) {
       console.error('Error calling notification endpoint:', error);
       return false;
     }
   },
 
-  testConnection: async (token: string, chatId: string): Promise<boolean> => {
-    return TelegramService.sendMessage(
-        token, 
-        chatId, 
+  testConnection: async (chatId: string): Promise<boolean> => {
+    return TelegramService.sendNotification(
+        [chatId], 
         '🔔 <b>Тестовое уведомление</b>\n\nСистема командного планировщика успешно подключена к вашему Telegram.'
     );
   }

@@ -69,28 +69,28 @@ export const CalendarView: React.FC<Props> = ({
   };
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <button
             onClick={handlePrevMonth}
-            className="p-1 rounded-full border border-slate-700 hover:bg-slate-800"
+            className="p-2 rounded-lg border border-slate-700/50 hover:bg-slate-800/80 hover:border-slate-600 transition-all"
           >
             <ChevronLeft className="w-4 h-4" />
           </button>
           <button
             onClick={handleNextMonth}
-            className="p-1 rounded-full border border-slate-700 hover:bg-slate-800"
+            className="p-2 rounded-lg border border-slate-700/50 hover:bg-slate-800/80 hover:border-slate-600 transition-all"
           >
             <ChevronRight className="w-4 h-4" />
           </button>
-          <h2 className="text-sm font-semibold text-slate-100">
+          <h2 className="text-lg font-bold text-slate-100 bg-gradient-to-r from-sky-400 to-indigo-400 bg-clip-text text-transparent ml-2">
             {monthLabel}
           </h2>
         </div>
         <button
           onClick={() => setCurrentDate(new Date())}
-          className="px-3 py-1.5 text-xs rounded-md border border-slate-600 hover:bg-slate-800"
+          className="px-4 py-2 text-sm rounded-lg border border-slate-600/50 hover:bg-slate-800/80 hover:border-slate-500 transition-all font-medium"
         >
           Сегодня
         </button>
@@ -104,11 +104,12 @@ export const CalendarView: React.FC<Props> = ({
         ))}
       </div>
 
-      <div className="grid grid-cols-7 gap-[2px] bg-slate-800/60 p-[2px] rounded-xl">
+      <div className="grid grid-cols-7 gap-2 bg-slate-900/40 backdrop-blur-sm p-3 rounded-xl border border-slate-700/30">
         {daysArray.map(day => {
           const iso = buildIso(day);
           const dayTasks = getTasksForDate(iso);
           const hasTasks = dayTasks.length > 0;
+          const isToday = iso === new Date().toISOString().slice(0, 10);
 
           return (
             <button
@@ -116,8 +117,11 @@ export const CalendarView: React.FC<Props> = ({
               type="button"
               onClick={() => onCreateTask(iso)}
               className={
-                'min-h-[72px] flex flex-col items-stretch rounded-md bg-slate-900/80 border border-slate-800 text-left px-1 py-1 text-[11px] ' +
-                (hasTasks ? 'hover:border-sky-500/70' : 'hover:border-slate-600')
+                'min-h-[80px] flex flex-col items-stretch rounded-lg bg-slate-800/60 backdrop-blur-sm border text-left px-2 py-2 text-[11px] transition-all shadow-md hover:shadow-lg hover:-translate-y-0.5 ' +
+                (isToday 
+                  ? 'border-sky-500/50 bg-sky-900/20 ring-1 ring-sky-500/30' 
+                  : 'border-slate-700/50 hover:border-slate-600/50') +
+                (hasTasks ? ' hover:border-sky-500/70' : '')
               }
             >
               <div className="flex items-center justify-between">
@@ -131,7 +135,7 @@ export const CalendarView: React.FC<Props> = ({
                 )}
               </div>
 
-              <div className="mt-1 space-y-0.5">
+              <div className="mt-1.5 space-y-1">
                 {dayTasks.slice(0, 3).map(task => (
                   <div
                     key={task.id}
@@ -139,13 +143,13 @@ export const CalendarView: React.FC<Props> = ({
                       e.stopPropagation();
                       onTaskClick(task);
                     }}
-                    className="truncate px-1 py-[2px] rounded bg-slate-800 text-[10px] text-slate-100"
+                    className="truncate px-2 py-1 rounded-md bg-slate-800/80 backdrop-blur-sm border border-slate-700/50 text-[10px] text-slate-100 font-medium hover:bg-slate-700/80 hover:border-sky-500/50 cursor-pointer transition-all shadow-sm"
                   >
                     {task.title}
                   </div>
                 ))}
                 {dayTasks.length > 3 && (
-                  <div className="text-[10px] text-slate-500">
+                  <div className="text-[10px] text-slate-500 font-semibold px-2">
                     + ещё {dayTasks.length - 3}
                   </div>
                 )}

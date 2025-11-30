@@ -58,19 +58,83 @@ export const FirestoreService = {
       return () => {};
     }
 
-    const q = query(
+    // Подписка на workspace, где пользователь владелец
+    const ownedQuery = query(
       collection(db, 'workspaces'),
       where('ownerId', '==', user.id)
     );
 
-    return onSnapshot(q, async (snapshot) => {
-      const workspaces: Workspace[] = [];
+    const workspaceMap = new Map<string, Workspace>();
+    let ownedUnsubscribe: (() => void) | null = null;
+    let memberUnsubscribes: (() => void)[] = [];
+
+    const updateCallback = () => {
+      const workspaces: Workspace[] = Array.from(workspaceMap.values());
+      callback(workspaces);
+    };
+
+    // Подписка на owned workspaces
+    ownedUnsubscribe = onSnapshot(ownedQuery, async (snapshot) => {
+      // Очищаем старые подписки на members
+      memberUnsubscribes.forEach(unsub => unsub());
+      memberUnsubscribes = [];
+
+      const workspaceIds = new Set<string>();
+      
+      // Добавляем owned workspaces
       for (const docSnap of snapshot.docs) {
         const w = docSnap.data() as Workspace;
-        workspaces.push({ ...w, id: docSnap.id });
+        workspaceMap.set(docSnap.id, { ...w, id: docSnap.id });
+        workspaceIds.add(docSnap.id);
       }
-      callback(workspaces);
+
+      // Подписываемся на members для каждого workspace, чтобы найти где пользователь участник
+      // Но это неэффективно, поэтому используем альтернативный подход:
+      // Подписываемся на все workspace и проверяем membership
+      const allWorkspacesQuery = query(collection(db, 'workspaces'));
+      
+      const allUnsubscribe = onSnapshot(allWorkspacesQuery, async (allSnapshot) => {
+        const memberWorkspaceIds = new Set<string>();
+        
+        // Проверяем membership для каждого workspace (кроме уже owned)
+        for (const docSnap of allSnapshot.docs) {
+          const workspaceId = docSnap.id;
+          if (workspaceIds.has(workspaceId)) continue; // Уже добавлен как owned
+          
+          // Проверяем, является ли пользователь участником
+          const memberRef = doc(db, 'workspaces', workspaceId, 'members', user.id);
+          const memberSnap = await getDoc(memberRef);
+          
+          if (memberSnap.exists()) {
+            const memberData = memberSnap.data() as WorkspaceMember;
+            if (memberData.status === 'ACTIVE' && memberData.userId === user.id) {
+              memberWorkspaceIds.add(workspaceId);
+            }
+          }
+        }
+
+        // Добавляем workspace, где пользователь участник
+        for (const workspaceId of memberWorkspaceIds) {
+          if (!workspaceMap.has(workspaceId)) {
+            const workspaceDoc = await getDoc(doc(db, 'workspaces', workspaceId));
+            if (workspaceDoc.exists()) {
+              const w = workspaceDoc.data() as Workspace;
+              workspaceMap.set(workspaceId, { ...w, id: workspaceId });
+            }
+          }
+        }
+        
+        updateCallback();
+      });
+
+      memberUnsubscribes.push(allUnsubscribe);
+      updateCallback();
     });
+
+    return () => {
+      ownedUnsubscribe?.();
+      memberUnsubscribes.forEach(unsub => unsub());
+    };
   },
 
   async getWorkspaceMembers(workspaceId: string): Promise<WorkspaceMember[]> {

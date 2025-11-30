@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { Task, Project, User, TaskStatus, TaskPriority } from '../types';
-import { Clock, User as UserIcon, Calendar, Hash, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { Clock, User as UserIcon, Calendar, Hash, ArrowUpDown, ArrowUp, ArrowDown, Plus } from 'lucide-react';
 
 interface TaskListProps {
   tasks: Task[];
@@ -66,7 +66,7 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, projects, users, onTaskClick 
   return (
     <div 
       onClick={() => onTaskClick(task)}
-      className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 mb-3 active:scale-[0.99] transition-transform"
+      className="bg-white dark:bg-slate-800/80 backdrop-blur-sm p-4 rounded-xl shadow-md border border-gray-100 dark:border-slate-700/50 mb-3 active:scale-[0.98] transition-all hover:shadow-lg hover:-translate-y-0.5 cursor-pointer"
     >
       <div className="flex justify-between items-start mb-2">
           {project ? (
@@ -81,19 +81,21 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, projects, users, onTaskClick 
       
       <h3 className="font-semibold text-gray-900 mb-1 leading-snug">{task.title}</h3>
       
-      <div className="flex flex-wrap gap-1 mb-3">
-           {task.tags.map(t => (
-              <span key={t} className="text-[10px] px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded border border-gray-200">#{t}</span>
+      {task.tags && task.tags.length > 0 && (
+        <div className="flex flex-wrap gap-1 mb-3">
+          {task.tags.map(t => (
+            <span key={t} className="text-[10px] px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded border border-gray-200">#{t}</span>
           ))}
-      </div>
+        </div>
+      )}
 
       <div className="flex items-center justify-between border-t border-gray-50 pt-3 mt-2">
           <div className="flex items-center gap-2">
                <div className="w-6 h-6 rounded-full bg-gray-100 border border-gray-200 flex items-center justify-center overflow-hidden">
-                    {user?.avatar ? (
-                        <img src={user.avatar} className="w-full h-full object-cover"/>
+                    {user?.photoURL ? (
+                        <img src={user.photoURL} className="w-full h-full object-cover" alt="" />
                     ) : (
-                        <span className="text-[9px] font-bold text-gray-500">{user ? getInitials(user.name) : '?'}</span>
+                        <span className="text-[9px] font-bold text-gray-500">{user ? getInitials(user.displayName || user.email) : '?'}</span>
                     )}
                </div>
                <div className={`px-2 py-0.5 rounded text-xs font-medium ${getStatusColor(task.status)}`}>
@@ -101,8 +103,12 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, projects, users, onTaskClick 
                </div>
           </div>
           <div className="flex items-center text-xs text-gray-400 font-medium">
-              <Calendar size={14} className="mr-1" />
-              {new Date(task.dueDate).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}
+              {task.dueDate && (
+                <>
+                  <Calendar size={14} className="mr-1" />
+                  {new Date(task.dueDate).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}
+                </>
+              )}
           </div>
       </div>
     </div>
@@ -156,13 +162,13 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks, projects, users, onTa
   return (
     <div className="h-full flex flex-col">
       {/* Toolbar */}
-      <div className="flex items-center justify-between mb-4 bg-white p-3 rounded-xl shadow-sm border border-gray-200">
-         <div className="flex items-center gap-2 text-sm text-gray-600">
-             <span className="hidden sm:inline font-medium">Сортировка:</span>
+      <div className="flex items-center justify-between mb-4 bg-white dark:bg-slate-800/80 backdrop-blur-sm p-4 rounded-xl shadow-lg border border-gray-200 dark:border-slate-700/50">
+         <div className="flex items-center gap-3 text-sm text-gray-600 dark:text-slate-300">
+             <span className="hidden sm:inline font-semibold">Сортировка:</span>
              <select 
                 value={sortBy} 
                 onChange={(e) => setSortBy(e.target.value as SortOption)}
-                className="bg-gray-50 border-transparent focus:border-indigo-500 focus:ring-0 rounded-lg py-1.5 px-3 text-sm cursor-pointer hover:bg-gray-100 transition-colors"
+                className="bg-gray-50 dark:bg-slate-700/50 border border-gray-200 dark:border-slate-600 focus:border-indigo-500 dark:focus:border-sky-500 focus:ring-2 focus:ring-indigo-500/20 dark:focus:ring-sky-500/20 rounded-lg py-2 px-3 text-sm cursor-pointer hover:bg-gray-100 dark:hover:bg-slate-700 transition-all font-medium"
              >
                  <option value="dueDate">По сроку</option>
                  <option value="priority">По приоритету</option>
@@ -170,15 +176,34 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks, projects, users, onTa
                  <option value="title">По названию</option>
              </select>
              <button 
+                type="button"
                 onClick={toggleSortOrder}
-                className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors text-gray-500"
+                className="p-2 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-all text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200"
                 title={sortOrder === 'asc' ? 'По возрастанию' : 'По убыванию'}
              >
                  {sortOrder === 'asc' ? <ArrowUp size={18} /> : <ArrowDown size={18} />}
              </button>
          </div>
-         <div className="text-xs text-gray-400 font-medium">
-             {tasks.length} задач
+         <div className="flex items-center gap-4">
+           <div className="text-sm text-gray-500 dark:text-slate-400 font-semibold">
+               {tasks.length} {tasks.length === 1 ? 'задача' : tasks.length < 5 ? 'задачи' : 'задач'}
+           </div>
+           <button
+             type="button"
+             onClick={() => onEditTask({
+               id: '',
+               title: '',
+               status: TaskStatus.TODO,
+               createdAt: new Date().toISOString(),
+               updatedAt: new Date().toISOString(),
+               workspaceId: '',
+               priority: TaskPriority.NORMAL
+             } as Task)}
+             className="flex items-center gap-1.5 px-4 py-2 text-sm rounded-lg bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-semibold hover:from-indigo-700 hover:to-purple-700 transition-all shadow-lg shadow-indigo-500/30 hover:shadow-xl hover:shadow-indigo-500/40 hover:-translate-y-0.5"
+           >
+             <Plus size={16} />
+             <span>Новая задача</span>
+           </button>
          </div>
       </div>
 
@@ -196,20 +221,20 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks, projects, users, onTa
       </div>
 
       {/* Desktop View: Table */}
-      <div className="hidden md:block overflow-hidden bg-white rounded-xl shadow-sm border border-gray-200 flex-1">
+      <div className="hidden md:block overflow-hidden bg-white dark:bg-slate-800/80 backdrop-blur-sm rounded-xl shadow-lg border border-gray-200 dark:border-slate-700/50 flex-1">
         <div className="overflow-x-auto h-full">
-            <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50 sticky top-0 z-10">
+            <table className="min-w-full divide-y divide-gray-200 dark:divide-slate-700/50">
+                <thead className="bg-gradient-to-r from-gray-50 to-white dark:from-slate-800 dark:to-slate-900 sticky top-0 z-10 border-b border-gray-200 dark:border-slate-700/50">
                 <tr>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Название</th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Проект</th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Статус</th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Исполнитель</th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Срок</th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Приоритет</th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Название</th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Проект</th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Статус</th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Исполнитель</th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Срок</th>
+                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Приоритет</th>
                 </tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-gray-100">
+                <tbody className="bg-white dark:bg-slate-900/50 divide-y divide-gray-100 dark:divide-slate-800/50">
                 {sortedTasks.map((task) => {
                     const project = projects.find(p => p.id === task.projectId);
                     const user = users.find(u => u.id === task.assigneeId);
@@ -218,51 +243,51 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks, projects, users, onTa
                     <tr 
                         key={task.id} 
                         onClick={() => onEditTask(task)}
-                        className="hover:bg-indigo-50/30 cursor-pointer transition-colors group"
+                        className="hover:bg-indigo-50/30 dark:hover:bg-slate-800/60 cursor-pointer transition-all group"
                     >
                         <td className="px-6 py-4">
-                            <div className="text-sm font-semibold text-gray-900 group-hover:text-indigo-600 transition-colors">{task.title}</div>
-                            {task.tags.length > 0 && (
-                                <div className="flex gap-1 mt-1.5">
+                            <div className="text-sm font-semibold text-gray-900 dark:text-slate-100 group-hover:text-indigo-600 dark:group-hover:text-sky-400 transition-colors">{task.title}</div>
+                            {task.tags && task.tags.length > 0 && (
+                                <div className="flex gap-1.5 mt-2">
                                     {task.tags.map(t => (
-                                        <span key={t} className="text-[10px] px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded border border-gray-200">#{t}</span>
+                                        <span key={t} className="text-[10px] px-2 py-0.5 bg-gray-100 dark:bg-slate-700/50 text-gray-600 dark:text-slate-300 rounded-md border border-gray-200 dark:border-slate-600/50 font-medium">#{t}</span>
                                     ))}
                                 </div>
                             )}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                         {project ? (
-                            <span className="px-2.5 py-1 inline-flex text-xs font-medium rounded-md shadow-sm text-white" style={{ backgroundColor: project.color }}>
+                            <span className="px-3 py-1.5 inline-flex text-xs font-semibold rounded-lg shadow-md text-white" style={{ backgroundColor: project.color }}>
                             {project.name}
                             </span>
-                        ) : <span className="text-gray-400 text-xs">—</span>}
+                        ) : <span className="text-gray-400 dark:text-slate-500 text-xs">—</span>}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                            <span className={`px-2.5 py-1 inline-flex text-xs font-medium rounded-full ${getStatusColor(task.status)}`}>
+                            <span className={`px-3 py-1.5 inline-flex text-xs font-semibold rounded-full ${getStatusColor(task.status)}`}>
                                 {translateStatus(task.status)}
                             </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                             <div className="flex items-center">
-                                <div className="flex-shrink-0 h-7 w-7">
-                                {user?.avatar ? (
-                                    <img className="h-7 w-7 rounded-full border border-gray-200" src={user.avatar} alt="" />
+                                <div className="flex-shrink-0 h-8 w-8">
+                                {user?.photoURL ? (
+                                    <img className="h-8 w-8 rounded-full border-2 border-gray-200 dark:border-slate-600 shadow-md" src={user.photoURL} alt="" />
                                 ) : (
-                                    <div className="h-7 w-7 rounded-full bg-indigo-100 flex items-center justify-center border border-indigo-200">
-                                        <span className="text-[10px] font-bold text-indigo-700">{user ? getInitials(user.name) : '?'}</span>
+                                    <div className="h-8 w-8 rounded-full bg-gradient-to-br from-indigo-400 to-purple-500 flex items-center justify-center border-2 border-indigo-300 dark:border-indigo-600 shadow-md">
+                                        <span className="text-[11px] font-bold text-white">{user ? getInitials(user.displayName || user.email) : '?'}</span>
                                     </div>
                                 )}
                                 </div>
-                                <div className="ml-3 text-sm text-gray-600">{user?.name || '—'}</div>
+                                <div className="ml-3 text-sm font-medium text-gray-700 dark:text-slate-200">{user ? (user.displayName || user.email) : '—'}</div>
                             </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="flex items-center text-sm text-gray-500">
-                                {new Date(task.dueDate).toLocaleDateString('ru-RU')}
+                            <div className="flex items-center text-sm font-medium text-gray-600 dark:text-slate-300">
+                                {task.dueDate ? new Date(task.dueDate).toLocaleDateString('ru-RU') : '—'}
                             </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                            <span className={`px-2.5 py-1 text-xs font-bold rounded-md border ${getPriorityColor(task.priority)}`}>
+                            <span className={`px-3 py-1.5 text-xs font-bold rounded-lg border shadow-sm ${getPriorityColor(task.priority)}`}>
                                 {translatePriority(task.priority)}
                             </span>
                         </td>

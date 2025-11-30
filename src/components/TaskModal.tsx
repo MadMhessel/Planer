@@ -67,6 +67,8 @@ export const TaskModal: React.FC<TaskModalProps> = ({
     
     onSave({
       ...formData,
+      projectId: formData.projectId || undefined,
+      assigneeId: formData.assigneeId || undefined,
       id: task?.id || Math.random().toString(36).substr(2, 9),
       createdAt: task?.createdAt || new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -79,29 +81,29 @@ export const TaskModal: React.FC<TaskModalProps> = ({
   const getInitials = (name: string) => name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-fade-in">
+      <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh] border border-slate-200 dark:border-slate-700 animate-scale-in">
         {/* Header */}
-        <div className="flex justify-between items-center px-6 py-4 border-b border-gray-100 bg-gray-50">
-          <h2 className="text-xl font-bold text-gray-800">
+        <div className="flex justify-between items-center px-6 py-4 border-b border-gray-100 dark:border-slate-700 bg-gradient-to-r from-gray-50 to-white dark:from-slate-800 dark:to-slate-900">
+          <h2 className="text-xl font-bold text-gray-800 dark:text-slate-100">
             {task ? 'Редактировать задачу' : 'Новая задача'}
           </h2>
-          <button onClick={onClose} className="p-2 hover:bg-gray-200 rounded-full transition-colors text-gray-500">
+          <button onClick={onClose} className="p-2 hover:bg-gray-200 dark:hover:bg-slate-700 rounded-full transition-all text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200">
             <X size={20} />
           </button>
         </div>
 
         {/* Body */}
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-6">
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-6 bg-white dark:bg-slate-900">
           {/* Title */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Название задачи</label>
+            <label className="block text-sm font-semibold text-gray-700 dark:text-slate-300 mb-2">Название задачи</label>
             <input
               type="text"
               required
               value={formData.title}
               onChange={(e) => setFormData({...formData, title: e.target.value})}
-              className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-lg font-medium"
+              className="w-full px-4 py-3 border border-gray-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500 dark:bg-slate-800 dark:text-slate-100 text-lg font-medium transition-all"
               placeholder="Что нужно сделать?"
             />
           </div>
@@ -111,10 +113,11 @@ export const TaskModal: React.FC<TaskModalProps> = ({
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Проект</label>
               <select
-                value={formData.projectId}
-                onChange={(e) => setFormData({...formData, projectId: e.target.value})}
+                value={formData.projectId || ''}
+                onChange={(e) => setFormData({...formData, projectId: e.target.value || undefined})}
                 className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 bg-white"
               >
+                <option value="">Без проекта</option>
                 {projects.map(p => (
                   <option key={p.id} value={p.id}>{p.name}</option>
                 ))}
@@ -150,16 +153,16 @@ export const TaskModal: React.FC<TaskModalProps> = ({
                 >
                     <option value="">Не назначен</option>
                     {users.map(u => (
-                    <option key={u.id} value={u.id}>{u.name}</option>
+                    <option key={u.id} value={u.id}>{u.displayName || u.email}</option>
                     ))}
                 </select>
                 <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">
                      {formData.assigneeId ? (
-                         users.find(u => u.id === formData.assigneeId)?.avatar ? (
-                             <img src={users.find(u => u.id === formData.assigneeId)?.avatar} className="w-5 h-5 rounded-full" />
+                         users.find(u => u.id === formData.assigneeId)?.photoURL ? (
+                             <img src={users.find(u => u.id === formData.assigneeId)?.photoURL} className="w-5 h-5 rounded-full" alt="" />
                          ) : (
                             <div className="w-5 h-5 rounded-full bg-indigo-100 text-[10px] flex items-center justify-center font-bold text-indigo-700">
-                                {getInitials(users.find(u => u.id === formData.assigneeId)?.name || '')}
+                                {getInitials(users.find(u => u.id === formData.assigneeId)?.displayName || users.find(u => u.id === formData.assigneeId)?.email || '')}
                             </div>
                          )
                      ) : (
@@ -225,17 +228,18 @@ export const TaskModal: React.FC<TaskModalProps> = ({
         </form>
 
         {/* Footer */}
-        <div className="flex justify-between items-center px-6 py-4 border-t border-gray-100 bg-gray-50">
+        <div className="flex justify-between items-center px-6 py-4 border-t border-gray-100 dark:border-slate-700 bg-gradient-to-r from-gray-50 to-white dark:from-slate-800 dark:to-slate-900">
           <div>
              {task && (
                  <button 
+                    type="button"
                     onClick={() => {
                         if (confirm('Вы уверены, что хотите удалить задачу?')) {
                             onDelete(task.id);
                             onClose();
                         }
                     }}
-                    className="flex items-center gap-2 text-red-600 hover:text-red-700 hover:bg-red-50 px-3 py-2 rounded-lg transition-colors text-sm font-medium"
+                    className="flex items-center gap-2 text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 px-4 py-2 rounded-lg transition-all text-sm font-medium"
                  >
                      <Trash2 size={16} /> Удалить
                  </button>
@@ -243,14 +247,15 @@ export const TaskModal: React.FC<TaskModalProps> = ({
           </div>
           <div className="flex gap-3">
             <button
+              type="button"
               onClick={onClose}
-              className="px-4 py-2 text-gray-600 hover:bg-gray-200 rounded-lg transition-colors font-medium"
+              className="px-5 py-2.5 text-gray-600 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-700 rounded-lg transition-all font-medium"
             >
               Отмена
             </button>
             <button
-              onClick={handleSubmit}
-              className="flex items-center gap-2 px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors shadow-sm font-medium"
+              type="submit"
+              className="flex items-center gap-2 px-6 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg hover:from-indigo-700 hover:to-purple-700 transition-all shadow-lg shadow-indigo-500/30 hover:shadow-xl hover:shadow-indigo-500/40 font-semibold"
             >
               <Save size={18} /> Сохранить
             </button>
