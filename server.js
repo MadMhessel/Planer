@@ -1,7 +1,7 @@
 const express = require('express');
 const path = require('path');
 const fs = require('fs');
-const { GoogleGenAI } = require('@google/genai');
+const { GoogleGenerativeAI } = require('@google/genai');
 const cors = require('cors');
 require('dotenv').config();
 
@@ -19,11 +19,11 @@ app.use((req, res, next) => {
 });
 
 // Initialize Gemini
-// NOTE: API_KEY must be set in Cloud Run Environment Variables
-const apiKey = process.env.API_KEY || '';
-let ai = null;
+// NOTE: GEMINI_API_KEY must be set in Cloud Run Environment Variables
+const apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY || '';
+let genAI = null;
 if (apiKey) {
-    ai = new GoogleGenAI({ apiKey });
+    genAI = new GoogleGenerativeAI(apiKey);
 }
 
 // --- API Routes ---
@@ -100,7 +100,7 @@ app.post('/api/telegram/notify', async (req, res) => {
 // AI Endpoint (Proxies request to Gemini to keep key secret)
 app.post('/api/ai/generate', async (req, res) => {
   try {
-    if (!ai) {
+    if (!genAI) {
         return res.status(500).json({ error: 'Server AI configuration missing' });
     }
 
@@ -113,61 +113,44 @@ app.post('/api/ai/generate', async (req, res) => {
     const todayStr = new Date().toISOString().split('T')[0];
     
     // Construct context string
-    const projectContext = context?.projects?.map(p => `${p.name} (ID: ${p.id})`).join(', ') || '';
-    const userContext = context?.users?.map(u => `${u.name} (ID: ${u.id})`).join(', ') || '';
+    const projectContext = context?.projectNames?.join(', ') || 'нет запланированных проектов';
+    const userContext = context?.userNames?.join(', ') || 'нет известных пользователей';
 
     const systemInstruction = `
-      Вы — ИИ-ассистент для Системы Управления Задачами.
+      Ты — интеллектуальный помощник-планировщик задач для небольшой команды.
       Текущая дата: ${todayStr}.
       
       Доступные проекты: ${projectContext}.
       Доступные пользователи: ${userContext}.
       
-      Ваша цель: интерпретировать команду пользователя на естественном языке (русском или английском) и вывести структурированный JSON-объект, представляющий намерение.
+      Твоя цель: интерпретировать команду пользователя на естественном языке (русском или английском) и вывести структурированный JSON-массив объектов, представляющих задачи.
       
-      Поддерживаемые действия (action):
-      1. create_task: Создать новую задачу.
-      2. create_project: Создать новый проект.
+      Каждый объект должен содержать поля:
+      - "title": краткое название задачи
+      - "description": подробное описание
+      - "projectName": название проекта (если логично привязать к одному из доступных проектов)
+      - "assigneeName": имя исполнителя (если подходит к одному из доступных пользователей)
+      - "dueDate": желаемый крайний срок (ISO-формат YYYY-MM-DD, если из контекста понятно)
+      - "priority": одна из: LOW, NORMAL, HIGH, CRITICAL
       
       Правила:
-      - Если проект не указан, попробуйте вывести его из контекста или оставьте пустым.
+      - Формат строго JSON-массив объектов без пояснений, комментариев и текста вокруг.
+      - Если проект не указан, оставьте "projectName" пустым.
+      - Если исполнитель не указан, оставьте "assigneeName" пустым.
       - Если дата относительная (например, "в следующую пятницу"), вычислите ISO дату YYYY-MM-DD.
-      - Поле summary должно быть кратким описанием действий на РУССКОМ языке.
-      - Верните ТОЛЬКО JSON объект, соответствующий схеме.
+      - Верните ТОЛЬКО JSON массив, соответствующий схеме.
     `;
 
     const prompt = `
       ${systemInstruction}
       
       КОМАНДА ПОЛЬЗОВАТЕЛЯ: "${command}"
-      
-      Формат ответа JSON:
-      {
-        "action": "create_task" | "create_project",
-        "data": {
-          "title": string,
-          "description": string,
-          "projectId": string,
-          "assigneeId": string,
-          "priority": "LOW" | "NORMAL" | "HIGH" | "CRITICAL",
-          "dueDate": string (YYYY-MM-DD),
-          "startDate": string (YYYY-MM-DD),
-          "projectName": string (for create_project),
-          "projectDescription": string
-        },
-        "summary": string
-      }
     `;
 
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: prompt,
-      config: {
-        responseMimeType: 'application/json'
-      }
-    });
-
-    const text = response.text;
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    const text = response.text();
     const jsonStr = text.replace(/```json/g, '').replace(/```/g, '').trim();
     
     res.json(JSON.parse(jsonStr));
