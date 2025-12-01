@@ -14,6 +14,9 @@ COPY . .
 # 4. Собираем фронтенд Vite
 RUN npm run build
 
+# Проверяем что dist собран
+RUN ls -la dist/ && test -f dist/index.html || (echo "ERROR: dist/index.html not found!" && exit 1)
+
 # 5. Настройки окружения по умолчанию
 ENV NODE_ENV=production
 ENV PORT=8080

@@ -172,22 +172,17 @@ app.post('/api/ai/generate', async (req, res) => {
 });
 
 // --- Static Files ---
+// Раздаём собранный фронт Vite
 app.use(express.static(path.join(__dirname, 'dist')));
 
-// SPA Fallback
+// SPA Fallback - только dist/index.html, без fallback на корневой index.html
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'dist', 'index.html'));
+});
+
+// Все остальные маршруты тоже на dist/index.html (для SPA)
 app.get('*', (req, res) => {
-  const distIndex = path.join(__dirname, 'dist', 'index.html');
-  if (require('fs').existsSync(distIndex)) {
-      res.sendFile(distIndex);
-  } else {
-      // Fallback for dev mode / non-built environment
-      const localIndex = path.join(__dirname, 'index.html');
-      if (require('fs').existsSync(localIndex)) {
-        res.sendFile(localIndex);
-      } else {
-        res.status(404).send('Build not found. Please run npm run build.');
-      }
-  }
+  res.sendFile(path.join(__dirname, 'dist', 'index.html'));
 });
 
 app.listen(PORT, "0.0.0.0", () => {
