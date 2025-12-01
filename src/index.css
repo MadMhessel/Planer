@@ -4,16 +4,18 @@
 
 @layer base {
   * {
-    @apply border-slate-700;
+    @apply border-slate-200 dark:border-slate-700;
   }
   
   body {
-    @apply bg-gradient-to-br from-slate-50 via-white to-slate-50 text-gray-900 antialiased;
+    @apply bg-white text-gray-900 antialiased;
     font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+    background: #ffffff;
   }
   
   .dark body {
-    @apply bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-slate-100;
+    @apply bg-slate-950 text-slate-100;
+    background: #0f172a;
   }
 }
 
@@ -23,17 +25,17 @@
   height: 10px;
 }
 ::-webkit-scrollbar-track {
-  @apply bg-slate-100 dark:bg-slate-800/50;
+  @apply bg-gray-100 dark:bg-slate-800;
   border-radius: 5px;
 }
 ::-webkit-scrollbar-thumb {
-  @apply bg-slate-300 dark:bg-slate-600;
+  @apply bg-gray-300 dark:bg-slate-600;
   border-radius: 5px;
   border: 2px solid transparent;
   background-clip: padding-box;
 }
 ::-webkit-scrollbar-thumb:hover {
-  @apply bg-slate-400 dark:bg-slate-500;
+  @apply bg-gray-400 dark:bg-slate-500;
 }
 
 /* Smooth transitions */
@@ -122,4 +124,9 @@
 /* Focus styles */
 .focus-ring {
   @apply focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2 dark:focus:ring-offset-slate-900;
+}
+
+/* Safe area for mobile bottom nav */
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0);
 }

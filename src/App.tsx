@@ -677,6 +677,10 @@ const handleUpdateTask = async (taskId: string, updates: Partial<Task>) => {
       onThemeChange={handleThemeChange}
       canManageCurrentWorkspace={canManageWorkspace(currentUser)}
       onNotificationsToggle={() => setNotificationsOpen(prev => !prev)}
+      onCreateTask={() => {
+        setEditingTask(null);
+        setIsTaskModalOpen(true);
+      }}
     >
       {!currentWorkspace && (
         <div className="p-6 text-slate-200">

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Bell,
   LayoutDashboard,
@@ -11,9 +11,13 @@ import {
   Sun,
   Moon,
   Monitor,
-  ChevronDown
+  ChevronDown,
+  Menu,
+  X
 } from 'lucide-react';
 import { Workspace, User, ViewMode, Notification } from '../types';
+import { MobileDrawer } from './MobileDrawer';
+import { BottomNav } from './BottomNav';
 
 type AppView = ViewMode | 'SETTINGS';
 
@@ -31,6 +35,7 @@ type LayoutProps = {
   onThemeChange: (theme: 'light' | 'dark' | 'system') => void;
   canManageCurrentWorkspace: boolean;
   onNotificationsToggle?: () => void;
+  onCreateTask?: () => void;
   children: React.ReactNode;
 };
 
@@ -57,10 +62,11 @@ export const Layout: React.FC<LayoutProps> = ({
   onThemeChange,
   canManageCurrentWorkspace,
   onNotificationsToggle,
+  onCreateTask,
   children
 }) => {
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const currentWorkspace = workspaces.find(w => w.id === currentWorkspaceId) || null;
-
   const unreadCount = notifications.filter(n => !n.read).length;
 
   const handleCreateWorkspaceClick = () => {
@@ -78,53 +84,151 @@ export const Layout: React.FC<LayoutProps> = ({
     'p-1.5 rounded-full transition-all ' +
     (currentTheme === mode
       ? 'bg-gradient-to-r from-sky-500 to-indigo-600 text-white shadow-md shadow-sky-500/40'
-      : 'hover:bg-slate-700/50 text-slate-300');
+      : 'hover:bg-gray-100 dark:hover:bg-slate-800 text-gray-600 dark:text-slate-400');
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-slate-100 flex flex-col">
-      {/* Верхняя панель */}
-      <header className="border-b border-slate-700/50 bg-slate-900/80 backdrop-blur-xl sticky top-0 z-20 shadow-lg shadow-slate-900/20">
-        <div className="max-w-7xl mx-auto px-4 py-3 flex flex-wrap items-center gap-4">
-          {/* Логотип / название */}
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-sky-500 to-indigo-600 flex items-center justify-center text-sm font-bold text-white shadow-lg shadow-sky-500/30">
-              CTP
-            </div>
-            <div className="flex flex-col leading-tight">
-              <span className="font-bold text-sm bg-gradient-to-r from-sky-400 to-indigo-400 bg-clip-text text-transparent">Command Task Planner</span>
-              <span className="text-xs text-slate-400">Командный планировщик задач</span>
-            </div>
-          </div>
+    <div className="min-h-screen bg-white dark:bg-slate-950 text-gray-900 dark:text-slate-100 flex flex-col">
+      {/* Mobile Drawer */}
+      <MobileDrawer
+        isOpen={mobileMenuOpen}
+        onClose={() => setMobileMenuOpen(false)}
+        currentView={view}
+        onViewChange={onChangeView}
+      />
 
-          {/* Рабочие пространства */}
-          <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap md:ml-4">
-            <div className="relative">
-              <select
-                className="bg-slate-800/80 border border-slate-700/50 rounded-lg text-sm px-3 py-1.5 pr-8 focus:ring-2 focus:ring-sky-500/50 focus:border-sky-500/50 transition-all"
-                value={currentWorkspaceId || ''}
-                onChange={e => onWorkspaceChange(e.target.value)}
+      {/* Header - Mobile First */}
+      <header className="sticky top-0 z-20 bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-slate-800 shadow-sm">
+        <div className="max-w-7xl mx-auto">
+          {/* Top Row - Logo, Menu, Actions */}
+          <div className="flex items-center justify-between px-3 sm:px-4 py-2.5 gap-2">
+            {/* Left: Logo + Menu Button (Mobile) */}
+            <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
+              {/* Mobile Menu Button */}
+              <button
+                onClick={() => setMobileMenuOpen(true)}
+                className="md:hidden p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-800 text-gray-700 dark:text-slate-300"
+                aria-label="Меню"
               >
-                {workspaces.length === 0 && (
-                  <option value="">Нет пространств</option>
-                )}
-                {workspaces.map(w => (
-                  <option key={w.id} value={w.id}>
-                    {w.name}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown className="w-4 h-4 text-slate-400 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <Menu className="w-5 h-5" />
+              </button>
+
+              {/* Logo */}
+              <div className="flex items-center gap-2 sm:gap-3">
+                <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-gradient-to-br from-sky-500 to-indigo-600 flex items-center justify-center text-xs sm:text-sm font-bold text-white shadow-lg shadow-sky-500/30">
+                  CTP
+                </div>
+                <div className="hidden sm:flex flex-col leading-tight">
+                  <span className="font-bold text-xs sm:text-sm bg-gradient-to-r from-sky-500 to-indigo-600 dark:from-sky-400 dark:to-indigo-400 bg-clip-text text-transparent">
+                    Command Task Planner
+                  </span>
+                  <span className="text-[10px] text-gray-500 dark:text-slate-400">Командный планировщик</span>
+                </div>
+              </div>
             </div>
-            <button
-              onClick={handleCreateWorkspaceClick}
-              className="text-xs px-3 py-1.5 rounded-lg border border-slate-600/50 hover:bg-slate-800/80 hover:border-slate-500 transition-all font-medium"
-            >
-              + Создать
-            </button>
+
+            {/* Center: Workspace Selector (Hidden on very small screens) */}
+            <div className="hidden xs:flex items-center gap-2 flex-1 max-w-xs mx-2">
+              <div className="relative flex-1">
+                <select
+                  className="w-full bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg text-xs sm:text-sm px-2 sm:px-3 py-1.5 pr-6 focus:ring-2 focus:ring-sky-500/50 focus:border-sky-500 transition-all text-gray-900 dark:text-slate-100"
+                  value={currentWorkspaceId || ''}
+                  onChange={e => onWorkspaceChange(e.target.value)}
+                >
+                  {workspaces.length === 0 && (
+                    <option value="">Нет пространств</option>
+                  )}
+                  {workspaces.map(w => (
+                    <option key={w.id} value={w.id}>
+                      {w.name}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="w-3 h-3 sm:w-4 sm:h-4 text-gray-400 dark:text-slate-500 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
+              </div>
+              <button
+                onClick={handleCreateWorkspaceClick}
+                className="text-[10px] sm:text-xs px-2 sm:px-3 py-1.5 rounded-lg border border-gray-200 dark:border-slate-700 hover:bg-gray-100 dark:hover:bg-slate-800 transition-all font-medium text-gray-700 dark:text-slate-300"
+              >
+                + Создать
+              </button>
+            </div>
+
+            {/* Right: Theme, Notifications, User */}
+            <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
+              {/* Theme Toggle - Compact on Mobile */}
+              <div className="flex items-center gap-0.5 bg-gray-100 dark:bg-slate-800 rounded-full p-0.5 text-xs border border-gray-200 dark:border-slate-700">
+                <button
+                  onClick={() => handleThemeClick('light')}
+                  type="button"
+                  className={themeButtonClasses('light')}
+                  aria-pressed={currentTheme === 'light'}
+                  title="Светлая"
+                >
+                  <Sun className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                </button>
+                <button
+                  onClick={() => handleThemeClick('system')}
+                  type="button"
+                  className={themeButtonClasses('system')}
+                  aria-pressed={currentTheme === 'system'}
+                  title="Системная"
+                >
+                  <Monitor className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                </button>
+                <button
+                  onClick={() => handleThemeClick('dark')}
+                  type="button"
+                  className={themeButtonClasses('dark')}
+                  aria-pressed={currentTheme === 'dark'}
+                  title="Тёмная"
+                >
+                  <Moon className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                </button>
+              </div>
+
+              {/* Notifications */}
+              {onNotificationsToggle && (
+                <div className="relative">
+                  <button
+                    onClick={onNotificationsToggle}
+                    className="relative p-1.5 sm:p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-800 transition-all text-gray-600 dark:text-slate-400"
+                    title="Уведомления"
+                  >
+                    <Bell className="w-4 h-4 sm:w-5 sm:h-5" />
+                    {unreadCount > 0 && (
+                      <span className="absolute -top-0.5 -right-0.5 bg-red-500 text-[9px] font-bold text-white rounded-full min-w-[16px] h-[16px] flex items-center justify-center shadow-lg animate-pulse px-1">
+                        {unreadCount > 9 ? '9+' : unreadCount}
+                      </span>
+                    )}
+                  </button>
+                </div>
+              )}
+
+              {/* User Menu - Compact on Mobile */}
+              <div className="hidden sm:flex items-center gap-2">
+                <div className="flex flex-col text-xs leading-tight">
+                  <span className="font-medium text-gray-900 dark:text-slate-100">
+                    {currentUser.displayName || currentUser.email}
+                  </span>
+                  {currentWorkspace && (
+                    <span className="text-gray-500 dark:text-slate-400 truncate max-w-[120px] text-[10px]">
+                      {currentWorkspace.name}
+                    </span>
+                  )}
+                </div>
+                <button
+                  onClick={onLogout}
+                  className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs border border-gray-200 dark:border-slate-700 hover:bg-gray-100 dark:hover:bg-slate-800 transition-all font-medium text-gray-700 dark:text-slate-300"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                  <span className="hidden md:inline">Выйти</span>
+                </button>
+              </div>
+            </div>
           </div>
 
-          {/* Центр — переключение представлений */}
-          <nav className="ml-0 md:ml-6 hidden md:flex items-center gap-1.5 text-xs">
+          {/* Desktop Navigation */}
+          <nav className="hidden md:flex items-center gap-1.5 px-4 pb-2 text-xs border-t border-gray-100 dark:border-slate-800">
             {viewButtons.map(btn => {
               const Icon = btn.icon;
               const active = view === btn.id;
@@ -136,7 +240,7 @@ export const Layout: React.FC<LayoutProps> = ({
                     'flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all font-medium ' +
                     (active
                       ? 'bg-gradient-to-r from-sky-500 to-indigo-600 text-white shadow-lg shadow-sky-500/30'
-                      : 'text-slate-300 hover:bg-slate-800/60 hover:text-slate-100')
+                      : 'text-gray-600 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-800 hover:text-gray-900 dark:hover:text-slate-100')
                   }
                 >
                   <Icon className="w-3.5 h-3.5" />
@@ -145,111 +249,22 @@ export const Layout: React.FC<LayoutProps> = ({
               );
             })}
           </nav>
-
-          {/* Справа */}
-          <div className="ml-auto flex items-center gap-3 flex-wrap justify-end mt-3 md:mt-0">
-            {/* Переключатель темы */}
-            <div className="flex items-center gap-0.5 bg-slate-800/60 rounded-full p-0.5 text-xs border border-slate-700/50">
-              <button
-                onClick={() => handleThemeClick('light')}
-                type="button"
-                className={themeButtonClasses('light')}
-                aria-pressed={currentTheme === 'light'}
-                title="Светлая"
-              >
-                <Sun className="w-3.5 h-3.5" />
-              </button>
-              <button
-                onClick={() => handleThemeClick('system')}
-                type="button"
-                className={themeButtonClasses('system')}
-                aria-pressed={currentTheme === 'system'}
-                title="Системная"
-              >
-                <Monitor className="w-3.5 h-3.5" />
-              </button>
-              <button
-                onClick={() => handleThemeClick('dark')}
-                type="button"
-                className={themeButtonClasses('dark')}
-                aria-pressed={currentTheme === 'dark'}
-                title="Тёмная"
-              >
-                <Moon className="w-3.5 h-3.5" />
-              </button>
-            </div>
-
-            {/* Уведомления */}
-            {onNotificationsToggle && (
-              <div className="relative">
-                <button
-                  onClick={onNotificationsToggle}
-                  className="relative p-2 rounded-lg hover:bg-slate-800/60 transition-all group"
-                  title="Уведомления"
-                >
-                  <Bell className="w-5 h-5 text-slate-300 group-hover:text-sky-400 transition-colors" />
-                  {unreadCount > 0 && (
-                    <span className="absolute -top-1 -right-1 bg-gradient-to-r from-red-500 to-pink-500 text-[10px] font-bold text-white rounded-full min-w-[18px] h-[18px] flex items-center justify-center shadow-lg shadow-red-500/50 animate-pulse">
-                      {unreadCount > 9 ? '9+' : unreadCount}
-                    </span>
-                  )}
-                </button>
-              </div>
-            )}
-
-            {/* Текущий пользователь */}
-            <div className="flex items-center gap-2">
-              <div className="hidden sm:flex flex-col text-xs leading-tight">
-                <span className="font-medium">
-                  {currentUser.displayName || currentUser.email}
-                </span>
-                {currentWorkspace && (
-                  <span className="text-slate-400 truncate max-w-[120px]">
-                    {currentWorkspace.name}
-                  </span>
-                )}
-              </div>
-              <button
-                onClick={onLogout}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs border border-slate-600/50 hover:bg-slate-800/80 hover:border-slate-500 transition-all font-medium"
-              >
-                <LogOut className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Выйти</span>
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Навигация по видам для мобилки */}
-        <div className="md:hidden px-3 pb-3 border-t border-slate-700/50">
-          <div className="flex flex-wrap gap-1.5 text-[11px]">
-            {viewButtons.map(btn => {
-              const Icon = btn.icon;
-              const active = view === btn.id;
-              return (
-                <button
-                  key={btn.id}
-                  onClick={() => onChangeView(btn.id)}
-                  className={
-                    'flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all font-medium ' +
-                    (active
-                      ? 'bg-gradient-to-r from-sky-500 to-indigo-600 text-white shadow-md shadow-sky-500/30'
-                      : 'text-slate-300 bg-slate-800/60 hover:bg-slate-800/80')
-                  }
-                >
-                  <Icon className="w-3.5 h-3.5" />
-                  <span>{btn.label}</span>
-                </button>
-              );
-            })}
-          </div>
         </div>
       </header>
 
-      {/* Основной контент */}
-      <main className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 py-4">
+      {/* Main Content */}
+      <main className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-4 md:px-6 py-4 pb-20 md:pb-4">
         {children}
       </main>
+
+      {/* Bottom Navigation - Mobile Only */}
+      {onCreateTask && (
+        <BottomNav
+          currentView={view}
+          onViewChange={onChangeView}
+          onCreateTask={onCreateTask}
+        />
+      )}
     </div>
   );
 };
