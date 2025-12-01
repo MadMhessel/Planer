@@ -7,10 +7,11 @@ import { AlertCircle, CheckCircle2, Clock, Users } from 'lucide-react';
 interface DashboardProps {
   tasks: Task[];
   projects: Project[];
-  users: User[];
+  // users может быть не передан (например, в старых местах использования)
+  users?: User[];
 }
 
-export const Dashboard: React.FC<DashboardProps> = ({ tasks, projects, users }) => {
+export const Dashboard: React.FC<DashboardProps> = ({ tasks, projects, users = [] }) => {
   // Stats
   const totalTasks = tasks.length;
   const completedTasks = tasks.filter(t => t.status === TaskStatus.DONE).length;
