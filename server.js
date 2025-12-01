@@ -213,19 +213,40 @@ app.post('/api/ai/generate', async (req, res) => {
 
 // --- Static Files ---
 // Раздаём собранный фронт Vite
-app.use(express.static(path.join(__dirname, 'dist')));
+const distPath = path.join(__dirname, 'dist');
+app.use(express.static(distPath));
 
-// SPA Fallback - только dist/index.html, без fallback на корневой index.html
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'dist', 'index.html'));
+// SPA Fallback - для всех маршрутов возвращаем index.html
+// В Express 5.x используем middleware вместо wildcard маршрута
+app.use((req, res, next) => {
+  // Если это API маршрут, пропускаем
+  if (req.path.startsWith('/api/')) {
+    return next();
+  }
+  // Для всех остальных маршрутов возвращаем index.html
+  res.sendFile(path.join(distPath, 'index.html'));
 });
 
-// Все остальные маршруты тоже на dist/index.html (для SPA)
-// В Express 5.x нужно использовать '/*' вместо '*'
-app.get('/*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'dist', 'index.html'));
+// Запуск сервера с обработкой ошибок
+const server = app.listen(PORT, "0.0.0.0", () => {
+  console.log(`✓ Server running on port ${PORT}`);
+  console.log(`✓ Health check: http://0.0.0.0:${PORT}/api/health`);
 });
 
-app.listen(PORT, "0.0.0.0", () => {
-  console.log(`Server running on port ${PORT}`);
+// Обработка ошибок при запуске
+server.on('error', (err) => {
+  console.error('✗ Server startup error:', err);
+  if (err.code === 'EADDRINUSE') {
+    console.error(`Port ${PORT} is already in use`);
+  }
+  process.exit(1);
+});
+
+// Graceful shutdown
+process.on('SIGTERM', () => {
+  console.log('SIGTERM received, shutting down gracefully');
+  server.close(() => {
+    console.log('Server closed');
+    process.exit(0);
+  });
 });
