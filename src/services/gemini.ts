@@ -22,10 +22,10 @@ export const GeminiService = {
       if (suggestions && typeof suggestions === 'object') {
         return [suggestions as Partial<Task>];
       }
-      return [];
-    } catch (error) {
+      throw new Error('Gemini не вернул задачи');
+    } catch (error: any) {
       console.error('Error calling AI endpoint:', error);
-      return [];
+      throw error;
     }
   }
 };

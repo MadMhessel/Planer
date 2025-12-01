@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Layout } from './components/Layout';
 import { TaskList } from './components/TaskList';
 import { KanbanBoard } from './components/KanbanBoard';
@@ -67,6 +67,8 @@ const getAllTelegramRecipients = (allMembers: WorkspaceMember[]): string[] => {
     .filter((id, index, self) => self.indexOf(id) === index); // Убираем дубликаты
 };
 
+type ThemeMode = 'light' | 'dark' | 'system';
+
 const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
@@ -91,16 +93,46 @@ const App: React.FC = () => {
   const [inviteContext, setInviteContext] = useState<InviteContext | null>(null);
   const [isProcessingCommand, setIsProcessingCommand] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [theme, setTheme] = useState<ThemeMode>(() => {
+    if (typeof window === 'undefined') return 'system';
+    try {
+      return StorageService.getTheme();
+    } catch {
+      return 'system';
+    }
+  });
+
+  const applyTheme = useCallback((mode: ThemeMode) => {
+    if (typeof document === 'undefined') return;
+    const root = document.documentElement;
+    let finalTheme = mode;
+
+    if (mode === 'system') {
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      finalTheme = prefersDark ? 'dark' : 'light';
+    }
+
+    if (finalTheme === 'dark') {
+      root.classList.add('dark');
+    } else {
+      root.classList.remove('dark');
+    }
+  }, []);
+
+  useEffect(() => {
+    applyTheme(theme);
+    try {
+      StorageService.setTheme(theme);
+    } catch {
+      // ignore storage errors (e.g., SSR)
+    }
+  }, [theme, applyTheme]);
 
   // 1. Auth Listener
   useEffect(() => {
     const unsubscribe = AuthService.subscribeToAuth(async (user) => {
       setCurrentUser(user);
       setAuthLoading(false);
-      
-      // Theme init
-      const savedTheme = StorageService.getTheme();
-      applyTheme(savedTheme);
     });
 
     return () => unsubscribe();
@@ -149,26 +181,8 @@ const App: React.FC = () => {
     setView(mode as AppView);
   }, []);
 
-  const applyTheme = (theme: 'light' | 'dark' | 'system') => {
-    const root = document.documentElement;
-    let finalTheme = theme;
-
-    if (theme === 'system') {
-      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-      finalTheme = prefersDark ? 'dark' : 'light';
-    }
-
-    if (finalTheme === 'dark') {
-      root.classList.add('dark');
-    } else {
-      root.classList.remove('dark');
-    }
-
-    StorageService.setTheme(theme);
-  };
-
   const handleThemeChange = (theme: 'light' | 'dark' | 'system') => {
-    applyTheme(theme);
+    setTheme(theme);
   };
 
   const handleChangeView = (newView: AppView) => {
@@ -519,6 +533,21 @@ const handleUpdateTask = async (taskId: string, updates: Partial<Task>) => {
         return processed;
       });
 
+      if (processedSuggestions.length === 0) {
+        setNotifications(prev => [
+          {
+            id: Date.now().toString(),
+            type: 'SYSTEM',
+            title: 'AI не вернул задачи',
+            message: 'Попробуйте переформулировать запрос или добавить больше деталей.',
+            createdAt: new Date().toISOString(),
+            read: false
+          },
+          ...prev
+        ]);
+        return;
+      }
+
       let createdCount = 0;
       for (const suggestion of processedSuggestions) {
         try {
@@ -644,6 +673,7 @@ const handleUpdateTask = async (taskId: string, updates: Partial<Task>) => {
       onWorkspaceChange={handleWorkspaceChange}
       onCreateWorkspace={handleCreateWorkspace}
       notifications={notifications}
+      currentTheme={theme}
       onThemeChange={handleThemeChange}
       canManageCurrentWorkspace={canManageWorkspace(currentUser)}
       onNotificationsToggle={() => setNotificationsOpen(prev => !prev)}

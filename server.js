@@ -35,6 +35,39 @@ if (!apiKey) {
   });
 }
 
+const parseGeminiResponse = (rawText) => {
+  if (!rawText || typeof rawText !== 'string') return null;
+  const cleaned = rawText
+    .replace(/```json/gi, '')
+    .replace(/```/g, '')
+    .trim();
+
+  const tryParse = (value) => {
+    try {
+      return JSON.parse(value);
+    } catch {
+      return null;
+    }
+  };
+
+  let parsed = tryParse(cleaned);
+  if (parsed) return parsed;
+
+  const arrayMatch = cleaned.match(/\[[\s\S]*\]/);
+  if (arrayMatch) {
+    parsed = tryParse(arrayMatch[0]);
+    if (parsed) return parsed;
+  }
+
+  const objectMatch = cleaned.match(/\{[\s\S]*\}/);
+  if (objectMatch) {
+    parsed = tryParse(objectMatch[0]);
+    if (parsed) return parsed;
+  }
+
+  return null;
+};
+
 // --- API Routes ---
 
 // Health Check
@@ -161,9 +194,16 @@ app.post('/api/ai/generate', async (req, res) => {
     const result = await model.generateContent(prompt);
     const response = await result.response;
     const text = response.text();
-    const jsonStr = text.replace(/```json/g, '').replace(/```/g, '').trim();
+    const parsed = parseGeminiResponse(text);
+
+    if (!parsed) {
+      console.error('Gemini returned unparseable payload:', text);
+      return res.status(422).json({
+        error: 'Gemini не смог сформировать задачи. Попробуйте переформулировать запрос.'
+      });
+    }
     
-    res.json(JSON.parse(jsonStr));
+    res.json(parsed);
 
   } catch (error) {
     console.error('AI API Error:', error);

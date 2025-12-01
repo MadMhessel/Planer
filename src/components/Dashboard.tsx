@@ -31,15 +31,15 @@ export const Dashboard: React.FC<DashboardProps> = ({ tasks, projects, users = [
   }));
 
   const StatCard = ({ title, value, icon: Icon, colorClass, bgClass }: any) => (
-      <div className="bg-white dark:bg-slate-800/80 backdrop-blur-sm p-6 rounded-xl shadow-lg border border-gray-100 dark:border-slate-700/50 flex justify-between items-center hover:shadow-xl transition-all hover:-translate-y-1">
-          <div>
-              <p className="text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wider mb-2">{title}</p>
-              <h3 className="text-3xl md:text-4xl font-bold text-gray-900 dark:text-white">{value}</h3>
-          </div>
-          <div className={`p-4 rounded-xl ${bgClass} ${colorClass} shadow-md`}>
-              <Icon size={28} />
-          </div>
+    <div className="bg-white/95 dark:bg-slate-950/70 backdrop-blur-md p-6 rounded-xl shadow-lg shadow-slate-900/40 border border-slate-200 dark:border-slate-800/70 flex justify-between items-center transition-all hover:-translate-y-1">
+      <div>
+        <p className="text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wider mb-2">{title}</p>
+        <h3 className="text-3xl md:text-4xl font-bold text-gray-900 dark:text-white">{value}</h3>
       </div>
+      <div className={`p-4 rounded-xl ${bgClass} ${colorClass} shadow-md shadow-slate-900/30`}>
+        <Icon size={28} />
+      </div>
+    </div>
   );
 
   return (
@@ -78,7 +78,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ tasks, projects, users = [
 
        {/* Charts Grid */}
        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="bg-white dark:bg-slate-800/80 backdrop-blur-sm p-6 rounded-xl shadow-lg border border-gray-100 dark:border-slate-700/50 flex flex-col h-[400px] md:h-[350px]">
+          <div className="bg-white/95 dark:bg-slate-950/70 backdrop-blur-md p-6 rounded-xl shadow-lg shadow-slate-900/40 border border-slate-200 dark:border-slate-800/70 flex flex-col h-[400px] md:h-[350px]">
              <h4 className="text-lg font-bold text-gray-800 dark:text-white mb-6">Статус задач</h4>
              <div className="flex-1 w-full min-h-0">
                 <ResponsiveContainer width="100%" height="100%">
@@ -113,7 +113,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ tasks, projects, users = [
              </div>
           </div>
 
-          <div className="bg-white dark:bg-slate-800/80 backdrop-blur-sm p-6 rounded-xl shadow-lg border border-gray-100 dark:border-slate-700/50 flex flex-col h-[400px] md:h-[350px]">
+          <div className="bg-white/95 dark:bg-slate-950/70 backdrop-blur-md p-6 rounded-xl shadow-lg shadow-slate-900/40 border border-slate-200 dark:border-slate-800/70 flex flex-col h-[400px] md:h-[350px]">
               <h4 className="text-lg font-bold text-gray-800 dark:text-white mb-6">Задачи по проектам</h4>
               <div className="flex-1 w-full min-h-0">
                 <ResponsiveContainer width="100%" height="100%">

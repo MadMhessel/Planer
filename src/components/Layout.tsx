@@ -27,6 +27,7 @@ type LayoutProps = {
   onWorkspaceChange: (id: string) => void;
   onCreateWorkspace: (name: string) => void;
   notifications: Notification[];
+  currentTheme: 'light' | 'dark' | 'system';
   onThemeChange: (theme: 'light' | 'dark' | 'system') => void;
   canManageCurrentWorkspace: boolean;
   onNotificationsToggle?: () => void;
@@ -52,6 +53,7 @@ export const Layout: React.FC<LayoutProps> = ({
   onWorkspaceChange,
   onCreateWorkspace,
   notifications,
+  currentTheme,
   onThemeChange,
   canManageCurrentWorkspace,
   onNotificationsToggle,
@@ -72,11 +74,17 @@ export const Layout: React.FC<LayoutProps> = ({
     onThemeChange(mode);
   };
 
+  const themeButtonClasses = (mode: 'light' | 'dark' | 'system') =>
+    'p-1.5 rounded-full transition-all ' +
+    (currentTheme === mode
+      ? 'bg-gradient-to-r from-sky-500 to-indigo-600 text-white shadow-md shadow-sky-500/40'
+      : 'hover:bg-slate-700/50 text-slate-300');
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-slate-100 flex flex-col">
       {/* Верхняя панель */}
       <header className="border-b border-slate-700/50 bg-slate-900/80 backdrop-blur-xl sticky top-0 z-20 shadow-lg shadow-slate-900/20">
-        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center gap-4">
+        <div className="max-w-7xl mx-auto px-4 py-3 flex flex-wrap items-center gap-4">
           {/* Логотип / название */}
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-sky-500 to-indigo-600 flex items-center justify-center text-sm font-bold text-white shadow-lg shadow-sky-500/30">
@@ -89,7 +97,7 @@ export const Layout: React.FC<LayoutProps> = ({
           </div>
 
           {/* Рабочие пространства */}
-          <div className="ml-4 flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap md:ml-4">
             <div className="relative">
               <select
                 className="bg-slate-800/80 border border-slate-700/50 rounded-lg text-sm px-3 py-1.5 pr-8 focus:ring-2 focus:ring-sky-500/50 focus:border-sky-500/50 transition-all"
@@ -116,7 +124,7 @@ export const Layout: React.FC<LayoutProps> = ({
           </div>
 
           {/* Центр — переключение представлений */}
-          <nav className="ml-6 hidden md:flex items-center gap-1.5 text-xs">
+          <nav className="ml-0 md:ml-6 hidden md:flex items-center gap-1.5 text-xs">
             {viewButtons.map(btn => {
               const Icon = btn.icon;
               const active = view === btn.id;
@@ -139,26 +147,32 @@ export const Layout: React.FC<LayoutProps> = ({
           </nav>
 
           {/* Справа */}
-          <div className="ml-auto flex items-center gap-3">
+          <div className="ml-auto flex items-center gap-3 flex-wrap justify-end mt-3 md:mt-0">
             {/* Переключатель темы */}
             <div className="flex items-center gap-0.5 bg-slate-800/60 rounded-full p-0.5 text-xs border border-slate-700/50">
               <button
                 onClick={() => handleThemeClick('light')}
-                className="p-1.5 rounded-full hover:bg-slate-700/50 transition-all"
+                type="button"
+                className={themeButtonClasses('light')}
+                aria-pressed={currentTheme === 'light'}
                 title="Светлая"
               >
                 <Sun className="w-3.5 h-3.5" />
               </button>
               <button
                 onClick={() => handleThemeClick('system')}
-                className="p-1.5 rounded-full hover:bg-slate-700/50 transition-all"
+                type="button"
+                className={themeButtonClasses('system')}
+                aria-pressed={currentTheme === 'system'}
                 title="Системная"
               >
                 <Monitor className="w-3.5 h-3.5" />
               </button>
               <button
                 onClick={() => handleThemeClick('dark')}
-                className="p-1.5 rounded-full hover:bg-slate-700/50 transition-all"
+                type="button"
+                className={themeButtonClasses('dark')}
+                aria-pressed={currentTheme === 'dark'}
                 title="Тёмная"
               >
                 <Moon className="w-3.5 h-3.5" />
