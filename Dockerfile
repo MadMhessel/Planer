@@ -1,40 +1,23 @@
-# Build stage
-FROM node:20-alpine AS builder
-
-WORKDIR /app
-
-# Copy package files
-COPY package*.json ./
-
-# Install dependencies
-RUN npm ci
-
-# Copy source files
-COPY . .
-
-# Build the application
-RUN npm run build
-
-# Runtime stage
 FROM node:20-alpine
 
 WORKDIR /app
 
-# Copy package files
+# 1. Копируем только файлы зависимостей
 COPY package*.json ./
 
-# Install only production dependencies
-RUN npm ci --only=production
+# 2. Ставим зависимости
+RUN npm ci
 
-# Copy built files from builder
-COPY --from=builder /app/dist ./dist
+# 3. Копируем остальной код
+COPY . .
 
-# Copy server file
-COPY server.js ./
+# 4. Собираем фронтенд Vite
+RUN npm run build
 
-# Expose port (Cloud Run will set PORT env var)
-EXPOSE 8080
+# 5. Настройки окружения по умолчанию
+ENV NODE_ENV=production
+ENV PORT=8080
 
-# Start the server
+# 6. Запуск Node-сервера
 CMD ["node", "server.js"]
 

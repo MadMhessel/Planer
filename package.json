@@ -4,13 +4,13 @@
   "description": "Multi-user task planner with Gemini AI",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js",
-    "build": "vite build",
     "dev": "vite",
-    "preview": "vite preview"
+    "build": "vite build",
+    "preview": "vite preview",
+    "start": "node server.js"
   },
   "dependencies": {
-    "@google/genai": "^1.30.0",
+    "@google/generative-ai": "^0.21.0",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
     "express": "^4.18.2",

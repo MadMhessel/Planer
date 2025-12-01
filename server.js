@@ -18,15 +18,22 @@ app.use((req, res, next) => {
     next();
 });
 
-// Initialize Gemini
-// NOTE: GEMINI_API_KEY must be set in Cloud Run Environment Variables
-const apiKey = process.env.GOOGLE_API_KEY;
-if (!apiKey) {
-  throw new Error("GOOGLE_API_KEY is not set");
-}
+// --- Инициализация Gemini ---
+const apiKey =
+  process.env.GOOGLE_API_KEY ||
+  process.env.GOOGLE_GENAI_API_KEY ||
+  process.env.API_KEY;
 
-const genAI = new GoogleGenerativeAI(apiKey);
-const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+let model = null;
+
+if (!apiKey) {
+  console.warn("GOOGLE_API_KEY is not set - Gemini features disabled");
+} else {
+  const genAI = new GoogleGenerativeAI(apiKey);
+  model = genAI.getGenerativeModel({
+    model: "gemini-2.0-flash-001", // или твоя модель
+  });
+}
 
 // --- API Routes ---
 
@@ -101,11 +108,13 @@ app.post('/api/telegram/notify', async (req, res) => {
 
 // AI Endpoint (Proxies request to Gemini to keep key secret)
 app.post('/api/ai/generate', async (req, res) => {
-  try {
-    if (!genAI) {
-        return res.status(500).json({ error: 'Server AI configuration missing' });
-    }
+  if (!model) {
+    return res
+      .status(500)
+      .json({ error: "Gemini API key is not configured on the server" });
+  }
 
+  try {
     const { command, context } = req.body;
     
     if (!command) {
@@ -181,6 +190,6 @@ app.get('*', (req, res) => {
   }
 });
 
-app.listen(PORT, () => {
+app.listen(PORT, "0.0.0.0", () => {
   console.log(`Server running on port ${PORT}`);
 });
