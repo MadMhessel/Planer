@@ -15,6 +15,16 @@ const firebaseConfig = {
   appId: env.VITE_FIREBASE_APP_ID
 };
 
+// Проверка что все переменные заданы (для отладки)
+if (!firebaseConfig.apiKey || !firebaseConfig.projectId) {
+  console.error('❌ Firebase configuration is missing!');
+  console.error('Required environment variables:');
+  console.error('  VITE_FIREBASE_API_KEY:', firebaseConfig.apiKey ? '✓' : '✗');
+  console.error('  VITE_FIREBASE_AUTH_DOMAIN:', firebaseConfig.authDomain ? '✓' : '✗');
+  console.error('  VITE_FIREBASE_PROJECT_ID:', firebaseConfig.projectId ? '✓' : '✗');
+  console.error('These variables must be set during Docker build with --build-arg');
+}
+
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
