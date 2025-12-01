@@ -40,8 +40,8 @@ export const NotificationCenter: React.FC<Props> = ({
 
       {/* Панель уведомлений */}
       {open && (
-        <div className="fixed inset-x-0 bottom-0 md:bottom-4 md:right-4 md:left-auto md:w-96 z-30 animate-slide-up">
-          <div className="mx-2 mb-2 md:mx-0 rounded-2xl bg-white dark:bg-slate-900 backdrop-blur-xl border border-gray-200 dark:border-slate-700 shadow-2xl max-h-[70vh] flex flex-col">
+        <div className="fixed inset-x-0 bottom-0 md:bottom-4 md:right-4 md:left-auto md:w-96 z-40 animate-slide-up">
+          <div className="mx-2 mb-2 md:mx-0 rounded-2xl bg-white dark:bg-slate-900 backdrop-blur-xl border border-gray-200 dark:border-slate-700 shadow-2xl max-h-[70vh] md:max-h-[80vh] flex flex-col">
             <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-900 rounded-t-2xl">
               <div className="flex items-center gap-2 text-sm font-bold">
                 <Bell className="w-5 h-5 text-sky-500 dark:text-sky-400" />
@@ -87,23 +87,23 @@ export const NotificationCenter: React.FC<Props> = ({
               {notifications.map(n => (
                 <div
                   key={n.id}
-                  className={`px-4 py-3 border-b border-gray-200 dark:border-slate-800 last:border-b-0 hover:bg-gray-50 dark:hover:bg-slate-800/30 transition-all ${!n.read ? 'bg-blue-50 dark:bg-slate-800/20' : ''}`}
+                  className={`px-3 sm:px-4 py-2.5 sm:py-3 border-b border-gray-200 dark:border-slate-800 last:border-b-0 hover:bg-gray-50 dark:hover:bg-slate-800/30 transition-all cursor-pointer ${!n.read ? 'bg-blue-50 dark:bg-slate-800/20' : ''}`}
                 >
                   <div className="flex items-start justify-between gap-2">
-                    <div className="flex-1">
+                    <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
-                        <span className="font-semibold text-gray-900 dark:text-slate-100 text-sm">
+                        <span className="font-semibold text-gray-900 dark:text-slate-100 text-xs sm:text-sm truncate">
                           {n.title}
                         </span>
                         {!n.read && (
-                          <span className="w-2 h-2 rounded-full bg-sky-500"></span>
+                          <span className="w-2 h-2 rounded-full bg-sky-500 flex-shrink-0"></span>
                         )}
                       </div>
-                      <p className="text-gray-600 dark:text-slate-300 text-xs leading-relaxed">
+                      <p className="text-gray-600 dark:text-slate-300 text-[11px] sm:text-xs leading-relaxed line-clamp-2">
                         {n.message}
                       </p>
                     </div>
-                    <span className="text-[10px] text-gray-500 dark:text-slate-500 whitespace-nowrap">
+                    <span className="text-[10px] text-gray-500 dark:text-slate-500 whitespace-nowrap flex-shrink-0">
                       {new Date(n.createdAt).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}
                     </span>
                   </div>

@@ -165,7 +165,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ tasks, projects, users = [
                 <BarChart data={projectData} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
                   <XAxis 
                     dataKey="name" 
-                    fontSize={isMobile() ? 9 : 11} 
+                    fontSize={isMobile ? 9 : 11} 
                     tickLine={false} 
                     axisLine={false} 
                     tickMargin={10} 

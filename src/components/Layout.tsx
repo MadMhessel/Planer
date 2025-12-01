@@ -13,7 +13,8 @@ import {
   Monitor,
   ChevronDown,
   Menu,
-  X
+  X,
+  Plus
 } from 'lucide-react';
 import { Workspace, User, ViewMode, Notification } from '../types';
 import { MobileDrawer } from './MobileDrawer';
@@ -256,6 +257,18 @@ export const Layout: React.FC<LayoutProps> = ({
       <main className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-4 md:px-6 py-4 pb-20 md:pb-4">
         {children}
       </main>
+
+      {/* FAB - Floating Action Button for Create Task (Desktop) */}
+      {onCreateTask && (
+        <button
+          onClick={onCreateTask}
+          className="hidden md:flex fixed bottom-6 right-6 z-30 items-center justify-center w-14 h-14 rounded-full bg-gradient-to-r from-sky-500 to-indigo-600 text-white shadow-xl shadow-sky-500/40 hover:shadow-2xl hover:shadow-sky-500/50 hover:scale-110 transition-all font-semibold"
+          aria-label="Создать задачу"
+          title="Создать задачу"
+        >
+          <Plus className="w-6 h-6" />
+        </button>
+      )}
 
       {/* Bottom Navigation - Mobile Only */}
       {onCreateTask && (
