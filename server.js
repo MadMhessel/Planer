@@ -221,7 +221,8 @@ app.get('/', (req, res) => {
 });
 
 // Все остальные маршруты тоже на dist/index.html (для SPA)
-app.get('*', (req, res) => {
+// В Express 5.x нужно использовать '/*' вместо '*'
+app.get('/*', (req, res) => {
   res.sendFile(path.join(__dirname, 'dist', 'index.html'));
 });
 
