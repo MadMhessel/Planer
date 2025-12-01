@@ -23,20 +23,15 @@ if [ -z "$VITE_FIREBASE_API_KEY" ] || [ -z "$VITE_FIREBASE_AUTH_DOMAIN" ] || [ -
     exit 1
 fi
 
-PROJECT_ID=${GOOGLE_CLOUD_PROJECT:-rugged-nucleus-476116-n8}
+PROJECT_ID=$(gcloud config get-value project 2>/dev/null || echo "rugged-nucleus-476116-n8")
 IMAGE_NAME="gcr.io/${PROJECT_ID}/command-task-planner"
 REGION="us-west1"
 SERVICE_NAME="command-task-planner"
 
 echo -e "${GREEN}1. Сборка Docker образа...${NC}"
 gcloud builds submit \
-  --tag "${IMAGE_NAME}" \
-  --build-arg VITE_FIREBASE_API_KEY="${VITE_FIREBASE_API_KEY}" \
-  --build-arg VITE_FIREBASE_AUTH_DOMAIN="${VITE_FIREBASE_AUTH_DOMAIN}" \
-  --build-arg VITE_FIREBASE_PROJECT_ID="${VITE_FIREBASE_PROJECT_ID}" \
-  --build-arg VITE_FIREBASE_STORAGE_BUCKET="${VITE_FIREBASE_STORAGE_BUCKET}" \
-  --build-arg VITE_FIREBASE_MESSAGING_SENDER_ID="${VITE_FIREBASE_MESSAGING_SENDER_ID}" \
-  --build-arg VITE_FIREBASE_APP_ID="${VITE_FIREBASE_APP_ID}"
+  --config cloudbuild.yaml \
+  --substitutions=_VITE_FIREBASE_API_KEY="${VITE_FIREBASE_API_KEY}",_VITE_FIREBASE_AUTH_DOMAIN="${VITE_FIREBASE_AUTH_DOMAIN}",_VITE_FIREBASE_PROJECT_ID="${VITE_FIREBASE_PROJECT_ID}",_VITE_FIREBASE_STORAGE_BUCKET="${VITE_FIREBASE_STORAGE_BUCKET}",_VITE_FIREBASE_MESSAGING_SENDER_ID="${VITE_FIREBASE_MESSAGING_SENDER_ID}",_VITE_FIREBASE_APP_ID="${VITE_FIREBASE_APP_ID}"
 
 if [ $? -ne 0 ]; then
     echo -e "${RED}ОШИБКА: Сборка Docker образа не удалась!${NC}"
