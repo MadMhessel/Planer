@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { Task, Project, User, TaskStatus, TaskPriority } from '../types';
 import { Clock, User as UserIcon, Calendar, Hash, ArrowUpDown, ArrowUp, ArrowDown, Plus } from 'lucide-react';
+import { getPriorityLabel, getPriorityColor, getStatusLabel, getStatusColor } from '../utils/taskHelpers';
 
 interface TaskListProps {
   tasks: Task[];
@@ -10,44 +11,15 @@ interface TaskListProps {
   onEditTask: (task: Task) => void;
 }
 
-const getPriorityColor = (p: TaskPriority) => {
+// Используем централизованные утилиты из taskHelpers
+// Для TaskList используется другой стиль приоритета (для таблицы)
+const getPriorityColorForTable = (p: TaskPriority) => {
   switch(p) {
-    case TaskPriority.CRITICAL: return 'text-red-700 bg-red-50 border border-red-200';
-    case TaskPriority.HIGH: return 'text-orange-700 bg-orange-50 border border-orange-200';
-    case TaskPriority.NORMAL: return 'text-blue-700 bg-blue-50 border border-blue-200';
-    default: return 'text-gray-600 bg-gray-50 border border-gray-200';
+    case TaskPriority.CRITICAL: return 'text-red-700 bg-red-50 border border-red-200 dark:text-red-300 dark:bg-red-900/30 dark:border-red-700';
+    case TaskPriority.HIGH: return 'text-orange-700 bg-orange-50 border border-orange-200 dark:text-orange-300 dark:bg-orange-900/30 dark:border-orange-700';
+    case TaskPriority.NORMAL: return 'text-blue-700 bg-blue-50 border border-blue-200 dark:text-blue-300 dark:bg-blue-900/30 dark:border-blue-700';
+    default: return 'text-gray-600 bg-gray-50 border border-gray-200 dark:text-gray-300 dark:bg-gray-800 dark:border-gray-600';
   }
-};
-
-const getStatusColor = (s: TaskStatus) => {
-    switch(s) {
-        case TaskStatus.DONE: return 'bg-green-100 text-green-800';
-        case TaskStatus.IN_PROGRESS: return 'bg-blue-100 text-blue-800';
-        case TaskStatus.REVIEW: return 'bg-purple-100 text-purple-800';
-        case TaskStatus.HOLD: return 'bg-yellow-100 text-yellow-800';
-        default: return 'bg-gray-100 text-gray-800';
-    }
-}
-
-const translateStatus = (s: TaskStatus) => {
-    switch(s) {
-        case TaskStatus.TODO: return 'К выполнению';
-        case TaskStatus.IN_PROGRESS: return 'В работе';
-        case TaskStatus.REVIEW: return 'На проверке';
-        case TaskStatus.DONE: return 'Готово';
-        case TaskStatus.HOLD: return 'Отложено';
-        default: return s;
-    }
-};
-
-const translatePriority = (p: TaskPriority) => {
-    switch(p) {
-        case TaskPriority.LOW: return 'Низкий';
-        case TaskPriority.NORMAL: return 'Обычный';
-        case TaskPriority.HIGH: return 'Высокий';
-        case TaskPriority.CRITICAL: return 'Критический';
-        default: return p;
-    }
 };
 
 const getInitials = (name: string) => name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
@@ -74,8 +46,8 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, projects, users, onTaskClick 
               {project.name}
               </span>
           ) : <span />}
-          <span className={`px-2 py-1 text-[10px] font-bold uppercase tracking-wide rounded-full ${getPriorityColor(task.priority)}`}>
-              {translatePriority(task.priority)}
+          <span className={`px-2 py-1 text-[10px] font-bold uppercase tracking-wide rounded-full ${getPriorityColorForTable(task.priority)}`}>
+              {getPriorityLabel(task.priority)}
           </span>
       </div>
       
@@ -99,7 +71,7 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, projects, users, onTaskClick 
                     )}
                </div>
                <div className={`px-2 py-0.5 rounded text-xs font-medium ${getStatusColor(task.status)}`}>
-                  {translateStatus(task.status)}
+                  {getStatusLabel(task.status)}
                </div>
           </div>
           <div className="flex items-center text-xs text-gray-400 font-medium">
@@ -264,7 +236,7 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks, projects, users, onTa
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                             <span className={`px-3 py-1.5 inline-flex text-xs font-semibold rounded-full ${getStatusColor(task.status)}`}>
-                                {translateStatus(task.status)}
+                                {getStatusLabel(task.status)}
                             </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
@@ -287,8 +259,8 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks, projects, users, onTa
                             </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                            <span className={`px-3 py-1.5 text-xs font-bold rounded-lg border shadow-sm ${getPriorityColor(task.priority)}`}>
-                                {translatePriority(task.priority)}
+                            <span className={`px-3 py-1.5 text-xs font-bold rounded-lg border shadow-sm ${getPriorityColorForTable(task.priority)}`}>
+                                {getPriorityLabel(task.priority)}
                             </span>
                         </td>
                     </tr>

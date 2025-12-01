@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState, useMemo } from 'react';
 import { Layout } from './components/Layout';
 import { TaskList } from './components/TaskList';
 import { KanbanBoard } from './components/KanbanBoard';
@@ -16,13 +16,19 @@ import { AcceptInviteView } from './components/AcceptInviteView';
 import { AICommandBar } from './components/AICommandBar';
 
 import { AuthService } from './services/auth';
-import { FirestoreService } from './services/firestore';
 import { StorageService } from './services/storage';
-import { ApiService } from './services/api';
 import { GeminiService } from './services/gemini';
 import { TelegramService } from './services/telegram';
 
-import { Project, Task, TaskPriority, TaskStatus, User, ViewMode, Workspace, WorkspaceInvite, WorkspaceMember } from './types';
+import { Project, Task, TaskPriority, TaskStatus, User, ViewMode, Notification } from './types';
+
+// Hooks
+import { useWorkspace } from './hooks/useWorkspace';
+import { useTasks } from './hooks/useTasks';
+import { useProjects } from './hooks/useProjects';
+import { useMembers } from './hooks/useMembers';
+import { useInvites } from './hooks/useInvites';
+import { logger } from './utils/logger';
 
 type AppView =
   | 'BOARD'
@@ -36,51 +42,13 @@ type InviteContext = {
   workspaceId: string;
   token: string;
 };
-// Helper to extract Chat IDs based on task assignee and creator
-const getRecipientsForTask = (task: Partial<Task>, allMembers: WorkspaceMember[], creatorId?: string): string[] => {
-  const recipients: string[] = [];
-  
-  // Добавляем исполнителя задачи
-  if (task.assigneeId) {
-    const assignee = allMembers.find(m => m.userId === task.assigneeId);
-    if (assignee?.telegramChatId) {
-      recipients.push(assignee.telegramChatId);
-    }
-  }
-  
-  // Добавляем создателя задачи (если он не исполнитель)
-  if (creatorId && creatorId !== task.assigneeId) {
-    const creator = allMembers.find(m => m.userId === creatorId);
-    if (creator?.telegramChatId && !recipients.includes(creator.telegramChatId)) {
-      recipients.push(creator.telegramChatId);
-    }
-  }
-  
-  return recipients;
-};
-
-// Helper to get all workspace members with Telegram chat IDs
-const getAllTelegramRecipients = (allMembers: WorkspaceMember[]): string[] => {
-  return allMembers
-    .filter(m => m.telegramChatId && m.status === 'ACTIVE')
-    .map(m => m.telegramChatId!)
-    .filter((id, index, self) => self.indexOf(id) === index); // Убираем дубликаты
-};
 
 type ThemeMode = 'light' | 'dark' | 'system';
 
 const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
-
-  const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
-  const [currentWorkspaceId, setCurrentWorkspaceId] = useState<string | null>(null);
-  const [members, setMembers] = useState<WorkspaceMember[]>([]);
-  const [invites, setInvites] = useState<WorkspaceInvite[]>([]);
-
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [notifications, setNotifications] = useState<any[]>([]);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
 
   const [view, setView] = useState<AppView>('BOARD');
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
@@ -128,7 +96,7 @@ const App: React.FC = () => {
     }
   }, [theme, applyTheme]);
 
-  // 1. Auth Listener
+  // Auth Listener
   useEffect(() => {
     const unsubscribe = AuthService.subscribeToAuth(async (user) => {
       setCurrentUser(user);
@@ -138,42 +106,46 @@ const App: React.FC = () => {
     return () => unsubscribe();
   }, []);
 
-  // 2. Workspace, members, tasks, projects subscriptions
-  useEffect(() => {
-    if (!currentUser) return;
+  // Workspace hook
+  const {
+    workspaces,
+    currentWorkspaceId,
+    handleWorkspaceChange,
+    handleCreateWorkspace
+  } = useWorkspace(currentUser);
 
-    const unsubWorkspaces = FirestoreService.subscribeToWorkspaces(currentUser, (ws) => {
-      setWorkspaces(ws);
+  // Members hook
+  const { members } = useMembers(currentWorkspaceId);
 
-      if (!currentWorkspaceId && ws.length > 0) {
-        const saved = StorageService.getSelectedWorkspaceId();
-        const found = ws.find(x => x.id === saved) || ws[0];
-        setCurrentWorkspaceId(found.id);
-      }
-    });
+  // Invites hook
+  const { invites } = useInvites(currentWorkspaceId);
 
-    return () => {
-      unsubWorkspaces && unsubWorkspaces();
-    };
-  }, [currentUser]);
+  // Projects hook
+  const {
+    projects,
+    addProject,
+    updateProject,
+    deleteProject
+  } = useProjects(
+    currentWorkspaceId,
+    members,
+    currentUser,
+    (notification) => setNotifications(prev => [notification, ...prev])
+  );
 
-  useEffect(() => {
-    if (!currentWorkspaceId || !currentUser) return;
-
-    StorageService.setSelectedWorkspaceId(currentWorkspaceId);
-
-    const unsubTasks = FirestoreService.subscribeToTasks(currentWorkspaceId, setTasks);
-    const unsubProjects = FirestoreService.subscribeToProjects(currentWorkspaceId, setProjects);
-    const unsubMembers = FirestoreService.subscribeToMembers(currentWorkspaceId, setMembers);
-    const unsubInvites = FirestoreService.subscribeToInvites(currentWorkspaceId, setInvites);
-
-    return () => {
-      unsubTasks && unsubTasks();
-      unsubProjects && unsubProjects();
-      unsubMembers && unsubMembers();
-      unsubInvites && unsubInvites();
-    };
-  }, [currentWorkspaceId, currentUser]);
+  // Tasks hook
+  const {
+    tasks,
+    addTask,
+    updateTask,
+    deleteTask
+  } = useTasks(
+    currentWorkspaceId,
+    members,
+    projects,
+    currentUser,
+    (notification) => setNotifications(prev => [notification, ...prev])
+  );
 
   // 3. Restore view mode from localStorage
   useEffect(() => {
@@ -192,308 +164,102 @@ const App: React.FC = () => {
     }
   };
 
-  const handleWorkspaceChange = (workspaceId: string) => {
-    setCurrentWorkspaceId(workspaceId);
-  };
-
-  const handleCreateWorkspace = async (name: string) => {
-    if (!currentUser) return;
-    const workspace = await FirestoreService.createWorkspace(name, currentUser);
-    setCurrentWorkspaceId(workspace.id);
-  };
-
-const handleAddTask = async (partial: Partial<Task>) => {
-    if (!currentWorkspaceId || !currentUser) return;
-
-    const now = new Date().toISOString();
-    
-    // Подготовка объекта задачи
-    const taskData: Omit<Task, 'id' | 'createdAt' | 'updatedAt'> = {
-      title: partial.title || 'Новая задача',
-      description: partial.description || '',
-      status: partial.status || TaskStatus.TODO,
-      projectId: partial.projectId,
-      assigneeId: partial.assigneeId,
-      createdAt: now,
-      updatedAt: now,
-      dueDate: partial.dueDate,
-      startDate: partial.startDate,
-      priority: partial.priority || TaskPriority.NORMAL,
-      tags: partial.tags || [],
-      estimatedHours: partial.estimatedHours,
-      loggedHours: partial.loggedHours,
-      dependencies: partial.dependencies || [],
-      workspaceId: currentWorkspaceId
-    };
-
-    // 1. Создаем задачу в Firestore
-    const created = await FirestoreService.createTask(taskData);
-    
-    // 2. Добавляем локальное уведомление
-    const assignee = created.assigneeId ? members.find(m => m.userId === created.assigneeId) : null;
-    const assigneeName = assignee ? (assignee.email) : 'Не назначен';
-    
-    setNotifications(prev => [
-      {
+  // Wrapped handlers with error handling
+  const handleAddTask = useCallback(async (partial: Partial<Task>) => {
+    try {
+      await addTask(partial);
+    } catch (error) {
+      logger.error('Failed to add task', error instanceof Error ? error : undefined);
+      setNotifications(prev => [{
         id: Date.now().toString(),
-        type: 'TASK_ASSIGNED',
-        title: 'Новая задача создана',
-        message: `Задача "${created.title}" ${created.assigneeId ? `назначена ${assigneeName}` : 'создана'}`,
+        type: 'SYSTEM',
+        title: 'Ошибка создания задачи',
+        message: error instanceof Error ? error.message : 'Не удалось создать задачу',
         createdAt: new Date().toISOString(),
         read: false
-      },
-      ...prev
-    ]);
-
-    // 3. Отправляем уведомление в Telegram
-    const recipients = getRecipientsForTask(created, members, currentUser.id);
-    if (recipients.length > 0) {
-        const projectName = created.projectId ? projects.find(p => p.id === created.projectId)?.name : null;
-        const priorityText = {
-          [TaskPriority.LOW]: 'Низкий',
-          [TaskPriority.NORMAL]: 'Обычный',
-          [TaskPriority.HIGH]: 'Высокий',
-          [TaskPriority.CRITICAL]: 'Критический'
-        }[created.priority] || 'Обычный';
-        
-        let text = `🆕 <b>Новая задача</b>\n\n📝 <b>${created.title}</b>`;
-        if (created.description) {
-          text += `\n\n${created.description}`;
-        }
-        if (projectName) {
-          text += `\n📁 Проект: ${projectName}`;
-        }
-        if (created.dueDate) {
-          const dueDate = new Date(created.dueDate).toLocaleDateString('ru-RU');
-          text += `\n📅 Срок: ${dueDate}`;
-        }
-        text += `\n⚡ Приоритет: ${priorityText}`;
-        
-        await TelegramService.sendNotification(recipients, text);
+      }, ...prev]);
     }
-  };
+  }, [addTask]);
 
-const handleUpdateTask = async (taskId: string, updates: Partial<Task>) => {
-    // 1. Получаем старое состояние задачи для сравнения
-    const oldTask = tasks.find(t => t.id === taskId);
-    
-    // 2. Обновляем в Firestore
-    await FirestoreService.updateTask(taskId, updates);
-
-    // 3. УВЕДОМЛЕНИЕ: Смена статуса, дедлайна или исполнителя
-    if (oldTask) {
-        // Объединяем старое и новое, чтобы получить актуальное состояние
-        const newTaskState = { ...oldTask, ...updates } as Task; 
-        const recipients = getRecipientsForTask(newTaskState, members, currentUser?.id);
-        
-        let notificationTitle = '';
-        let notificationMessage = '';
-        let telegramMessage = '';
-        
-        // Сценарий A: Изменился статус
-        if (updates.status && updates.status !== oldTask.status) {
-          const statusText: Record<TaskStatus, string> = {
-            [TaskStatus.TODO]: 'К выполнению',
-            [TaskStatus.IN_PROGRESS]: 'В работе',
-            [TaskStatus.REVIEW]: 'На проверке',
-            [TaskStatus.DONE]: 'Готово',
-            [TaskStatus.HOLD]: 'Отложено'
-          };
-          
-          const oldStatusText = statusText[oldTask.status] || oldTask.status;
-          const newStatusText = statusText[updates.status] || updates.status;
-          
-          notificationTitle = 'Статус задачи изменен';
-          notificationMessage = `Задача "${oldTask.title}" изменена: ${oldStatusText} → ${newStatusText}`;
-          telegramMessage = `🔄 <b>Обновление статуса</b>\n\n📝 <b>${oldTask.title}</b>\n\n${oldStatusText} ➡️ <b>${newStatusText}</b>`;
-        }
-        
-        // Сценарий B: Изменился дедлайн
-        else if (updates.dueDate && updates.dueDate !== oldTask.dueDate) {
-          const newDueDate = new Date(updates.dueDate).toLocaleDateString('ru-RU');
-          notificationTitle = 'Срок задачи изменен';
-          notificationMessage = `Задача "${oldTask.title}" - новый срок: ${newDueDate}`;
-          telegramMessage = `📅 <b>Обновление сроков</b>\n\n📝 <b>${oldTask.title}</b>\n\nНовый дедлайн: <b>${newDueDate}</b>`;
-        }
-
-        // Сценарий C: Назначили нового исполнителя
-        else if (updates.assigneeId && updates.assigneeId !== oldTask.assigneeId) {
-          const newAssignee = members.find(m => m.userId === updates.assigneeId);
-          const newAssigneeName = newAssignee ? newAssignee.email : 'Неизвестно';
-          notificationTitle = 'Задача назначена';
-          notificationMessage = `Задача "${oldTask.title}" назначена ${newAssigneeName}`;
-          telegramMessage = `👉 <b>Вам назначена задача</b>\n\n📝 <b>${oldTask.title}</b>`;
-        }
-
-        // Сценарий D: Изменился приоритет
-        else if (updates.priority && updates.priority !== oldTask.priority) {
-          const priorityText: Record<TaskPriority, string> = {
-            [TaskPriority.LOW]: 'Низкий',
-            [TaskPriority.NORMAL]: 'Обычный',
-            [TaskPriority.HIGH]: 'Высокий',
-            [TaskPriority.CRITICAL]: 'Критический'
-          };
-          notificationTitle = 'Приоритет задачи изменен';
-          notificationMessage = `Задача "${oldTask.title}" - приоритет изменен на ${priorityText[updates.priority]}`;
-          telegramMessage = `⚡ <b>Изменен приоритет</b>\n\n📝 <b>${oldTask.title}</b>\n\nНовый приоритет: <b>${priorityText[updates.priority]}</b>`;
-        }
-
-        // Сценарий E: Изменилось название или описание
-        else if (updates.title || updates.description) {
-          notificationTitle = 'Задача обновлена';
-          notificationMessage = `Задача "${updates.title || oldTask.title}" была обновлена`;
-          telegramMessage = `✏️ <b>Задача обновлена</b>\n\n📝 <b>${updates.title || oldTask.title}</b>`;
-        }
-
-        // Добавляем локальное уведомление
-        if (notificationTitle) {
-          setNotifications(prev => [
-            {
-              id: Date.now().toString(),
-              type: 'TASK_UPDATED',
-              title: notificationTitle,
-              message: notificationMessage,
-              createdAt: new Date().toISOString(),
-              read: false
-            },
-            ...prev
-          ]);
-        }
-
-        // Отправляем в Telegram
-        if (telegramMessage && recipients.length > 0) {
-          await TelegramService.sendNotification(recipients, telegramMessage);
-        }
-    }
-  };
-
- const handleDeleteTask = async (taskId: string) => {
-    // Находим задачу перед удалением, чтобы знать название и кому отправлять уведомление
-    const taskToDelete = tasks.find(t => t.id === taskId);
-    
-    await FirestoreService.deleteTask(taskId);
-    
-    // УВЕДОМЛЕНИЕ: Удаление
-    if (taskToDelete) {
-      // Добавляем локальное уведомление
-      setNotifications(prev => [
-        {
-          id: Date.now().toString(),
-          type: 'TASK_UPDATED',
-          title: 'Задача удалена',
-          message: `Задача "${taskToDelete.title}" была удалена`,
-          createdAt: new Date().toISOString(),
-          read: false
-        },
-        ...prev
-      ]);
-
-      // Отправляем в Telegram
-      const recipients = getRecipientsForTask(taskToDelete, members, currentUser?.id);
-      if (recipients.length > 0) {
-        const text = `🗑️ <b>Задача удалена</b>\n\n📝 <b>${taskToDelete.title}</b>`;
-        await TelegramService.sendNotification(recipients, text);
-      }
-    }
-  };
-
-  const handleAddProject = async (partial: Partial<Project>) => {
-    if (!currentWorkspaceId || !currentUser) return;
-
-    const now = new Date().toISOString();
-    const project: Omit<Project, 'id' | 'createdAt' | 'updatedAt'> = {
-      name: partial.name || 'Новый проект',
-      description: partial.description || '',
-      color: partial.color,
-      ownerId: currentUser.id,
-      createdAt: now,
-      updatedAt: now,
-      startDate: partial.startDate,
-      endDate: partial.endDate,
-      status: partial.status || 'ACTIVE',
-      workspaceId: currentWorkspaceId
-    };
-
-    const created = await FirestoreService.createProject(project);
-    
-    // Добавляем локальное уведомление
-    setNotifications(prev => [
-      {
+  const handleUpdateTask = useCallback(async (taskId: string, updates: Partial<Task>) => {
+    try {
+      await updateTask(taskId, updates);
+    } catch (error) {
+      logger.error('Failed to update task', error instanceof Error ? error : undefined);
+      setNotifications(prev => [{
         id: Date.now().toString(),
-        type: 'PROJECT_UPDATED',
-        title: 'Проект создан',
-        message: `Проект "${created.name}" был создан`,
+        type: 'SYSTEM',
+        title: 'Ошибка обновления задачи',
+        message: error instanceof Error ? error.message : 'Не удалось обновить задачу',
         createdAt: new Date().toISOString(),
         read: false
-      },
-      ...prev
-    ]);
-
-    // Отправляем в Telegram всем участникам workspace
-    const recipients = getAllTelegramRecipients(members);
-    if (recipients.length > 0) {
-      const text = `📁 <b>Новый проект</b>\n\n<b>${created.name}</b>${created.description ? `\n\n${created.description}` : ''}`;
-      await TelegramService.sendNotification(recipients, text);
+      }, ...prev]);
     }
-  };
+  }, [updateTask]);
 
-  const handleUpdateProject = async (projectId: string, updates: Partial<Project>) => {
-    const oldProject = projects.find(p => p.id === projectId);
-    await FirestoreService.updateProject(projectId, updates);
-    
-    if (oldProject) {
-      // Добавляем локальное уведомление
-      setNotifications(prev => [
-        {
-          id: Date.now().toString(),
-          type: 'PROJECT_UPDATED',
-          title: 'Проект обновлен',
-          message: `Проект "${oldProject.name}" был обновлен`,
-          createdAt: new Date().toISOString(),
-          read: false
-        },
-        ...prev
-      ]);
-
-      // Отправляем в Telegram всем участникам workspace
-      const recipients = getAllTelegramRecipients(members);
-      if (recipients.length > 0 && (updates.name || updates.description || updates.status)) {
-        const projectName = updates.name || oldProject.name;
-        let text = `📁 <b>Проект обновлен</b>\n\n<b>${projectName}</b>`;
-        if (updates.status) {
-          text += `\n\nСтатус: <b>${updates.status}</b>`;
-        }
-        await TelegramService.sendNotification(recipients, text);
-      }
+  const handleDeleteTask = useCallback(async (taskId: string) => {
+    try {
+      await deleteTask(taskId);
+    } catch (error) {
+      logger.error('Failed to delete task', error instanceof Error ? error : undefined);
+      setNotifications(prev => [{
+        id: Date.now().toString(),
+        type: 'SYSTEM',
+        title: 'Ошибка удаления задачи',
+        message: error instanceof Error ? error.message : 'Не удалось удалить задачу',
+        createdAt: new Date().toISOString(),
+        read: false
+      }, ...prev]);
     }
-  };
+  }, [deleteTask]);
 
-  const handleDeleteProject = async (projectId: string) => {
-    const projectToDelete = projects.find(p => p.id === projectId);
-    await FirestoreService.deleteProject(projectId);
-    
-    if (projectToDelete) {
-      // Добавляем локальное уведомление
-      setNotifications(prev => [
-        {
-          id: Date.now().toString(),
-          type: 'PROJECT_UPDATED',
-          title: 'Проект удален',
-          message: `Проект "${projectToDelete.name}" был удален`,
-          createdAt: new Date().toISOString(),
-          read: false
-        },
-        ...prev
-      ]);
-
-      // Отправляем в Telegram всем участникам workspace
-      const recipients = getAllTelegramRecipients(members);
-      if (recipients.length > 0) {
-        const text = `🗑️ <b>Проект удален</b>\n\n<b>${projectToDelete.name}</b>`;
-        await TelegramService.sendNotification(recipients, text);
-      }
+  const handleAddProject = useCallback(async (partial: Partial<Project>) => {
+    try {
+      await addProject(partial);
+    } catch (error) {
+      logger.error('Failed to add project', error instanceof Error ? error : undefined);
+      setNotifications(prev => [{
+        id: Date.now().toString(),
+        type: 'SYSTEM',
+        title: 'Ошибка создания проекта',
+        message: error instanceof Error ? error.message : 'Не удалось создать проект',
+        createdAt: new Date().toISOString(),
+        read: false
+      }, ...prev]);
     }
-  };
+  }, [addProject]);
+
+  const handleUpdateProject = useCallback(async (projectId: string, updates: Partial<Project>) => {
+    try {
+      await updateProject(projectId, updates);
+    } catch (error) {
+      logger.error('Failed to update project', error instanceof Error ? error : undefined);
+      setNotifications(prev => [{
+        id: Date.now().toString(),
+        type: 'SYSTEM',
+        title: 'Ошибка обновления проекта',
+        message: error instanceof Error ? error.message : 'Не удалось обновить проект',
+        createdAt: new Date().toISOString(),
+        read: false
+      }, ...prev]);
+    }
+  }, [updateProject]);
+
+  const handleDeleteProject = useCallback(async (projectId: string) => {
+    try {
+      await deleteProject(projectId);
+    } catch (error) {
+      logger.error('Failed to delete project', error instanceof Error ? error : undefined);
+      setNotifications(prev => [{
+        id: Date.now().toString(),
+        type: 'SYSTEM',
+        title: 'Ошибка удаления проекта',
+        message: error instanceof Error ? error.message : 'Не удалось удалить проект',
+        createdAt: new Date().toISOString(),
+        read: false
+      }, ...prev]);
+    }
+  }, [deleteProject]);
 
   const handleCommand = async (command: string) => {
     if (!currentWorkspaceId || !currentUser) return;
@@ -551,10 +317,10 @@ const handleUpdateTask = async (taskId: string, updates: Partial<Task>) => {
       let createdCount = 0;
       for (const suggestion of processedSuggestions) {
         try {
-          await handleAddTask(suggestion);
+          await addTask(suggestion);
           createdCount++;
         } catch (error) {
-          console.error('Failed to create task:', error);
+          logger.error('Failed to create task from AI suggestion', error instanceof Error ? error : undefined);
         }
       }
 
@@ -589,7 +355,7 @@ const handleUpdateTask = async (taskId: string, updates: Partial<Task>) => {
         );
       }
     } catch (error) {
-      console.error('Error processing AI command:', error);
+      logger.error('Error processing AI command', error instanceof Error ? error : undefined);
       setNotifications(prev => [
         {
           id: Date.now().toString(),
@@ -612,18 +378,38 @@ const handleUpdateTask = async (taskId: string, updates: Partial<Task>) => {
     }
   };
 
-  const currentWorkspace = workspaces.find(w => w.id === currentWorkspaceId) || null;
-  const workspaceMembersMap: Record<string, WorkspaceMember> = {};
-  members.forEach(m => {
-    workspaceMembersMap[m.userId] = m;
-  });
+  const currentWorkspace = useMemo(() => 
+    workspaces.find(w => w.id === currentWorkspaceId) || null,
+    [workspaces, currentWorkspaceId]
+  );
 
-  const canManageWorkspace = (user: User | null): boolean => {
+  const workspaceMembersMap = useMemo(() => {
+    const map: Record<string, typeof members[0]> = {};
+    members.forEach(m => {
+      map[m.userId] = m;
+    });
+    return map;
+  }, [members]);
+
+  const canManageWorkspace = useCallback((user: User | null): boolean => {
     if (!user || !currentWorkspaceId) return false;
     const member = members.find(m => m.userId === user.id);
     if (!member) return false;
     return member.role === 'OWNER' || member.role === 'ADMIN';
-  };
+  }, [currentWorkspaceId, members]);
+
+  // Мемоизированное преобразование members в users
+  const usersFromMembers = useMemo(() => 
+    members.map(m => ({
+      id: m.userId,
+      email: m.email,
+      displayName: m.email,
+      role: m.role,
+      isActive: m.status === 'ACTIVE',
+      createdAt: m.joinedAt
+    })),
+    [members]
+  );
 
   // Parse invite from URL
   useEffect(() => {
@@ -704,14 +490,7 @@ const handleUpdateTask = async (taskId: string, updates: Partial<Task>) => {
             <KanbanBoard
               tasks={tasks}
               projects={projects}
-              users={members.map(m => ({
-                id: m.userId,
-                email: m.email,
-                displayName: m.email,
-                role: m.role,
-                isActive: m.status === 'ACTIVE',
-                createdAt: m.joinedAt
-              }))}
+              users={usersFromMembers}
               onTaskClick={t => {
                 setEditingTask(t);
                 setIsTaskModalOpen(true);
@@ -766,14 +545,7 @@ const handleUpdateTask = async (taskId: string, updates: Partial<Task>) => {
             <TaskList
               tasks={tasks}
               projects={projects}
-              users={members.map(m => ({
-                id: m.userId,
-                email: m.email,
-                displayName: m.email,
-                role: m.role,
-                isActive: m.status === 'ACTIVE',
-                createdAt: m.joinedAt
-              }))}
+              users={usersFromMembers}
               onTaskClick={t => {
                 setEditingTask(t);
                 setIsTaskModalOpen(true);

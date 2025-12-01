@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Task, TaskPriority, TaskStatus, Project, User } from '../types';
 import { Plus, MoreHorizontal, ChevronLeft, ChevronRight } from 'lucide-react';
+import { getPriorityLabel, getPriorityColor } from '../utils/taskHelpers';
 
 type Props = {
   tasks: Task[];
@@ -111,35 +112,6 @@ export const KanbanBoard: React.FC<Props> = ({
     setDragOverColumn(null);
   };
 
-  const priorityLabel = (p: TaskPriority) => {
-    switch (p) {
-      case TaskPriority.LOW:
-        return 'Низкий';
-      case TaskPriority.NORMAL:
-        return 'Обычный';
-      case TaskPriority.HIGH:
-        return 'Высокий';
-      case TaskPriority.CRITICAL:
-        return 'Критичный';
-      default:
-        return p;
-    }
-  };
-
-  const priorityColor = (p: TaskPriority) => {
-    switch (p) {
-      case TaskPriority.LOW:
-        return 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700/60';
-      case TaskPriority.NORMAL:
-        return 'bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-slate-200 border-gray-300 dark:border-slate-600/70';
-      case TaskPriority.HIGH:
-        return 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-700/60';
-      case TaskPriority.CRITICAL:
-        return 'bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-300 border-red-300 dark:border-red-700/80';
-      default:
-        return 'bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-slate-200 border-gray-300 dark:border-slate-600/70';
-    }
-  };
 
   const currentColumn = columns[currentColumnIndex];
   const currentTasks = tasksByStatus[currentColumn.id] || [];
@@ -244,9 +216,9 @@ export const KanbanBoard: React.FC<Props> = ({
                 )}
 
                 <span
-                  className={`ml-auto px-2 py-0.5 rounded-full border text-[10px] ${priorityColor(task.priority)}`}
+                  className={`ml-auto px-2 py-0.5 rounded-full border text-[10px] ${getPriorityColor(task.priority)}`}
                 >
-                  {priorityLabel(task.priority)}
+                  {getPriorityLabel(task.priority)}
                 </span>
               </div>
 
