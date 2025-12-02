@@ -19,21 +19,15 @@ service cloud.firestore {
 
     function isAdminOrOwner(workspaceId) {
       // Супер-админы имеют все права
-      if (isSuperAdmin()) {
-        return true;
-      }
-      // Проверяем роль в workspace (если пользователь является членом)
-      let memberRef = /databases/$(database)/documents/workspaces/$(workspaceId)/members/$(request.auth.uid);
-      if (!exists(memberRef)) {
-        return false;
-      }
-      let memberData = get(memberRef).data;
-      return memberData.role == 'ADMIN' || memberData.role == 'OWNER';
+      return isSuperAdmin() || 
+             (exists(/databases/$(database)/documents/workspaces/$(workspaceId)/members/$(request.auth.uid)) &&
+              (get(/databases/$(database)/documents/workspaces/$(workspaceId)/members/$(request.auth.uid)).data.role == 'ADMIN' ||
+               get(/databases/$(database)/documents/workspaces/$(workspaceId)/members/$(request.auth.uid)).data.role == 'OWNER'));
     }
 
     function isActiveMember(workspaceId) {
-      let memberData = get(/databases/$(database)/documents/workspaces/$(workspaceId)/members/$(request.auth.uid)).data;
-      return memberData.status == 'ACTIVE';
+      return exists(/databases/$(database)/documents/workspaces/$(workspaceId)/members/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/workspaces/$(workspaceId)/members/$(request.auth.uid)).data.status == 'ACTIVE';
     }
 
     // ============================================
