@@ -10,7 +10,9 @@
     "start": "node server.js",
     "test": "vitest",
     "test:ui": "vitest --ui",
-    "test:coverage": "vitest --coverage"
+    "test:coverage": "vitest --coverage",
+    "deploy:rules": "bash deploy-firestore-rules.sh",
+    "firestore:deploy": "firebase deploy --only firestore:rules"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
