@@ -179,9 +179,17 @@ const App: React.FC = () => {
 
   // Notifications hook
   const {
-    notifications,
+    notifications: firestoreNotifications,
     markAllAsRead
   } = useNotifications(currentWorkspaceId, currentUser?.id || null);
+
+  // Локальные уведомления (для ошибок и системных сообщений)
+  const [localNotifications, setLocalNotifications] = useState<Notification[]>([]);
+  
+  // Объединяем уведомления из Firestore и локальные
+  const notifications = useMemo(() => {
+    return [...firestoreNotifications, ...localNotifications];
+  }, [firestoreNotifications, localNotifications]);
 
   // Projects hook
   const {
@@ -228,22 +236,35 @@ const App: React.FC = () => {
   // Wrapped handlers with error handling
   const handleAddTask = useCallback(async (partial: Partial<Task>) => {
     try {
-      await addTask(partial);
+      logger.info('Creating task', { 
+        title: partial.title, 
+        workspaceId: partial.workspaceId,
+        hasProjectId: !!partial.projectId,
+        hasAssigneeId: !!partial.assigneeId
+      });
+      const created = await addTask(partial);
+      logger.info('Task created successfully', { taskId: created.id });
       toast.success('Задача успешно создана');
     } catch (error) {
       logger.error('Failed to add task', error instanceof Error ? error : undefined);
       const errorMessage = error instanceof Error ? error.message : 'Не удалось создать задачу';
+      console.error('Task creation error details:', {
+        error,
+        partial,
+        workspaceId: partial.workspaceId,
+        currentWorkspaceId
+      });
       toast.error(errorMessage);
-      setNotifications(prev => [{
+      setLocalNotifications(prev => [{
         id: Date.now().toString(),
         type: 'SYSTEM',
         title: 'Ошибка создания задачи',
         message: errorMessage,
         createdAt: new Date().toISOString(),
-        read: false
+        readBy: []
       }, ...prev]);
     }
-  }, [addTask]);
+  }, [addTask, currentWorkspaceId]);
 
   const handleUpdateTask = useCallback(async (taskId: string, updates: Partial<Task>) => {
     try {
@@ -253,13 +274,13 @@ const App: React.FC = () => {
       logger.error('Failed to update task', error instanceof Error ? error : undefined);
       const errorMessage = error instanceof Error ? error.message : 'Не удалось обновить задачу';
       toast.error(errorMessage);
-      setNotifications(prev => [{
+      setLocalNotifications(prev => [{
         id: Date.now().toString(),
         type: 'SYSTEM',
         title: 'Ошибка обновления задачи',
         message: errorMessage,
         createdAt: new Date().toISOString(),
-        read: false
+        readBy: []
       }, ...prev]);
     }
   }, [updateTask]);
@@ -272,13 +293,13 @@ const App: React.FC = () => {
       logger.error('Failed to delete task', error instanceof Error ? error : undefined);
       const errorMessage = error instanceof Error ? error.message : 'Не удалось удалить задачу';
       toast.error(errorMessage);
-      setNotifications(prev => [{
+      setLocalNotifications(prev => [{
         id: Date.now().toString(),
         type: 'SYSTEM',
         title: 'Ошибка удаления задачи',
         message: errorMessage,
         createdAt: new Date().toISOString(),
-        read: false
+        readBy: []
       }, ...prev]);
     }
   }, [deleteTask]);
@@ -292,13 +313,13 @@ const App: React.FC = () => {
       logger.error('Failed to add project', error instanceof Error ? error : undefined);
       const errorMessage = error instanceof Error ? error.message : 'Не удалось создать проект';
       toast.error(errorMessage);
-      setNotifications(prev => [{
+      setLocalNotifications(prev => [{
         id: Date.now().toString(),
         type: 'SYSTEM',
         title: 'Ошибка создания проекта',
         message: errorMessage,
         createdAt: new Date().toISOString(),
-        read: false
+        readBy: []
       }, ...prev]);
       throw error;
     }
@@ -309,13 +330,13 @@ const App: React.FC = () => {
       await updateProject(projectId, updates);
     } catch (error) {
       logger.error('Failed to update project', error instanceof Error ? error : undefined);
-      setNotifications(prev => [{
+      setLocalNotifications(prev => [{
         id: Date.now().toString(),
         type: 'SYSTEM',
         title: 'Ошибка обновления проекта',
         message: error instanceof Error ? error.message : 'Не удалось обновить проект',
         createdAt: new Date().toISOString(),
-        read: false
+        readBy: []
       }, ...prev]);
     }
   }, [updateProject]);
@@ -325,13 +346,13 @@ const App: React.FC = () => {
       await deleteProject(projectId);
     } catch (error) {
       logger.error('Failed to delete project', error instanceof Error ? error : undefined);
-      setNotifications(prev => [{
+      setLocalNotifications(prev => [{
         id: Date.now().toString(),
         type: 'SYSTEM',
         title: 'Ошибка удаления проекта',
         message: error instanceof Error ? error.message : 'Не удалось удалить проект',
         createdAt: new Date().toISOString(),
-        read: false
+        readBy: []
       }, ...prev]);
     }
   }, [deleteProject]);
@@ -645,14 +666,15 @@ const App: React.FC = () => {
               onUpdateProject={handleUpdateProject}
               onDeleteProject={handleDeleteProject}
               onNotification={(title, message, type = 'SYSTEM') => {
-                setNotifications(prev => [
+                setLocalNotifications(prev => [
                   {
                     id: Date.now().toString(),
+                    workspaceId: currentWorkspace?.id || '',
                     type,
                     title,
                     message,
                     createdAt: new Date().toISOString(),
-                    read: false
+                    readBy: []
                   },
                   ...prev
                 ]);

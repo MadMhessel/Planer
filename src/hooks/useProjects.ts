@@ -54,13 +54,12 @@ export const useProjects = (
     try {
       const now = new Date().toISOString();
       // Создаем объект проекта, исключая undefined значения
+      // НЕ включаем createdAt и updatedAt - они будут добавлены в FirestoreService.createProject
       const projectData: any = {
         name: partial.name || 'Новый проект',
         description: partial.description || '',
-        color: partial.color,
+        color: partial.color || '#3b82f6',
         ownerId: currentUser.id,
-        createdAt: now,
-        updatedAt: now,
         status: partial.status || 'ACTIVE',
         workspaceId: workspaceId
       };

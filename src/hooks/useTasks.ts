@@ -61,23 +61,36 @@ export const useTasks = (
     try {
       const now = new Date().toISOString();
       
-      const taskData: Omit<Task, 'id' | 'createdAt' | 'updatedAt'> = {
+      // Создаем объект задачи, исключая undefined значения и поля createdAt/updatedAt (они будут добавлены в FirestoreService)
+      const taskData: any = {
         title: partial.title || 'Новая задача',
         description: partial.description || '',
         status: (partial.status as TaskStatus) || TaskStatus.TODO,
-        projectId: partial.projectId,
-        assigneeId: partial.assigneeId,
-        createdAt: now,
-        updatedAt: now,
-        dueDate: partial.dueDate,
-        startDate: partial.startDate,
         priority: (partial.priority as TaskPriority) || TaskPriority.NORMAL,
         tags: partial.tags || [],
-        estimatedHours: partial.estimatedHours,
-        loggedHours: partial.loggedHours,
         dependencies: partial.dependencies || [],
         workspaceId: workspaceId
       };
+
+      // Добавляем опциональные поля только если они определены
+      if (partial.projectId) {
+        taskData.projectId = partial.projectId;
+      }
+      if (partial.assigneeId) {
+        taskData.assigneeId = partial.assigneeId;
+      }
+      if (partial.dueDate) {
+        taskData.dueDate = partial.dueDate;
+      }
+      if (partial.startDate) {
+        taskData.startDate = partial.startDate;
+      }
+      if (partial.estimatedHours !== undefined) {
+        taskData.estimatedHours = partial.estimatedHours;
+      }
+      if (partial.loggedHours !== undefined) {
+        taskData.loggedHours = partial.loggedHours;
+      }
 
       const created = await FirestoreService.createTask(taskData);
       

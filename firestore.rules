@@ -3,7 +3,9 @@ service cloud.firestore {
   match /databases/{database}/documents {
     
     function isMember(workspaceId) {
-      return exists(/databases/$(database)/documents/workspaces/$(workspaceId)/members/$(request.auth.uid));
+      // Проверяем, что workspaceId не null и пользователь является членом
+      return workspaceId != null && 
+             exists(/databases/$(database)/documents/workspaces/$(workspaceId)/members/$(request.auth.uid));
     }
 
     function isAdminOrOwner(workspaceId) {
@@ -71,6 +73,7 @@ service cloud.firestore {
         request.resource.data.workspaceId != null &&
         request.resource.data.ownerId != null &&
         request.resource.data.name != null &&
+        request.resource.data.ownerId == request.auth.uid &&
         isMember(request.resource.data.workspaceId);
       allow update: if request.auth != null && 
         resource.data.workspaceId != null &&
@@ -85,11 +88,18 @@ service cloud.firestore {
     // Global Tasks Collection (for backward compatibility and easier queries)
     match /tasks/{taskId} {
       allow read: if request.auth != null && 
+        resource.data.workspaceId != null &&
         isMember(resource.data.workspaceId);
       allow create: if request.auth != null && 
         request.resource.data.workspaceId != null &&
+        request.resource.data.title != null &&
+        request.resource.data.status != null &&
+        request.resource.data.priority != null &&
         isMember(request.resource.data.workspaceId);
-      allow update, delete: if request.auth != null && 
+      allow update: if request.auth != null && 
+        resource.data.workspaceId != null &&
+        isMember(resource.data.workspaceId);
+      allow delete: if request.auth != null && 
         resource.data.workspaceId != null &&
         isMember(resource.data.workspaceId);
     }

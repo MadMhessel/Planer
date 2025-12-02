@@ -18,6 +18,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import { InviteStatus, Project, Task, TaskPriority, TaskStatus, User, UserRole, Workspace, WorkspaceInvite, WorkspaceMember } from '../types';
+import { logger } from '../utils/logger';
 
 export const FirestoreService = {
   // --- Workspaces ---
@@ -385,14 +386,37 @@ export const FirestoreService = {
     // Копируем только определенные поля
     Object.keys(project).forEach(key => {
       const value = (project as any)[key];
-      if (value !== undefined) {
+      if (value !== undefined && value !== null && value !== '') {
         projectData[key] = value;
       }
+    });
+
+    // Убеждаемся, что обязательные поля присутствуют
+    if (!projectData.workspaceId) {
+      throw new Error('workspaceId is required');
+    }
+    if (!projectData.name) {
+      throw new Error('name is required');
+    }
+    if (!projectData.ownerId) {
+      throw new Error('ownerId is required');
+    }
+
+    logger.info('Creating project', {
+      workspaceId: projectData.workspaceId,
+      name: projectData.name,
+      ownerId: projectData.ownerId,
+      hasDescription: !!projectData.description,
+      hasColor: !!projectData.color
     });
 
     const docRef = await addDoc(collection(db, 'projects'), projectData);
 
     const docSnap = await getDoc(docRef);
+    if (!docSnap.exists()) {
+      throw new Error('Failed to create project document');
+    }
+    
     return {
       ...(docSnap.data() as Project),
       id: docSnap.id
