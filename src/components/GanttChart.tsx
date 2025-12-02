@@ -13,6 +13,34 @@ interface GanttChartProps {
 export const GanttChart: React.FC<GanttChartProps> = ({ tasks, projects, onTaskClick, onEditTask }) => {
   const [viewDate, setViewDate] = useState(new Date());
   const [isMobile, setIsMobile] = useState(false);
+  
+  // Сортируем задачи: сначала по дате начала, затем по приоритету
+  const sortedTasks = useMemo(() => {
+    return [...tasks].sort((a, b) => {
+      // Задачи с датами идут первыми
+      const aHasDate = !!(a.startDate || a.dueDate);
+      const bHasDate = !!(b.startDate || b.dueDate);
+      
+      if (aHasDate && !bHasDate) return -1;
+      if (!aHasDate && bHasDate) return 1;
+      
+      // Если обе имеют даты, сортируем по дате начала
+      if (aHasDate && bHasDate) {
+        const aStart = a.startDate ? new Date(a.startDate).getTime() : (a.dueDate ? new Date(a.dueDate).getTime() : Infinity);
+        const bStart = b.startDate ? new Date(b.startDate).getTime() : (b.dueDate ? new Date(b.dueDate).getTime() : Infinity);
+        if (aStart !== bStart) return aStart - bStart;
+      }
+      
+      // Затем по приоритету
+      const priorityOrder = { 'CRITICAL': 0, 'HIGH': 1, 'NORMAL': 2, 'LOW': 3 };
+      const aPriority = priorityOrder[a.priority as keyof typeof priorityOrder] ?? 2;
+      const bPriority = priorityOrder[b.priority as keyof typeof priorityOrder] ?? 2;
+      if (aPriority !== bPriority) return aPriority - bPriority;
+      
+      // В конце по названию
+      return a.title.localeCompare(b.title);
+    });
+  }, [tasks]);
 
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 768);
@@ -25,11 +53,33 @@ export const GanttChart: React.FC<GanttChartProps> = ({ tasks, projects, onTaskC
   const dayWidth = isMobile ? 30 : 40;
   const daysToShow = isMobile ? 14 : 30;
   
+  // Автоматически подстраиваем startDate под задачи
   const startDate = useMemo(() => {
+    // Находим минимальную дату начала среди всех задач
+    const taskDates = tasks
+      .filter(t => t.startDate || t.dueDate)
+      .map(t => {
+        if (t.startDate) return new Date(t.startDate);
+        if (t.dueDate) return new Date(t.dueDate);
+        return null;
+      })
+      .filter((d): d is Date => d !== null);
+    
+    if (taskDates.length > 0) {
+      const minDate = new Date(Math.min(...taskDates.map(d => d.getTime())));
+      // Начинаем за 3 дня до самой ранней задачи
+      minDate.setDate(minDate.getDate() - 3);
+      // Округляем до начала дня
+      minDate.setHours(0, 0, 0, 0);
+      return minDate;
+    }
+    
+    // Если нет задач с датами, используем текущую дату
     const d = new Date(viewDate);
-    d.setDate(d.getDate() - 3); // Start slightly before
+    d.setDate(d.getDate() - 3);
+    d.setHours(0, 0, 0, 0);
     return d;
-  }, [viewDate]);
+  }, [viewDate, tasks]);
 
   const dates = useMemo(() => {
     const arr = [];
@@ -42,34 +92,91 @@ export const GanttChart: React.FC<GanttChartProps> = ({ tasks, projects, onTaskC
   }, [startDate, daysToShow]);
 
   const getTaskStyle = (task: Task) => {
-    if (!task.startDate || !task.dueDate) {
+    // Определяем даты начала и окончания
+    let start: Date | null = null;
+    let end: Date | null = null;
+    
+    if (task.startDate) {
+      start = new Date(task.startDate);
+      start.setHours(0, 0, 0, 0);
+    }
+    
+    if (task.dueDate) {
+      end = new Date(task.dueDate);
+      end.setHours(23, 59, 59, 999);
+    }
+    
+    // Если нет дат, не показываем задачу
+    if (!start && !end) {
       return {
-        left: '0px',
-        width: '0px',
-        backgroundColor: '#ccc',
+        display: 'none' as const,
       };
     }
     
-    const start = new Date(task.startDate);
-    const end = new Date(task.dueDate);
+    // Если есть только одна дата, используем её для обеих
+    if (!start && end) {
+      start = new Date(end);
+      start.setHours(0, 0, 0, 0);
+    }
+    if (start && !end) {
+      end = new Date(start);
+      end.setHours(23, 59, 59, 999);
+    }
     
-    // Calculate offset days from chart start
-    const diffTimeStart = start.getTime() - startDate.getTime();
-    const diffDaysStart = Math.ceil(diffTimeStart / (1000 * 60 * 60 * 24));
+    if (!start || !end) {
+      return {
+        display: 'none' as const,
+      };
+    }
     
-    // Calculate duration
+    // Нормализуем startDate (начало дня)
+    const chartStart = new Date(startDate);
+    chartStart.setHours(0, 0, 0, 0);
+    
+    // Вычисляем количество дней от начала календаря до начала задачи
+    const diffTimeStart = start.getTime() - chartStart.getTime();
+    const diffDaysStart = Math.floor(diffTimeStart / (1000 * 60 * 60 * 24));
+    
+    // Вычисляем длительность в днях (включая начальный и конечный день)
     const diffTimeDuration = end.getTime() - start.getTime();
-    const durationDays = Math.max(1, Math.ceil(diffTimeDuration / (1000 * 60 * 60 * 24)));
+    const durationDays = Math.max(1, Math.ceil(diffTimeDuration / (1000 * 60 * 60 * 24)) + 1);
     
+    // Позиция и ширина в пикселях
     const left = diffDaysStart * dayWidth;
     const width = durationDays * dayWidth;
+    
+    // Если задача выходит за пределы видимой области, корректируем
+    const maxLeft = dates.length * dayWidth;
+    if (left < 0) {
+      // Задача начинается до видимой области
+      return {
+        left: '0px',
+        width: `${Math.max(0, width + left)}px`,
+        backgroundColor: '#ccc',
+        opacity: 0.5,
+      };
+    }
+    
+    if (left > maxLeft) {
+      // Задача начинается после видимой области
+      return {
+        display: 'none' as const,
+      };
+    }
 
     const project = projects.find(p => p.id === task.projectId);
+    const priorityColors: Record<string, string> = {
+      'CRITICAL': '#ef4444',
+      'HIGH': '#f59e0b',
+      'NORMAL': '#3b82f6',
+      'LOW': '#10b981',
+    };
 
     return {
       left: `${left}px`,
-      width: `${width}px`,
-      backgroundColor: project?.color || '#ccc',
+      width: `${Math.min(width, maxLeft - left)}px`,
+      backgroundColor: project?.color || priorityColors[task.priority] || '#6b7280',
+      minWidth: '20px', // Минимальная ширина для видимости
     };
   };
 
@@ -111,7 +218,7 @@ export const GanttChart: React.FC<GanttChartProps> = ({ tasks, projects, onTaskC
             <div className="h-10 border-b border-gray-200 bg-gray-50 font-semibold text-xs text-gray-500 flex items-center px-3">
                 Задача
             </div>
-            {tasks.map(task => (
+            {sortedTasks.map(task => (
                 <div 
                     key={task.id} 
                     onClick={() => onEditTask(task)}
@@ -160,26 +267,54 @@ export const GanttChart: React.FC<GanttChartProps> = ({ tasks, projects, onTaskC
                     </div>
 
                     {/* Today Line */}
-                    <div 
-                        className="absolute top-0 bottom-0 border-l-2 border-red-500 z-10 opacity-40 pointer-events-none dashed"
-                        style={{ 
-                            left: `${Math.ceil((new Date().getTime() - startDate.getTime()) / (1000*60*60*24)) * dayWidth}px`
-                        }} 
-                    />
+                    {(() => {
+                      const today = new Date();
+                      today.setHours(0, 0, 0, 0);
+                      const chartStart = new Date(startDate);
+                      chartStart.setHours(0, 0, 0, 0);
+                      const diffDays = Math.floor((today.getTime() - chartStart.getTime()) / (1000 * 60 * 60 * 24));
+                      const todayLeft = diffDays * dayWidth;
+                      
+                      // Показываем линию только если она в видимой области
+                      if (todayLeft >= 0 && todayLeft <= dates.length * dayWidth) {
+                        return (
+                          <div 
+                              className="absolute top-0 bottom-0 border-l-2 border-red-500 z-10 opacity-60 pointer-events-none"
+                              style={{ 
+                                  left: `${todayLeft}px`
+                              }} 
+                          />
+                        );
+                      }
+                      return null;
+                    })()}
 
                     {/* Tasks Rows */}
                     <div className="relative pt-0">
-                        {tasks.map((task) => (
-                            <div key={task.id} className="h-12 border-b border-gray-50 relative flex items-center group">
-                                <div 
-                                    onClick={() => onEditTask(task)}
-                                    className="absolute h-6 rounded-md shadow-sm text-[10px] text-white flex items-center px-2 whitespace-nowrap overflow-hidden cursor-pointer hover:brightness-110 transition-all z-10"
-                                    style={getTaskStyle(task)}
-                                >
-                                    {!isMobile && <span className="truncate">{task.title}</span>}
-                                </div>
-                            </div>
-                        ))}
+                        {sortedTasks
+                          .filter(task => {
+                            // Фильтруем задачи без дат или с датами вне видимой области
+                            const style = getTaskStyle(task);
+                            return style.display !== 'none';
+                          })
+                          .map((task) => {
+                            const style = getTaskStyle(task);
+                            return (
+                              <div key={task.id} className="h-12 border-b border-gray-50 relative flex items-center group">
+                                  <div 
+                                      onClick={() => onEditTask(task)}
+                                      className="absolute h-6 rounded-md shadow-sm text-[10px] text-white flex items-center px-2 whitespace-nowrap overflow-hidden cursor-pointer hover:brightness-110 hover:shadow-md transition-all z-10"
+                                      style={style}
+                                      title={`${task.title}${task.startDate ? ` (${new Date(task.startDate).toLocaleDateString('ru-RU')}` : ''}${task.dueDate ? ` - ${new Date(task.dueDate).toLocaleDateString('ru-RU')})` : ''}`}
+                                  >
+                                      {!isMobile && <span className="truncate font-medium">{task.title}</span>}
+                                      {isMobile && style.width && parseFloat(style.width as string) > 40 && (
+                                        <span className="truncate font-medium">{task.title}</span>
+                                      )}
+                                  </div>
+                              </div>
+                            );
+                          })}
                     </div>
                 </div>
             </div>
