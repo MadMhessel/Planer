@@ -77,7 +77,11 @@ service cloud.firestore {
       // ============================================
       match /members/{memberId} {
         // Чтение: члены workspace могут видеть список участников
-        allow read: if request.auth != null && isMember(workspaceId);
+        // Для collection group queries разрешаем, если userId совпадает с текущим пользователем
+        // Для обычных запросов разрешаем, если пользователь является членом workspace
+        allow read: if request.auth != null && 
+                       (resource.data.userId == request.auth.uid || 
+                        isMember(workspaceId));
         
         // Создание: только админы/владельцы могут добавлять участников
         // ИЛИ пользователь может создать себя при принятии приглашения
