@@ -853,21 +853,32 @@ const App: React.FC = () => {
           <NotificationCenter
             notifications={notifications}
             onClear={async () => {
-              // Очищаем уведомления из Firestore
-              if (currentWorkspaceId && currentUser?.id) {
-                await clearAll();
+              try {
+                // Очищаем уведомления из Firestore
+                if (currentWorkspaceId && currentUser?.id) {
+                  await clearAll();
+                }
+                // Очищаем локальные уведомления
+                setLocalNotifications([]);
+              } catch (error) {
+                logger.error('Failed to clear notifications', error instanceof Error ? error : undefined);
               }
-              // Очищаем локальные уведомления
-              setLocalNotifications([]);
             }}
             onMarkAsRead={async (notificationId: string) => {
-              // Помечаем как прочитанное только если это уведомление из Firestore
-              const notification = firestoreNotifications.find(n => n.id === notificationId);
-              if (notification && currentWorkspaceId && currentUser?.id) {
-                await markAsRead(notificationId);
+              try {
+                // Помечаем как прочитанное только если это уведомление из Firestore
+                const notification = firestoreNotifications.find(n => n.id === notificationId);
+                if (notification && currentWorkspaceId && currentUser?.id) {
+                  // Проверяем, не помечено ли уже как прочитанное
+                  if (!notification.readBy?.includes(currentUser.id)) {
+                    await markAsRead(notificationId);
+                  }
+                }
+                // Для локальных уведомлений просто удаляем их
+                setLocalNotifications(prev => prev.filter(n => n.id !== notificationId));
+              } catch (error) {
+                logger.error('Failed to mark notification as read', error instanceof Error ? error : undefined);
               }
-              // Для локальных уведомлений просто удаляем их
-              setLocalNotifications(prev => prev.filter(n => n.id !== notificationId));
             }}
             isOpen={notificationsOpen}
             onToggle={() => setNotificationsOpen(prev => !prev)}

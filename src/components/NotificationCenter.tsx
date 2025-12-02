@@ -83,7 +83,8 @@ export const NotificationCenter: React.FC<Props> = ({
                 <div
                   key={n.id}
                   onClick={() => {
-                    if (!isRead && onMarkAsRead && n.id) {
+                    // Всегда вызываем markAsRead при клике, если функция предоставлена
+                    if (onMarkAsRead && n.id && !isRead) {
                       onMarkAsRead(n.id);
                     }
                   }}
