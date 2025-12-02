@@ -257,6 +257,7 @@ const App: React.FC = () => {
       toast.error(errorMessage);
       setLocalNotifications(prev => [{
         id: Date.now().toString(),
+        workspaceId: currentWorkspaceId || '',
         type: 'SYSTEM',
         title: 'Ошибка создания задачи',
         message: errorMessage,
@@ -276,6 +277,7 @@ const App: React.FC = () => {
       toast.error(errorMessage);
       setLocalNotifications(prev => [{
         id: Date.now().toString(),
+        workspaceId: currentWorkspaceId || '',
         type: 'SYSTEM',
         title: 'Ошибка обновления задачи',
         message: errorMessage,
@@ -295,6 +297,7 @@ const App: React.FC = () => {
       toast.error(errorMessage);
       setLocalNotifications(prev => [{
         id: Date.now().toString(),
+        workspaceId: currentWorkspaceId || '',
         type: 'SYSTEM',
         title: 'Ошибка удаления задачи',
         message: errorMessage,
@@ -315,6 +318,7 @@ const App: React.FC = () => {
       toast.error(errorMessage);
       setLocalNotifications(prev => [{
         id: Date.now().toString(),
+        workspaceId: currentWorkspaceId || '',
         type: 'SYSTEM',
         title: 'Ошибка создания проекта',
         message: errorMessage,
@@ -332,6 +336,7 @@ const App: React.FC = () => {
       logger.error('Failed to update project', error instanceof Error ? error : undefined);
       setLocalNotifications(prev => [{
         id: Date.now().toString(),
+        workspaceId: currentWorkspaceId || '',
         type: 'SYSTEM',
         title: 'Ошибка обновления проекта',
         message: error instanceof Error ? error.message : 'Не удалось обновить проект',
@@ -348,6 +353,7 @@ const App: React.FC = () => {
       logger.error('Failed to delete project', error instanceof Error ? error : undefined);
       setLocalNotifications(prev => [{
         id: Date.now().toString(),
+        workspaceId: currentWorkspaceId || '',
         type: 'SYSTEM',
         title: 'Ошибка удаления проекта',
         message: error instanceof Error ? error.message : 'Не удалось удалить проект',
@@ -383,7 +389,7 @@ const App: React.FC = () => {
       });
 
       // Преобразуем projectName и assigneeName в ID
-      const processedSuggestions = response.tasks.map(suggestion => {
+      const processedSuggestions = response.tasks.map((suggestion: any) => {
         const processed: Partial<Task> = { ...suggestion };
         
         // Преобразуем projectName в projectId
@@ -392,7 +398,7 @@ const App: React.FC = () => {
           if (project) {
             processed.projectId = project.id;
           }
-          delete processed.projectName;
+          delete (processed as any).projectName;
         }
         
         // Преобразуем assigneeName в assigneeId
@@ -401,7 +407,7 @@ const App: React.FC = () => {
           if (member) {
             processed.assigneeId = member.userId;
           }
-          delete processed.assigneeName;
+          delete (processed as any).assigneeName;
         }
 
         return processed;
@@ -584,6 +590,9 @@ const App: React.FC = () => {
                 setEditingTask(null);
                 setIsTaskModalOpen(true);
               }}
+              onDeleteTask={async (task) => {
+                await handleDeleteTask(task.id);
+              }}
             />
           )}
 
@@ -738,10 +747,8 @@ const App: React.FC = () => {
               }
               setIsProjectModalOpen(false);
             }}
-            onDelete={async (p) => {
-              if (p.id) {
-                await handleDeleteProject(p.id);
-              }
+            onDelete={async (projectId: string) => {
+              await handleDeleteProject(projectId);
               setIsProjectModalOpen(false);
             }}
           />

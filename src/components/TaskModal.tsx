@@ -6,7 +6,7 @@ interface TaskModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: (task: Task) => void;
-  onDelete: (taskId: string) => void;
+  onDelete: (task: Task) => void | Promise<void>;
   task?: Task | null;
   projects: Project[];
   users: User[];
@@ -28,6 +28,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
     priority: TaskPriority.NORMAL,
     projectId: '',
     assigneeId: '',
+    assigneeIds: [],
     startDate: new Date().toISOString().split('T')[0],
     dueDate: new Date(Date.now() + 86400000).toISOString().split('T')[0],
     tags: []
@@ -36,10 +37,13 @@ export const TaskModal: React.FC<TaskModalProps> = ({
   useEffect(() => {
     if (task) {
       // Ensure optional fields are not undefined to prevent uncontrolled input warning
+      // Поддержка обратной совместимости: если есть assigneeId, но нет assigneeIds, создаем массив
+      const assigneeIds = task.assigneeIds || (task.assigneeId ? [task.assigneeId] : []);
       setFormData({ 
           ...task,
           description: task.description || '',
           assigneeId: task.assigneeId || '',
+          assigneeIds: assigneeIds,
           tags: task.tags || []
       });
     } else {
@@ -51,6 +55,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
         priority: TaskPriority.NORMAL,
         projectId: projects[0]?.id || '',
         assigneeId: '',
+        assigneeIds: [],
         startDate: new Date().toISOString().split('T')[0],
         dueDate: new Date(Date.now() + 86400000).toISOString().split('T')[0],
         tags: []
@@ -66,10 +71,15 @@ export const TaskModal: React.FC<TaskModalProps> = ({
     if (!formData.title) return;
     
     // Для новой задачи не передаем id, чтобы App.tsx мог определить, что это новая задача
+    const assigneeIds = formData.assigneeIds && formData.assigneeIds.length > 0 
+      ? formData.assigneeIds 
+      : (formData.assigneeId ? [formData.assigneeId] : []);
+    
     const taskData: Task = {
       ...formData,
       projectId: formData.projectId || undefined,
-      assigneeId: formData.assigneeId || undefined,
+      assigneeId: assigneeIds.length > 0 ? assigneeIds[0] : undefined, // Обратная совместимость
+      assigneeIds: assigneeIds.length > 0 ? assigneeIds : undefined,
       id: task?.id || '', // Пустая строка для новой задачи
       createdAt: task?.createdAt || new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -152,35 +162,67 @@ export const TaskModal: React.FC<TaskModalProps> = ({
               </select>
             </div>
 
-             {/* Assignee */}
+             {/* Assignees - Multiple selection */}
              <div>
               <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-1">
-                 <UserIcon size={14} /> Исполнитель
+                 <UserIcon size={14} /> Участники
               </label>
-              <div className="relative">
-                <select
-                    value={formData.assigneeId || ''}
-                    onChange={(e) => setFormData({...formData, assigneeId: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500 bg-white dark:bg-slate-800 text-gray-900 dark:text-slate-100 appearance-none pl-10"
-                >
-                    <option value="">Не назначен</option>
-                    {users.map(u => (
-                    <option key={u.id} value={u.id}>{u.displayName || u.email}</option>
-                    ))}
-                </select>
-                <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">
-                     {formData.assigneeId ? (
-                         users.find(u => u.id === formData.assigneeId)?.photoURL ? (
-                             <img src={users.find(u => u.id === formData.assigneeId)?.photoURL} className="w-5 h-5 rounded-full" alt="" />
-                         ) : (
-                            <div className="w-5 h-5 rounded-full bg-indigo-100 text-[10px] flex items-center justify-center font-bold text-indigo-700">
-                                {getInitials(users.find(u => u.id === formData.assigneeId)?.displayName || users.find(u => u.id === formData.assigneeId)?.email || '')}
-                            </div>
-                         )
-                     ) : (
-                         <UserIcon size={16} className="text-gray-400" />
-                     )}
+              <div className="space-y-2">
+                <div className="max-h-32 overflow-y-auto border border-gray-200 dark:border-slate-700 rounded-lg p-2 bg-white dark:bg-slate-800">
+                  {users.length === 0 ? (
+                    <p className="text-sm text-gray-500 dark:text-slate-400 text-center py-2">Нет доступных пользователей</p>
+                  ) : (
+                    users.map(user => {
+                      const isSelected = formData.assigneeIds?.includes(user.id) || false;
+                      return (
+                        <label
+                          key={user.id}
+                          className="flex items-center gap-2 p-2 rounded hover:bg-gray-50 dark:hover:bg-slate-700 cursor-pointer transition-colors"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={(e) => {
+                              const currentIds = formData.assigneeIds || [];
+                              if (e.target.checked) {
+                                setFormData({
+                                  ...formData,
+                                  assigneeIds: [...currentIds, user.id],
+                                  assigneeId: currentIds.length === 0 ? user.id : formData.assigneeId // Обратная совместимость
+                                });
+                              } else {
+                                const newIds = currentIds.filter(id => id !== user.id);
+                                setFormData({
+                                  ...formData,
+                                  assigneeIds: newIds,
+                                  assigneeId: newIds.length > 0 ? newIds[0] : undefined // Обратная совместимость
+                                });
+                              }
+                            }}
+                            className="w-4 h-4 text-sky-600 rounded focus:ring-sky-500"
+                          />
+                          <div className="flex items-center gap-2 flex-1 min-w-0">
+                            {user.photoURL ? (
+                              <img src={user.photoURL} className="w-6 h-6 rounded-full flex-shrink-0" alt="" />
+                            ) : (
+                              <div className="w-6 h-6 rounded-full bg-indigo-100 dark:bg-indigo-900 text-[10px] flex items-center justify-center font-bold text-indigo-700 dark:text-indigo-300 flex-shrink-0">
+                                {getInitials(user.displayName || user.email)}
+                              </div>
+                            )}
+                            <span className="text-sm text-gray-900 dark:text-slate-100 truncate">
+                              {user.displayName || user.email}
+                            </span>
+                          </div>
+                        </label>
+                      );
+                    })
+                  )}
                 </div>
+                {formData.assigneeIds && formData.assigneeIds.length > 0 && (
+                  <p className="text-xs text-gray-500 dark:text-slate-400">
+                    Выбрано: {formData.assigneeIds.length} {formData.assigneeIds.length === 1 ? 'участник' : formData.assigneeIds.length < 5 ? 'участника' : 'участников'}
+                  </p>
+                )}
               </div>
             </div>
 
@@ -244,9 +286,9 @@ export const TaskModal: React.FC<TaskModalProps> = ({
                {task && (
                    <button 
                       type="button"
-                      onClick={() => {
+                      onClick={async () => {
                           if (confirm('Вы уверены, что хотите удалить задачу?')) {
-                              onDelete(task.id);
+                              await onDelete(task);
                               onClose();
                           }
                       }}

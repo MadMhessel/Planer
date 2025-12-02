@@ -1,6 +1,6 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useRef } from 'react';
 import { Task, TaskPriority, TaskStatus, Project, User } from '../types';
-import { Plus, MoreHorizontal, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Plus, MoreHorizontal, ChevronLeft, ChevronRight, Edit, Trash2, X } from 'lucide-react';
 import { getPriorityLabel, getPriorityColor } from '../utils/taskHelpers';
 
 type Props = {
@@ -10,6 +10,7 @@ type Props = {
   onTaskClick: (task: Task) => void;
   onStatusChange: (task: Task, status: TaskStatus) => void;
   onCreateTask: () => void;
+  onDeleteTask?: (task: Task) => void | Promise<void>;
 };
 
 type Column = {
@@ -31,12 +32,15 @@ export const KanbanBoard: React.FC<Props> = ({
   users,
   onTaskClick,
   onStatusChange,
-  onCreateTask
+  onCreateTask,
+  onDeleteTask
 }) => {
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
   const [dragOverColumn, setDragOverColumn] = useState<TaskStatus | null>(null);
   const [isTouchDevice, setIsTouchDevice] = useState(false);
   const [currentColumnIndex, setCurrentColumnIndex] = useState(0);
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const menuRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -46,6 +50,38 @@ export const KanbanBoard: React.FC<Props> = ({
       setIsTouchDevice(touch);
     }
   }, []);
+
+  // Закрытие меню при клике вне его
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (openMenuId) {
+        const menuElement = menuRefs.current[openMenuId];
+        if (menuElement && !menuElement.contains(event.target as Node)) {
+          setOpenMenuId(null);
+        }
+      }
+    };
+
+    if (openMenuId) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+      };
+    }
+  }, [openMenuId]);
+
+  const handleMenuToggle = (taskId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setOpenMenuId(openMenuId === taskId ? null : taskId);
+  };
+
+  const handleDeleteTask = async (task: Task, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setOpenMenuId(null);
+    if (onDeleteTask && confirm(`Вы уверены, что хотите удалить задачу "${task.title}"?`)) {
+      await onDeleteTask(task);
+    }
+  };
 
   const tasksByStatus = useMemo(() => {
     const map: Record<TaskStatus, Task[]> = {
@@ -187,15 +223,43 @@ export const KanbanBoard: React.FC<Props> = ({
                 <div className="font-medium text-gray-900 dark:text-slate-100 line-clamp-2 flex-1">
                   {task.title}
                 </div>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                  }}
-                  className="relative shrink-0 p-1 hover:bg-gray-100 dark:hover:bg-slate-800 rounded transition-colors"
-                >
-                  <MoreHorizontal className="w-4 h-4 text-gray-500 dark:text-slate-400" />
-                </button>
+                <div className="relative shrink-0">
+                  <button
+                    type="button"
+                    onClick={(e) => handleMenuToggle(task.id, e)}
+                    className="p-1 hover:bg-gray-100 dark:hover:bg-slate-800 rounded transition-colors"
+                  >
+                    <MoreHorizontal className="w-4 h-4 text-gray-500 dark:text-slate-400" />
+                  </button>
+                  {openMenuId === task.id && (
+                    <div
+                      ref={(el) => menuRefs.current[task.id] = el}
+                      className="absolute right-0 top-8 z-50 w-40 bg-white dark:bg-slate-800 rounded-lg shadow-lg border border-gray-200 dark:border-slate-700 py-1"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setOpenMenuId(null);
+                          onTaskClick(task);
+                        }}
+                        className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-700 flex items-center gap-2"
+                      >
+                        <Edit size={14} /> Редактировать
+                      </button>
+                      {onDeleteTask && (
+                        <button
+                          type="button"
+                          onClick={(e) => handleDeleteTask(task, e)}
+                          className="w-full px-4 py-2 text-left text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2"
+                        >
+                          <Trash2 size={14} /> Удалить
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
 
               {task.description && (
@@ -211,9 +275,14 @@ export const KanbanBoard: React.FC<Props> = ({
                   </span>
                 )}
 
-                {task.assigneeId && (
+                {(task.assigneeIds && task.assigneeIds.length > 0 ? task.assigneeIds : (task.assigneeId ? [task.assigneeId] : [])).slice(0, 2).map((userId, idx) => (
+                  <span key={userId} className="px-2 py-0.5 rounded-full bg-gray-100 dark:bg-slate-800 text-[10px] text-gray-700 dark:text-slate-200">
+                    {getUserShort(userId)}
+                  </span>
+                ))}
+                {((task.assigneeIds && task.assigneeIds.length > 0 ? task.assigneeIds : (task.assigneeId ? [task.assigneeId] : [])).length > 2) && (
                   <span className="px-2 py-0.5 rounded-full bg-gray-100 dark:bg-slate-800 text-[10px] text-gray-700 dark:text-slate-200">
-                    {getUserShort(task.assigneeId)}
+                    +{((task.assigneeIds && task.assigneeIds.length > 0 ? task.assigneeIds : (task.assigneeId ? [task.assigneeId] : [])).length - 2)}
                   </span>
                 )}
 
@@ -303,16 +372,44 @@ export const KanbanBoard: React.FC<Props> = ({
                     <div className="font-medium text-gray-900 dark:text-slate-100 line-clamp-2">
                       {task.title}
                     </div>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                      }}
-                      className="relative shrink-0 p-1 hover:bg-gray-100 dark:hover:bg-slate-700 rounded transition-colors"
-                      title="Дополнительные действия"
-                    >
-                      <MoreHorizontal className="w-4 h-4 text-gray-500 dark:text-slate-400" />
-                    </button>
+                    <div className="relative shrink-0">
+                      <button
+                        type="button"
+                        onClick={(e) => handleMenuToggle(task.id, e)}
+                        className="p-1 hover:bg-gray-100 dark:hover:bg-slate-700 rounded transition-colors"
+                        title="Дополнительные действия"
+                      >
+                        <MoreHorizontal className="w-4 h-4 text-gray-500 dark:text-slate-400" />
+                      </button>
+                      {openMenuId === task.id && (
+                        <div
+                          ref={(el) => menuRefs.current[task.id] = el}
+                          className="absolute right-0 top-8 z-50 w-40 bg-white dark:bg-slate-800 rounded-lg shadow-lg border border-gray-200 dark:border-slate-700 py-1"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setOpenMenuId(null);
+                              onTaskClick(task);
+                            }}
+                            className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-700 flex items-center gap-2"
+                          >
+                            <Edit size={14} /> Редактировать
+                          </button>
+                          {onDeleteTask && (
+                            <button
+                              type="button"
+                              onClick={(e) => handleDeleteTask(task, e)}
+                              className="w-full px-4 py-2 text-left text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2"
+                            >
+                              <Trash2 size={14} /> Удалить
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </div>
 
                   {task.description && (
@@ -328,9 +425,14 @@ export const KanbanBoard: React.FC<Props> = ({
                       </span>
                     )}
 
-                    {task.assigneeId && (
+                    {(task.assigneeIds && task.assigneeIds.length > 0 ? task.assigneeIds : (task.assigneeId ? [task.assigneeId] : [])).slice(0, 2).map((userId, idx) => (
+                      <span key={userId} className="px-2 py-0.5 rounded-full bg-gray-100 dark:bg-slate-800 text-[10px] text-gray-700 dark:text-slate-200">
+                        {getUserShort(userId)}
+                      </span>
+                    ))}
+                    {((task.assigneeIds && task.assigneeIds.length > 0 ? task.assigneeIds : (task.assigneeId ? [task.assigneeId] : [])).length > 2) && (
                       <span className="px-2 py-0.5 rounded-full bg-gray-100 dark:bg-slate-800 text-[10px] text-gray-700 dark:text-slate-200">
-                        {getUserShort(task.assigneeId)}
+                        +{((task.assigneeIds && task.assigneeIds.length > 0 ? task.assigneeIds : (task.assigneeId ? [task.assigneeId] : [])).length - 2)}
                       </span>
                     )}
 

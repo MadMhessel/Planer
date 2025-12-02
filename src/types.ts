@@ -19,7 +19,8 @@ export type Task = {
   description?: string;
   status: TaskStatus;
   projectId?: string;
-  assigneeId?: string;
+  assigneeId?: string; // Оставлено для обратной совместимости
+  assigneeIds?: string[]; // Новое поле для нескольких участников
   createdAt: string; // ISO string
   updatedAt: string; // ISO string
   dueDate?: string;  // ISO date string
