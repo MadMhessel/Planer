@@ -154,11 +154,6 @@ export const SettingsView: React.FC<Props> = ({
       return;
     }
     
-    if (!currentMember) {
-      setError('Не удалось определить вашу роль');
-      return;
-    }
-    
     if (member.role === 'OWNER') {
       setError('Нельзя удалить владельца рабочего пространства');
       return;
@@ -173,7 +168,36 @@ export const SettingsView: React.FC<Props> = ({
     setLoading(true);
 
     try {
-      await FirestoreService.removeMember(workspace.id, member.id, currentMember);
+      // Для супер-админов создаем временный WorkspaceMember объект, если currentMember отсутствует
+      let actingMember = currentMember;
+      if (!actingMember && canManage) {
+        // Проверяем, является ли пользователь супер-админом
+        const isSuperAdmin = currentUser.email && SUPER_ADMINS.map(e => e.toLowerCase()).includes(currentUser.email.toLowerCase());
+        if (isSuperAdmin) {
+          // Создаем временный объект с ролью OWNER для супер-админа
+          actingMember = {
+            id: currentUser.id,
+            userId: currentUser.id,
+            email: currentUser.email || '',
+            role: 'OWNER',
+            joinedAt: new Date().toISOString(),
+            invitedBy: currentUser.id,
+            status: 'ACTIVE'
+          };
+        } else {
+          setError('Не удалось определить вашу роль');
+          setLoading(false);
+          return;
+        }
+      }
+      
+      if (!actingMember) {
+        setError('Не удалось определить вашу роль');
+        setLoading(false);
+        return;
+      }
+
+      await FirestoreService.removeMember(workspace.id, member.id, actingMember);
       
       setMessage(`Пользователь ${member.email} успешно удален`);
       
