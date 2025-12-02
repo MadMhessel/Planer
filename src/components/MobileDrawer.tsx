@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, KanbanSquare, Calendar, BarChart3, ListTodo, LayoutDashboard, Settings, User } from 'lucide-react';
+import { X, KanbanSquare, Calendar, BarChart3, ListTodo, LayoutDashboard, Settings, User as UserIcon } from 'lucide-react';
 
 type AppView = 'BOARD' | 'CALENDAR' | 'GANTT' | 'LIST' | 'DASHBOARD' | 'SETTINGS';
 
@@ -86,7 +86,7 @@ export const MobileDrawer: React.FC<MobileDrawerProps> = ({
                 }}
                 className="w-full flex items-center gap-3 px-4 py-3 rounded-lg mb-1 transition-all text-gray-700 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-800 border-t border-gray-200 dark:border-slate-700 mt-4 pt-4"
               >
-                <User className="w-5 h-5" />
+                <UserIcon className="w-5 h-5" />
                 <span className="font-medium">Профиль</span>
               </button>
             )}

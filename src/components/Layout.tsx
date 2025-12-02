@@ -15,7 +15,7 @@ import {
   Menu,
   X,
   Plus,
-  User
+  User as UserIcon
 } from 'lucide-react';
 import { Workspace, User, ViewMode, Notification } from '../types';
 import { MobileDrawer } from './MobileDrawer';
@@ -232,7 +232,7 @@ export const Layout: React.FC<LayoutProps> = ({
                     className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs border border-gray-200 dark:border-slate-700 hover:bg-gray-100 dark:hover:bg-slate-800 transition-all font-medium text-gray-700 dark:text-slate-300"
                     title="Профиль"
                   >
-                    <User className="w-3.5 h-3.5" />
+                    <UserIcon className="w-3.5 h-3.5" />
                     <span className="hidden md:inline">Профиль</span>
                   </button>
                 )}
