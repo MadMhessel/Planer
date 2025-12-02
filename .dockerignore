@@ -3,7 +3,7 @@ node_modules
 .env
 npm-debug.log
 build
-dist
+# dist - НЕ исключаем, так как он собирается внутри Docker и должен быть в образе
 .DS_Store
 *.log
 .vscode
