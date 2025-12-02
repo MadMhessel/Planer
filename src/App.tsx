@@ -373,15 +373,19 @@ const App: React.FC = () => {
   };
 
   const handleAuth = async (isLogin: boolean, ...args: string[]) => {
-    if (!isLogin) {
-      try {
+    if (isLogin) {
+      // Вход через email/password
+      const [email, password] = args;
+      await AuthService.loginWithEmail(email, password);
+    } else {
+      // Проверяем, это Google или регистрация через email
+      if (args.length === 0) {
+        // Google аутентификация
         await AuthService.loginWithGoogle();
-        // Аутентификация успешна - состояние обновится через onAuthStateChanged
-        // Ошибки не нужно пробрасывать, так как AuthView обрабатывает их сам
-      } catch (error: any) {
-        console.error('Ошибка при входе:', error);
-        // Пробрасываем ошибку, чтобы AuthView мог её отобразить
-        throw error;
+      } else {
+        // Регистрация через email/password
+        const [email, password, displayName] = args;
+        await AuthService.registerWithEmail(email, password, displayName);
       }
     }
   };

@@ -2,6 +2,8 @@ import {
   GoogleAuthProvider, 
   onAuthStateChanged, 
   signInWithPopup, 
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
   signOut 
 } from 'firebase/auth';
 import { auth, db } from '../firebase';
@@ -51,57 +53,89 @@ export const AuthService = {
   },
 
   async loginWithGoogle(): Promise<User> {
-    try {
-      console.log('🔐 Начало аутентификации через Google...');
-      const result = await signInWithPopup(auth, provider);
-      const firebaseUser = result.user;
-      console.log('✅ Аутентификация успешна:', firebaseUser.email);
+    const result = await signInWithPopup(auth, provider);
+    const firebaseUser = result.user;
 
-      const userRef = doc(db, 'users', firebaseUser.uid);
-      const snapshot = await getDoc(userRef);
+    const userRef = doc(db, 'users', firebaseUser.uid);
+    const snapshot = await getDoc(userRef);
 
-      if (!snapshot.exists()) {
-        const newUser: User = {
-          id: firebaseUser.uid,
-          email: firebaseUser.email || '',
-          displayName: firebaseUser.displayName || firebaseUser.email || '',
-          photoURL: firebaseUser.photoURL || undefined,
-          role: 'MEMBER',
-          isActive: true,
-          createdAt: new Date().toISOString(),
-          lastLoginAt: new Date().toISOString()
-        };
+    if (!snapshot.exists()) {
+      const newUser: User = {
+        id: firebaseUser.uid,
+        email: firebaseUser.email || '',
+        displayName: firebaseUser.displayName || firebaseUser.email || '',
+        photoURL: firebaseUser.photoURL || undefined,
+        role: 'MEMBER',
+        isActive: true,
+        createdAt: new Date().toISOString(),
+        lastLoginAt: new Date().toISOString()
+      };
 
-        await setDoc(userRef, newUser);
-        console.log('✅ Создан новый пользователь:', newUser.email);
-        return newUser;
-      } else {
-        const data = snapshot.data() as User;
-        await updateDoc(userRef, {
-          lastLoginAt: serverTimestamp()
-        });
-        console.log('✅ Пользователь найден:', data.email);
-        return {
-          ...data,
-          id: snapshot.id
-        };
-      }
-    } catch (error: any) {
-      console.error('❌ Ошибка аутентификации:', error);
-      
-      // Обработка специфичных ошибок Firebase
-      if (error.code === 'auth/popup-blocked') {
-        throw new Error('Всплывающее окно заблокировано браузером. Разрешите всплывающие окна для этого сайта.');
-      } else if (error.code === 'auth/popup-closed-by-user') {
-        throw new Error('Окно аутентификации было закрыто. Попробуйте снова.');
-      } else if (error.code === 'auth/unauthorized-domain') {
-        throw new Error('Домен не авторизован в Firebase. Обратитесь к администратору.');
-      } else if (error.code === 'auth/operation-not-allowed') {
-        throw new Error('Метод аутентификации не включен в Firebase Console.');
-      } else {
-        throw new Error(error.message || 'Ошибка при входе через Google. Попробуйте снова.');
-      }
+      await setDoc(userRef, newUser);
+      return newUser;
+    } else {
+      const data = snapshot.data() as User;
+      await updateDoc(userRef, {
+        lastLoginAt: serverTimestamp()
+      });
+      return {
+        ...data,
+        id: snapshot.id
+      };
     }
+  },
+
+  async loginWithEmail(email: string, password: string): Promise<User> {
+    const result = await signInWithEmailAndPassword(auth, email, password);
+    const firebaseUser = result.user;
+
+    const userRef = doc(db, 'users', firebaseUser.uid);
+    const snapshot = await getDoc(userRef);
+
+    if (!snapshot.exists()) {
+      const newUser: User = {
+        id: firebaseUser.uid,
+        email: firebaseUser.email || '',
+        displayName: firebaseUser.displayName || firebaseUser.email || '',
+        photoURL: firebaseUser.photoURL || undefined,
+        role: 'MEMBER',
+        isActive: true,
+        createdAt: new Date().toISOString(),
+        lastLoginAt: new Date().toISOString()
+      };
+
+      await setDoc(userRef, newUser);
+      return newUser;
+    } else {
+      const data = snapshot.data() as User;
+      await updateDoc(userRef, {
+        lastLoginAt: serverTimestamp()
+      });
+      return {
+        ...data,
+        id: snapshot.id
+      };
+    }
+  },
+
+  async registerWithEmail(email: string, password: string, displayName?: string): Promise<User> {
+    const result = await createUserWithEmailAndPassword(auth, email, password);
+    const firebaseUser = result.user;
+
+    const userRef = doc(db, 'users', firebaseUser.uid);
+    const newUser: User = {
+      id: firebaseUser.uid,
+      email: firebaseUser.email || '',
+      displayName: displayName || firebaseUser.email || '',
+      photoURL: firebaseUser.photoURL || undefined,
+      role: 'MEMBER',
+      isActive: true,
+      createdAt: new Date().toISOString(),
+      lastLoginAt: new Date().toISOString()
+    };
+
+    await setDoc(userRef, newUser);
+    return newUser;
   },
 
   async logout() {
