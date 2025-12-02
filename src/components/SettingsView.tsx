@@ -148,15 +148,34 @@ export const SettingsView: React.FC<Props> = ({
   };
 
   const handleRemoveMember = async (member: WorkspaceMember) => {
-    if (!currentMember || !canManage) return;
-    if (member.role === 'OWNER') return;
-    if (!window.confirm(`Убрать пользователя ${member.email} из пространства?`)) return;
+    // Проверяем права до удаления
+    if (!canManage) {
+      setError('У вас нет прав для удаления участников');
+      return;
+    }
+    
+    if (!currentMember) {
+      setError('Не удалось определить вашу роль');
+      return;
+    }
+    
+    if (member.role === 'OWNER') {
+      setError('Нельзя удалить владельца рабочего пространства');
+      return;
+    }
+    
+    if (!window.confirm(`Убрать пользователя ${member.email} из пространства?`)) {
+      return;
+    }
 
     setError(null);
     setMessage(null);
+    setLoading(true);
 
     try {
       await FirestoreService.removeMember(workspace.id, member.id, currentMember);
+      
+      setMessage(`Пользователь ${member.email} успешно удален`);
       
       // Добавляем уведомление
       if (onNotification) {
@@ -167,7 +186,11 @@ export const SettingsView: React.FC<Props> = ({
         );
       }
     } catch (e: any) {
-      setError(e?.message || 'Не удалось удалить участника.');
+      const errorMessage = e?.message || 'Не удалось удалить участника';
+      setError(errorMessage);
+      console.error('Failed to remove member:', e);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -410,13 +433,21 @@ export const SettingsView: React.FC<Props> = ({
                     </span>
                   </td>
                   <td className="px-4 py-3 text-right">
-                    {canRemoveMember(m) && (
+                    {canRemoveMember(m) ? (
                       <button
-                        onClick={() => handleRemoveMember(m)}
-                        className="px-3 py-1.5 text-[11px] rounded-lg border border-red-400 dark:border-red-500/60 text-red-600 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/40 hover:border-red-500 dark:hover:border-red-500/80 transition-all font-medium"
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          handleRemoveMember(m);
+                        }}
+                        disabled={loading}
+                        className="px-3 py-1.5 text-[11px] rounded-lg border border-red-400 dark:border-red-500/60 text-red-600 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/40 hover:border-red-500 dark:hover:border-red-500/80 transition-all font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                       >
-                        Удалить
+                        {loading ? 'Удаление...' : 'Удалить'}
                       </button>
+                    ) : (
+                      <span className="text-xs text-gray-400 dark:text-slate-600">—</span>
                     )}
                   </td>
                 </tr>
