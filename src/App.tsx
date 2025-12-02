@@ -98,12 +98,26 @@ const App: React.FC = () => {
 
   // Auth Listener
   useEffect(() => {
+    let mounted = true;
+    
     const unsubscribe = AuthService.subscribeToAuth(async (user) => {
-      setCurrentUser(user);
-      setAuthLoading(false);
+      if (mounted) {
+        try {
+          setCurrentUser(user);
+          setAuthLoading(false);
+        } catch (error) {
+          console.error('Error setting user state:', error);
+          if (mounted) {
+            setAuthLoading(false);
+          }
+        }
+      }
     });
 
-    return () => unsubscribe();
+    return () => {
+      mounted = false;
+      unsubscribe();
+    };
   }, []);
 
   // Workspace hook
@@ -437,7 +451,10 @@ const App: React.FC = () => {
   if (authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-900 text-slate-100">
-        <div className="animate-pulse text-lg">Загрузка...</div>
+        <div className="text-center">
+          <div className="animate-pulse text-lg mb-2">Загрузка...</div>
+          <div className="text-sm text-slate-400">Инициализация приложения</div>
+        </div>
       </div>
     );
   }
