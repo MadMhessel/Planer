@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Workspace, WorkspaceInvite, WorkspaceMember, User, UserRole } from '../types';
 import { FirestoreService } from '../services/firestore';
+import { SUPER_ADMINS } from '../constants/superAdmins';
 
 type Props = {
   workspace: Workspace;
@@ -31,9 +32,30 @@ export const SettingsView: React.FC<Props> = ({
     [members, currentUser.id]
   );
 
-  const canManage = currentMember
-    ? currentMember.role === 'OWNER' || currentMember.role === 'ADMIN'
-    : false;
+  // Проверка прав: супер-админ или OWNER/ADMIN в workspace
+  const canManage = useMemo(() => {
+    // Глобальные супер-админы имеют все права
+    const isSuperAdmin = currentUser.email && SUPER_ADMINS.map(e => e.toLowerCase()).includes(currentUser.email.toLowerCase());
+    if (isSuperAdmin) {
+      console.log('[SettingsView] Super admin detected:', currentUser.email);
+      return true;
+    }
+    // Обычная проверка роли
+    const hasRole = currentMember
+      ? currentMember.role === 'OWNER' || currentMember.role === 'ADMIN'
+      : false;
+    
+    if (!hasRole) {
+      console.log('[SettingsView] No manage rights:', {
+        currentUserEmail: currentUser.email,
+        currentMember: currentMember,
+        memberRole: currentMember?.role,
+        allMembers: members.map(m => ({ userId: m.userId, email: m.email, role: m.role }))
+      });
+    }
+    
+    return hasRole;
+  }, [currentUser.email, currentMember, members]);
 
   const handleInviteSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
