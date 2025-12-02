@@ -677,10 +677,21 @@ const App: React.FC = () => {
             onSave={async (t) => {
               if (!currentWorkspaceId) return;
 
-              if (t.id) {
-                await handleUpdateTask(t.id, t);
+              // Проверяем, существует ли задача: если editingTask был установлен и имеет id, значит это редактирование
+              const isExistingTask = editingTask && editingTask.id && editingTask.id.trim() !== '';
+              
+              if (isExistingTask && editingTask.id) {
+                await handleUpdateTask(editingTask.id, {
+                  ...t,
+                  workspaceId: currentWorkspaceId
+                });
               } else {
-                await handleAddTask(t);
+                // Для новой задачи добавляем workspaceId и убираем id
+                const { id, ...taskData } = t;
+                await handleAddTask({
+                  ...taskData,
+                  workspaceId: currentWorkspaceId
+                });
               }
 
               setIsTaskModalOpen(false);

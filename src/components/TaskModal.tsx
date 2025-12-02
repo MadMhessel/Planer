@@ -65,16 +65,22 @@ export const TaskModal: React.FC<TaskModalProps> = ({
     // Validate
     if (!formData.title) return;
     
-    onSave({
+    // Для новой задачи не передаем id, чтобы App.tsx мог определить, что это новая задача
+    const taskData: Task = {
       ...formData,
       projectId: formData.projectId || undefined,
       assigneeId: formData.assigneeId || undefined,
-      id: task?.id || Math.random().toString(36).substr(2, 9),
+      id: task?.id || '', // Пустая строка для новой задачи
       createdAt: task?.createdAt || new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       dependencies: task?.dependencies || [],
-      tags: formData.tags || []
-    } as Task);
+      tags: formData.tags || [],
+      workspaceId: task?.workspaceId || '', // Будет установлено в App.tsx
+      status: formData.status || TaskStatus.TODO,
+      priority: formData.priority || TaskPriority.NORMAL
+    } as Task;
+    
+    onSave(taskData);
     onClose();
   };
 
