@@ -347,10 +347,26 @@ export const FirestoreService = {
 
   async updateTask(taskId: string, updates: Partial<Task>) {
     const taskRef = doc(db, 'tasks', taskId);
-    await updateDoc(taskRef, {
-      ...updates,
+    
+    // Фильтруем undefined значения, так как Firestore их не принимает
+    const updateData: any = {
       updatedAt: new Date().toISOString()
-    } as any);
+    };
+
+    // Копируем только определенные поля
+    Object.keys(updates).forEach(key => {
+      const value = (updates as any)[key];
+      if (value !== undefined) {
+        // Если это массив assigneeIds и он пустой, не добавляем его
+        if (key === 'assigneeIds' && Array.isArray(value) && value.length === 0) {
+          // Не добавляем пустой массив, оставляем undefined чтобы не перезаписывать существующее значение
+          return;
+        }
+        updateData[key] = value;
+      }
+    });
+
+    await updateDoc(taskRef, updateData);
   },
 
   async deleteTask(taskId: string) {
