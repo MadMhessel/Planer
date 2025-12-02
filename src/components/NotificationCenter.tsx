@@ -32,10 +32,13 @@ export const NotificationCenter: React.FC<Props> = ({
   // Автоматически помечаем все уведомления как прочитанные при открытии панели
   useEffect(() => {
     if (open && unread.length > 0 && onMarkAllAsRead) {
-      onMarkAllAsRead();
+      // Используем setTimeout, чтобы избежать проблем с обновлением состояния
+      const timer = setTimeout(() => {
+        onMarkAllAsRead();
+      }, 100);
+      return () => clearTimeout(timer);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]); // Вызываем только при изменении состояния открытия, чтобы избежать бесконечных циклов
+  }, [open, unread.length, onMarkAllAsRead]);
 
   return (
     <>
