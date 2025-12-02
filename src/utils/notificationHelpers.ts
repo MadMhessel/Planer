@@ -15,15 +15,21 @@ export const createTaskNotification = (
     ? 'назначена' 
     : 'создана';
 
-  return {
+  const notification: Omit<Notification, 'id'> = {
     workspaceId,
     type,
     title: type === 'TASK_ASSIGNED' ? 'Новая задача создана' : 'Задача обновлена',
     message: `Задача "${task.title}" ${assigneeName}`,
     createdAt: new Date().toISOString(),
-    readBy: [],
-    recipients
+    readBy: []
   };
+
+  // Добавляем recipients только если они определены и не пусты
+  if (recipients && recipients.length > 0) {
+    notification.recipients = recipients;
+  }
+
+  return notification;
 };
 
 export const createTelegramMessage = (

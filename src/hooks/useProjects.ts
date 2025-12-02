@@ -77,13 +77,21 @@ export const useProjects = (
       // Уведомления через NotificationsService
       if (workspaceId) {
         const telegramRecipients = getAllTelegramRecipients(members);
-        await NotificationsService.add(workspaceId, {
+        const notificationData: Omit<Notification, 'id'> = {
+          workspaceId,
           title: 'Проект создан',
           message: `Проект "${created.name}" был создан`,
           type: 'PROJECT_UPDATED',
-          recipients: telegramRecipients.length > 0 ? telegramRecipients.map(r => r.userId) : undefined,
-          readBy: []
-        });
+          readBy: [],
+          createdAt: new Date().toISOString()
+        };
+        
+        // Добавляем recipients только если есть получатели
+        if (telegramRecipients.length > 0) {
+          notificationData.recipients = telegramRecipients.map(r => r.userId);
+        }
+        
+        await NotificationsService.add(workspaceId, notificationData);
       }
 
       const recipients = getAllTelegramRecipients(members);

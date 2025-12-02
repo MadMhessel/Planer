@@ -249,15 +249,21 @@ export const useTasks = (
         ? [taskToDelete.assigneeId]
         : NotificationsService.getRecipients(members, undefined, true);
       
-      await NotificationsService.add(workspaceId, {
+      const deleteNotification: Omit<Notification, 'id'> = {
         workspaceId,
         type: 'TASK_UPDATED',
         title: 'Задача удалена',
         message: `Задача "${taskToDelete.title}" была удалена`,
         createdAt: new Date().toISOString(),
-        readBy: [],
-        recipients: notificationRecipients
-      });
+        readBy: []
+      };
+      
+      // Добавляем recipients только если они есть
+      if (notificationRecipients && notificationRecipients.length > 0) {
+        deleteNotification.recipients = notificationRecipients;
+      }
+      
+      await NotificationsService.add(workspaceId, deleteNotification);
 
       const recipients = getRecipientsForTask(taskToDelete, members, currentUser.id);
       if (recipients.length > 0) {

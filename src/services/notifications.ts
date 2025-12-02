@@ -24,12 +24,22 @@ export class NotificationsService {
    */
   static async add(workspaceId: string, notification: Omit<Notification, 'id'>) {
     try {
-      const docRef = await addDoc(this.workspaceCollection(workspaceId), {
-        ...notification,
+      // Фильтруем undefined значения, так как Firestore их не принимает
+      const notificationData: any = {
         workspaceId,
+        title: notification.title,
+        message: notification.message,
+        type: notification.type,
         readBy: notification.readBy || [],
         createdAt: notification.createdAt || new Date().toISOString()
-      });
+      };
+
+      // Добавляем recipients только если они определены
+      if (notification.recipients && notification.recipients.length > 0) {
+        notificationData.recipients = notification.recipients;
+      }
+
+      const docRef = await addDoc(this.workspaceCollection(workspaceId), notificationData);
       logger.info('Notification added', { id: docRef.id, workspaceId });
       return docRef.id;
     } catch (error) {
