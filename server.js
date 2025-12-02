@@ -44,51 +44,20 @@ if (!fs.existsSync(distPath)) {
 
 // ===== СТАТИЧЕСКИЕ ФАЙЛЫ ДОЛЖНЫ ОБРАБАТЫВАТЬСЯ ПЕРВЫМИ, ДО CORS =====
 
-// Явный маршрут для assets - обрабатывается ПЕРВЫМ, до всех других middleware
-app.get('/assets/*', (req, res, next) => {
-  // req.path будет содержать полный путь, например "/assets/index-C53v20yJ.js"
-  const match = req.path.match(/^\/assets\/(.+)$/);
-  if (!match) {
-    return res.status(400).json({ error: 'Invalid asset path', path: req.path });
-  }
-  
-  const fileName = match[1];
-  const assetPath = path.join(distPath, 'assets', fileName);
-  
-  // Проверяем существование файла
-  if (!fs.existsSync(assetPath)) {
-    console.error(`[${new Date().toISOString()}] Asset not found: ${req.path} -> ${assetPath}`);
-    return res.status(404).json({ 
-      error: 'Asset not found', 
-      path: req.path,
-      requestedFile: fileName,
-      resolvedPath: assetPath
-    });
-  }
-  
-  // Устанавливаем правильный MIME тип
-  if (assetPath.endsWith('.css')) {
-    res.setHeader('Content-Type', 'text/css; charset=utf-8');
-  } else if (assetPath.endsWith('.js')) {
-    res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
-  } else if (assetPath.endsWith('.json')) {
-    res.setHeader('Content-Type', 'application/json; charset=utf-8');
-  }
-  
-  // Отправляем файл
-  res.sendFile(assetPath, (err) => {
-    if (err) {
-      console.error(`[${new Date().toISOString()}] Error sending asset ${req.path}:`, err);
-      if (!res.headersSent) {
-        res.status(500).json({ 
-          error: 'Failed to serve asset', 
-          path: req.path,
-          errorCode: err.code
-        });
-      }
+// Раздача /assets через express.static (проще и без wildcard ошибок в Express 5)
+app.use('/assets', express.static(path.join(distPath, 'assets'), {
+  maxAge: '1y',
+  etag: true,
+  lastModified: true,
+  setHeaders: (res, filePath) => {
+    // Явно задаём charset для CSS/JS
+    if (filePath.endsWith('.css')) {
+      res.setHeader('Content-Type', 'text/css; charset=utf-8');
+    } else if (filePath.endsWith('.js')) {
+      res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
     }
-  });
-});
+  }
+}));
 
 // Также обслуживаем корневые статические файлы (index.html и т.д.)
 app.use(express.static(distPath, {
