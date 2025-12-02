@@ -9,7 +9,7 @@ COPY package*.json ./
 # Используем --legacy-peer-deps для разрешения конфликтов между React 19 и @testing-library/react
 RUN npm ci --legacy-peer-deps
 
-# 3. Копируем остальной код
+# 3. Копируем остальной код (исключая node_modules и dist, если они есть локально)
 COPY . .
 
 # 4. Собираем фронтенд Vite
@@ -17,13 +17,18 @@ COPY . .
 # из переменных окружения Cloud Run, поэтому build-time переменные не нужны
 RUN npm run build
 
-# Проверяем что dist собран и содержит необходимые файлы
-RUN ls -la dist/ && \
+# 5. Проверяем что dist собран и содержит необходимые файлы
+RUN echo "=== Verifying build ===" && \
+    ls -la dist/ && \
     test -f dist/index.html || (echo "ERROR: dist/index.html not found!" && exit 1) && \
     test -d dist/assets || (echo "ERROR: dist/assets directory not found!" && exit 1) && \
     echo "✓ Build verification passed" && \
-    echo "✓ Listing assets files:" && \
-    ls -la dist/assets/ | head -20
+    echo "=== Listing assets files ===" && \
+    ls -la dist/assets/ && \
+    echo "=== Assets file count ===" && \
+    ls -1 dist/assets/ | wc -l && \
+    echo "=== Sample asset files ===" && \
+    ls -1 dist/assets/ | head -10
 
 # 6. Настройки окружения по умолчанию
 ENV NODE_ENV=production

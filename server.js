@@ -475,35 +475,55 @@ if (!fs.existsSync(distPath)) {
 // Важно: express.static должен обработать файлы ДО SPA fallback
 
 // Явный маршрут для assets - обрабатывается ПЕРВЫМ, до всех других middleware
+// Используем app.get с wildcard для обработки всех путей в /assets/
 app.get('/assets/*', (req, res, next) => {
-  const assetPath = path.join(distPath, req.path);
+  // req.path будет содержать полный путь, например "/assets/index-C53v20yJ.js"
+  // Извлекаем имя файла (все после /assets/)
+  // Используем более надежный способ извлечения
+  const match = req.path.match(/^\/assets\/(.+)$/);
+  if (!match) {
+    console.error(`[${new Date().toISOString()}] Invalid asset path: ${req.path}`);
+    return res.status(400).json({ error: 'Invalid asset path', path: req.path });
+  }
   
-  // Детальное логирование для диагностики
-  console.log(`[${new Date().toISOString()}] Asset request: ${req.path}`);
-  console.log(`[${new Date().toISOString()}] Resolved to: ${assetPath}`);
-  console.log(`[${new Date().toISOString()}] Dist path: ${distPath}`);
-  console.log(`[${new Date().toISOString()}] File exists: ${fs.existsSync(assetPath)}`);
+  const fileName = match[1];
+  const assetPath = path.join(distPath, 'assets', fileName);
+  
+  // Детальное логирование для диагностики (только первые несколько запросов)
+  const logKey = '_assetLogCount';
+  const shouldLog = !global[logKey] || global[logKey] < 3;
+  if (shouldLog) {
+    global[logKey] = (global[logKey] || 0) + 1;
+    console.log(`[${new Date().toISOString()}] Asset request: ${req.path}`);
+    console.log(`[${new Date().toISOString()}] File name: ${fileName}`);
+    console.log(`[${new Date().toISOString()}] Resolved to: ${assetPath}`);
+    console.log(`[${new Date().toISOString()}] File exists: ${fs.existsSync(assetPath)}`);
+  }
   
   // Проверяем существование файла
   if (!fs.existsSync(assetPath)) {
     console.error(`[${new Date().toISOString()}] Asset not found: ${req.path} -> ${assetPath}`);
     
-    // Попробуем проверить, что есть в dist/assets
-    const assetsDir = path.join(distPath, 'assets');
-    if (fs.existsSync(assetsDir)) {
-      try {
-        const files = fs.readdirSync(assetsDir);
-        console.error(`[${new Date().toISOString()}] Available assets (${files.length}):`, files.slice(0, 10).join(', '));
-      } catch (e) {
-        console.error(`[${new Date().toISOString()}] Could not read assets dir:`, e.message);
+    // Попробуем проверить, что есть в dist/assets (только при первой ошибке)
+    if (!global._assetErrorLogged) {
+      global._assetErrorLogged = true;
+      const assetsDir = path.join(distPath, 'assets');
+      if (fs.existsSync(assetsDir)) {
+        try {
+          const files = fs.readdirSync(assetsDir);
+          console.error(`[${new Date().toISOString()}] Available assets (${files.length}):`, files.slice(0, 10).join(', '));
+        } catch (e) {
+          console.error(`[${new Date().toISOString()}] Could not read assets dir:`, e.message);
+        }
+      } else {
+        console.error(`[${new Date().toISOString()}] Assets directory does not exist: ${assetsDir}`);
       }
-    } else {
-      console.error(`[${new Date().toISOString()}] Assets directory does not exist: ${assetsDir}`);
     }
     
     return res.status(404).json({ 
       error: 'Asset not found', 
       path: req.path,
+      requestedFile: fileName,
       resolvedPath: assetPath,
       distPath: distPath
     });
@@ -516,9 +536,11 @@ app.get('/assets/*', (req, res, next) => {
     res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
   } else if (assetPath.endsWith('.json')) {
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  } else if (assetPath.endsWith('.woff') || assetPath.endsWith('.woff2')) {
+    res.setHeader('Content-Type', 'font/woff2');
   }
   
-  // Отправляем файл
+  // Отправляем файл (без root, так как assetPath уже абсолютный)
   res.sendFile(assetPath, (err) => {
     if (err) {
       console.error(`[${new Date().toISOString()}] Error sending asset ${req.path}:`, err);
@@ -537,7 +559,7 @@ app.get('/assets/*', (req, res, next) => {
           errorMessage: err.message
         });
       }
-    } else {
+    } else if (shouldLog) {
       console.log(`[${new Date().toISOString()}] Successfully served: ${req.path}`);
     }
   });
