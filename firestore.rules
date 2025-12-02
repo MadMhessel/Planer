@@ -9,8 +9,25 @@ service cloud.firestore {
              exists(/databases/$(database)/documents/workspaces/$(workspaceId)/members/$(request.auth.uid));
     }
 
+    function isSuperAdmin() {
+      // Список супер-админов (должен совпадать с SUPER_ADMINS в коде)
+      // Проверяем email пользователя (без учета регистра)
+      return request.auth != null && 
+             request.auth.token.email != null &&
+             (request.auth.token.email.toLowerCase() == 'crazymhessel@gmail.com');
+    }
+
     function isAdminOrOwner(workspaceId) {
-      let memberData = get(/databases/$(database)/documents/workspaces/$(workspaceId)/members/$(request.auth.uid)).data;
+      // Супер-админы имеют все права
+      if (isSuperAdmin()) {
+        return true;
+      }
+      // Проверяем роль в workspace (если пользователь является членом)
+      let memberRef = /databases/$(database)/documents/workspaces/$(workspaceId)/members/$(request.auth.uid);
+      if (!exists(memberRef)) {
+        return false;
+      }
+      let memberData = get(memberRef).data;
       return memberData.role == 'ADMIN' || memberData.role == 'OWNER';
     }
 
@@ -52,9 +69,10 @@ service cloud.firestore {
     // Workspaces
     // ============================================
     match /workspaces/{workspaceId} {
-      // Чтение: владелец, члены или в списке allowedEmails (legacy)
+      // Чтение: владелец, члены, супер-админы или в списке allowedEmails (legacy)
       allow read: if request.auth != null && 
         (
+          isSuperAdmin() ||
           resource.data.ownerId == request.auth.uid || 
           resource.data.allowedEmails.hasAny([request.auth.token.email]) ||
           exists(/databases/$(database)/documents/workspaces/$(workspaceId)/members/$(request.auth.uid))
@@ -64,9 +82,11 @@ service cloud.firestore {
       allow create: if request.auth != null &&
                        request.resource.data.ownerId == request.auth.uid;
       
-      // Обновление: только владелец или админ
+      // Обновление: только владелец, админ или супер-админ
       allow update: if request.auth != null && 
-                       (resource.data.ownerId == request.auth.uid || isAdminOrOwner(workspaceId));
+                       (isSuperAdmin() ||
+                        resource.data.ownerId == request.auth.uid || 
+                        isAdminOrOwner(workspaceId));
       
       // Удаление: только владелец (опционально, если нужно)
       allow delete: if request.auth != null && 
@@ -79,15 +99,19 @@ service cloud.firestore {
         // Чтение: члены workspace могут видеть список участников
         // Для collection group queries разрешаем, если userId совпадает с текущим пользователем
         // Для обычных запросов разрешаем, если пользователь является членом workspace
+        // Супер-админы могут читать всех участников
         allow read: if request.auth != null && 
-                       (resource.data.userId == request.auth.uid || 
+                       (isSuperAdmin() ||
+                        resource.data.userId == request.auth.uid || 
                         isMember(workspaceId));
         
         // Создание: только админы/владельцы могут добавлять участников
         // ИЛИ пользователь может создать себя при принятии приглашения
         // ИЛИ пользователь является владельцем workspace (при создании workspace)
+        // ИЛИ супер-админ
         allow create: if request.auth != null && 
-                         (isAdminOrOwner(workspaceId) || 
+                         (isSuperAdmin() ||
+                          isAdminOrOwner(workspaceId) || 
                           (request.auth.uid == memberId && 
                            request.resource.data.userId == request.auth.uid &&
                            request.resource.data.status == 'ACTIVE') ||
@@ -97,14 +121,18 @@ service cloud.firestore {
         
         // Обновление: только админы/владельцы могут обновлять участников
         // ИЛИ пользователь может обновить себя при принятии приглашения
+        // ИЛИ супер-админ
         allow update: if request.auth != null && 
-                         (isAdminOrOwner(workspaceId) || 
+                         (isSuperAdmin() ||
+                          isAdminOrOwner(workspaceId) || 
                           (request.auth.uid == memberId && 
                            request.resource.data.status == 'ACTIVE' &&
                            resource.data.status != 'ACTIVE'));
         
         // Удаление: только админы/владельцы могут удалять участников
-        allow delete: if request.auth != null && isAdminOrOwner(workspaceId);
+        // Супер-админы могут удалять участников даже если не являются членами workspace
+        allow delete: if request.auth != null && 
+                         (isAdminOrOwner(workspaceId) || isSuperAdmin());
       }
 
       // ============================================
