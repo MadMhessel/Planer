@@ -1,4 +1,5 @@
 import type { Task } from '../types';
+import { logger } from '../utils/logger';
 
 export interface ChatMessage {
   role: 'user' | 'assistant';
@@ -57,8 +58,8 @@ export const GeminiService = {
       }
       
       throw new Error('Gemini не вернул корректный ответ');
-    } catch (error: any) {
-      console.error('Error calling AI endpoint:', error);
+    } catch (error) {
+      logger.error('Error calling AI endpoint', error instanceof Error ? error : undefined);
       throw error;
     }
   }

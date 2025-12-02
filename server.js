@@ -3,20 +3,87 @@ const path = require('path');
 const fs = require('fs');
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const cors = require('cors');
+const rateLimit = require('express-rate-limit');
+const { body, validationResult } = require('express-validator');
+const createDOMPurify = require('isomorphic-dompurify');
+const DOMPurify = createDOMPurify();
 require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 8080;
 
-// Middleware
-app.use(cors());
-app.use(express.json());
+// CORS Configuration
+const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || [
+  'http://localhost:5173',
+  'http://localhost:3000'
+];
+
+app.use(cors({
+  origin: (origin, callback) => {
+    // Разрешаем запросы без origin (например, мобильные приложения, Postman)
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,
+  optionsSuccessStatus: 200
+}));
+
+// Body parser middleware
+app.use(express.json({ limit: '10mb' })); // Ограничение размера тела запроса
+
+// Rate Limiting
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 минут
+  max: 100, // максимум 100 запросов с одного IP
+  message: 'Слишком много запросов с этого IP, попробуйте позже.',
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const aiLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000, // 1 минута
+  max: 10, // максимум 10 AI запросов в минуту
+  message: 'Слишком много AI запросов, подождите немного.',
+});
+
+// Применяем rate limiting к API
+app.use('/api/', apiLimiter);
+
+// HTTPS enforcement в production
+if (process.env.NODE_ENV === 'production') {
+  app.use((req, res, next) => {
+    if (req.header('x-forwarded-proto') !== 'https' && !req.header('host')?.includes('localhost')) {
+      res.redirect(`https://${req.header('host')}${req.url}`);
+    } else {
+      next();
+    }
+  });
+}
 
 // Request Logging Middleware (Helpful for debugging 404s in Cloud Logs)
 app.use((req, res, next) => {
-    console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
+    // Логируем только в development или для важных endpoints
+    if (process.env.NODE_ENV === 'development' || req.path.startsWith('/api/')) {
+        console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
+    }
     next();
 });
+
+// Утилита для санитизации HTML
+const sanitizeHTML = (html) => {
+    if (!html || typeof html !== 'string') {
+        return '';
+    }
+    return DOMPurify.sanitize(html, {
+        ALLOWED_TAGS: ['b', 'i', 'u', 's', 'code', 'pre', 'a'],
+        ALLOWED_ATTR: ['href'],
+        ALLOW_DATA_ATTR: false,
+        ALLOW_UNKNOWN_PROTOCOLS: false
+    });
+};
 
 // --- Инициализация Gemini ---
 const apiKey =
@@ -27,11 +94,13 @@ const apiKey =
 let model = null;
 
 if (!apiKey) {
-  console.warn("GOOGLE_API_KEY is not set - Gemini features disabled");
+  if (process.env.NODE_ENV === 'development') {
+    console.warn("GOOGLE_API_KEY is not set - Gemini features disabled");
+  }
 } else {
   const genAI = new GoogleGenerativeAI(apiKey);
   model = genAI.getGenerativeModel({
-    model: "gemini-2.0-flash-001", // или твоя модель
+    model: "gemini-2.0-flash-001",
   });
 }
 
@@ -89,11 +158,13 @@ app.get('/api/config/firebase', (req, res) => {
 
   // Проверка наличия обязательных полей
   if (!config.apiKey || !config.projectId || !config.authDomain) {
-    console.warn('⚠️ Firebase config incomplete:', {
-      hasApiKey: !!config.apiKey,
-      hasProjectId: !!config.projectId,
-      hasAuthDomain: !!config.authDomain
-    });
+    if (process.env.NODE_ENV === 'development') {
+      console.warn('⚠️ Firebase config incomplete:', {
+        hasApiKey: !!config.apiKey,
+        hasProjectId: !!config.projectId,
+        hasAuthDomain: !!config.authDomain
+      });
+    }
   }
 
   res.json(config);
@@ -104,7 +175,9 @@ app.get('/api/config/firebase', (req, res) => {
 const DB_FILE = path.join('/tmp', 'db.json');
 
 app.get('/api/storage', (req, res) => {
-    console.log('Serving storage request');
+    if (process.env.NODE_ENV === 'development') {
+        console.log('Serving storage request');
+    }
     try {
         if (fs.existsSync(DB_FILE)) {
             const data = fs.readFileSync(DB_FILE, 'utf8');
@@ -120,63 +193,116 @@ app.get('/api/storage', (req, res) => {
 });
 
 // --- Telegram Notification Endpoint ---
-app.post('/api/telegram/notify', async (req, res) => {
-  const { chatIds, message } = req.body;
-  const token = process.env.TELEGRAM_BOT_TOKEN;
-
-  if (!token) {
-    console.error('TELEGRAM_BOT_TOKEN is not set');
-    return res.status(500).json({ error: 'Server configuration error' });
-  }
-
-  if (!chatIds || !Array.isArray(chatIds) || chatIds.length === 0) {
-    return res.status(400).json({ error: 'No recipients provided' });
-  }
-
-  // Helper to send a single message
-  const sendOne = async (chatId) => {
-    try {
-      const url = `https://api.telegram.org/bot${token}/sendMessage`;
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          chat_id: chatId,
-          text: message,
-          parse_mode: 'HTML',
-        }),
+app.post('/api/telegram/notify', 
+  [
+    body('chatIds').isArray({ min: 1 }).withMessage('chatIds must be a non-empty array'),
+    body('chatIds.*').isString().withMessage('Each chatId must be a string'),
+    body('message').isString().isLength({ min: 1, max: 4096 }).withMessage('Message must be between 1 and 4096 characters')
+  ],
+  async (req, res) => {
+    // Проверка валидации
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ 
+        error: 'Validation failed', 
+        details: errors.array() 
       });
-      const data = await response.json();
-      return { chatId, success: data.ok, error: data.description };
-    } catch (err) {
-      console.error(`Failed to send to ${chatId}:`, err);
-      return { chatId, success: false, error: err.message };
     }
-  };
 
-  // Send to all recipients in parallel
-  const results = await Promise.all(chatIds.map(sendOne));
+    const { chatIds, message } = req.body;
+    const token = process.env.TELEGRAM_BOT_TOKEN;
+
+    if (!token) {
+      console.error('TELEGRAM_BOT_TOKEN is not set');
+      return res.status(500).json({ error: 'Server configuration error' });
+    }
+
+    // Санитизация HTML сообщения
+    const sanitizedMessage = sanitizeHTML(message);
+
+    // Helper to send a single message
+    const sendOne = async (chatId) => {
+      try {
+        // Валидация chatId
+        if (!chatId || typeof chatId !== 'string') {
+          return { chatId, success: false, error: 'Invalid chatId format' };
+        }
+
+        const url = `https://api.telegram.org/bot${token}/sendMessage`;
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chat_id: chatId,
+            text: sanitizedMessage,
+            parse_mode: 'HTML',
+          }),
+        });
+        
+        if (!response.ok) {
+          const errorData = await response.json();
+          return { chatId, success: false, error: errorData.description || 'Unknown error' };
+        }
+
+        const data = await response.json();
+        return { chatId, success: data.ok, error: data.description };
+      } catch (err) {
+        console.error(`Failed to send to ${chatId}:`, err);
+        return { chatId, success: false, error: err.message };
+      }
+    };
+
+    // Send to all recipients in parallel (с ограничением на количество)
+    const maxRecipients = 50; // Ограничение для предотвращения злоупотребления
+    const limitedChatIds = chatIds.slice(0, maxRecipients);
+    
+    const results = await Promise.all(limitedChatIds.map(sendOne));
   
-  // Log results for debugging
-  console.log('Notification results:', results);
+    // Log results только в development
+    if (process.env.NODE_ENV === 'development') {
+      console.log('Notification results:', results);
+    }
 
-  res.json({ success: true, results });
-});
+    res.json({ success: true, results, sent: results.length });
+  }
+);
 
 // AI Endpoint (Proxies request to Gemini to keep key secret)
-app.post('/api/ai/generate', async (req, res) => {
-  if (!model) {
-    return res
-      .status(500)
-      .json({ error: "Gemini API key is not configured on the server" });
-  }
-
-  try {
-    const { command, context, chatHistory = [] } = req.body;
-    
-    if (!command) {
-      return res.status(400).json({ error: 'Command is required' });
+app.post('/api/ai/generate', 
+  aiLimiter, // Отдельный rate limiter для AI
+  [
+    body('command').isString().isLength({ min: 1, max: 1000 }).withMessage('Command must be between 1 and 1000 characters'),
+    body('context').optional().isObject(),
+    body('context.projectNames').optional().isArray(),
+    body('context.userNames').optional().isArray(),
+    body('chatHistory').optional().isArray(),
+    body('chatHistory.*.role').optional().isIn(['user', 'assistant']),
+    body('chatHistory.*.content').optional().isString()
+  ],
+  async (req, res) => {
+    // Проверка валидации
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ 
+        error: 'Validation failed', 
+        details: errors.array() 
+      });
     }
+
+    if (!model) {
+      return res
+        .status(500)
+        .json({ error: "Gemini API key is not configured on the server" });
+    }
+
+    try {
+      const { command, context, chatHistory = [] } = req.body;
+      
+      // Дополнительная проверка длины chatHistory
+      const MAX_CHAT_HISTORY = 10;
+      const limitedChatHistory = Array.isArray(chatHistory) 
+        ? chatHistory.slice(-MAX_CHAT_HISTORY) 
+        : [];
 
     const todayStr = new Date().toISOString().split('T')[0];
     
@@ -214,10 +340,17 @@ app.post('/api/ai/generate', async (req, res) => {
 
     // Формируем промпт с историей чата
     let historyContext = '';
-    if (chatHistory && chatHistory.length > 0) {
-      const recentHistory = chatHistory.slice(-6); // Последние 6 сообщений для контекста
+    if (limitedChatHistory && limitedChatHistory.length > 0) {
+      const MAX_AI_CONTEXT_HISTORY = 6;
+      const recentHistory = limitedChatHistory.slice(-MAX_AI_CONTEXT_HISTORY);
       historyContext = '\n\nИстория предыдущих сообщений:\n' + 
-        recentHistory.map(msg => `${msg.role === 'user' ? 'Пользователь' : 'Ассистент'}: ${msg.content}`).join('\n');
+        recentHistory
+          .filter(msg => msg && msg.role && msg.content)
+          .map(msg => {
+            const sanitizedContent = sanitizeHTML(String(msg.content || ''));
+            return `${msg.role === 'user' ? 'Пользователь' : 'Ассистент'}: ${sanitizedContent}`;
+          })
+          .join('\n');
     }
 
     const prompt = `
@@ -267,23 +400,43 @@ app.post('/api/ai/generate', async (req, res) => {
     }
 
     if (!parsed || !parsed.tasks) {
-      console.error('Gemini returned unparseable payload:', text);
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Gemini returned unparseable payload:', text.substring(0, 500));
+      }
       return res.status(422).json({
         error: 'Gemini не смог сформировать задачи. Попробуйте переформулировать запрос.',
         textResponse: 'Извините, не удалось обработать ваш запрос. Попробуйте переформулировать его.'
       });
     }
     
-    // Убеждаемся, что есть текстовый ответ
-    if (!parsed.textResponse) {
+    // Санитизация текстового ответа
+    if (parsed.textResponse) {
+      parsed.textResponse = sanitizeHTML(parsed.textResponse);
+    } else {
       parsed.textResponse = `Обработано задач: ${Array.isArray(parsed.tasks) ? parsed.tasks.length : 1}`;
+    }
+
+    // Валидация и санитизация задач
+    if (Array.isArray(parsed.tasks)) {
+      parsed.tasks = parsed.tasks
+        .filter(task => task && task.title) // Фильтруем некорректные задачи
+        .map(task => ({
+          ...task,
+          title: sanitizeHTML(String(task.title || '')),
+          description: task.description ? sanitizeHTML(String(task.description)) : undefined
+        }))
+        .slice(0, 20); // Ограничение на количество задач
     }
     
     res.json(parsed);
 
   } catch (error) {
     console.error('AI API Error:', error);
-    res.status(500).json({ error: 'Failed to process AI command', details: error.message });
+    // Не раскрываем детали ошибки в production
+    const errorMessage = process.env.NODE_ENV === 'development' 
+      ? error.message 
+      : 'Internal server error';
+    res.status(500).json({ error: 'Failed to process AI command', details: errorMessage });
   }
 });
 
@@ -306,7 +459,9 @@ app.use((req, res, next) => {
 // Запуск сервера с обработкой ошибок
 const server = app.listen(PORT, "0.0.0.0", () => {
   console.log(`✓ Server running on port ${PORT}`);
-  console.log(`✓ Health check: http://0.0.0.0:${PORT}/api/health`);
+  if (process.env.NODE_ENV === 'development') {
+    console.log(`✓ Health check: http://0.0.0.0:${PORT}/api/health`);
+  }
 });
 
 // Обработка ошибок при запуске

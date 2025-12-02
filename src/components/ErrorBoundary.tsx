@@ -10,7 +10,7 @@ interface State {
   errorInfo: ErrorInfo | null;
 }
 
-export class ErrorBoundary extends Component<Props, State> {
+class ErrorBoundary extends Component<Props, State> {
   constructor(props: Props) {
     super(props);
     this.state = {
@@ -29,7 +29,17 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error('ErrorBoundary caught an error:', error, errorInfo);
+    // Используем logger если доступен, иначе console.error
+    if (typeof window !== 'undefined') {
+      try {
+        const { logger } = require('../utils/logger');
+        logger.error('ErrorBoundary caught an error', error instanceof Error ? error : undefined, {
+          componentStack: errorInfo.componentStack
+        });
+      } catch {
+        console.error('ErrorBoundary caught an error:', error, errorInfo);
+      }
+    }
     this.setState({
       error,
       errorInfo
@@ -80,4 +90,6 @@ export class ErrorBoundary extends Component<Props, State> {
     return this.props.children;
   }
 }
+
+export default ErrorBoundary;
 

@@ -22,9 +22,10 @@ export const AuthView: React.FC<AuthViewProps> = ({ onAuth }) => {
     try {
       // Используем специальный флаг для демо-режима
       await onAuth(false, 'demo');
-    } catch (err: any) {
-      setError(err.message || 'Ошибка при входе в демо-режим');
-      console.error('Ошибка демо-входа:', err);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Ошибка при входе в демо-режим';
+      setError(errorMessage);
+      // Ошибка уже логируется в AuthService
     } finally {
       setIsLoading(false);
     }
@@ -43,9 +44,10 @@ export const AuthView: React.FC<AuthViewProps> = ({ onAuth }) => {
         // Регистрация
         await onAuth(false, email, password, displayName);
       }
-    } catch (err: any) {
-      setError(err.message || 'Ошибка при аутентификации');
-      console.error('Ошибка аутентификации:', err);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Ошибка при аутентификации';
+      setError(errorMessage);
+      // Ошибка уже логируется в AuthService
     } finally {
       setIsLoading(false);
     }

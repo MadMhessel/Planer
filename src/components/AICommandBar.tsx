@@ -14,12 +14,18 @@ interface AICommandBarProps {
   chatHistory?: Array<{ role: 'user' | 'assistant'; content: string }>; // История из App
 }
 
+// Тип для Navigator с touch событиями
+interface NavigatorWithTouch extends Navigator {
+  maxTouchPoints?: number;
+  msMaxTouchPoints?: number;
+}
+
 // Определяем, что это тач-устройство (делаем безопасно для SSR)
 const isTouchEnvironment =
   typeof window !== "undefined" &&
   (("ontouchstart" in window) ||
-    (navigator as any).maxTouchPoints > 0 ||
-    (navigator as any).msMaxTouchPoints > 0);
+    ((navigator as NavigatorWithTouch).maxTouchPoints ?? 0) > 0 ||
+    ((navigator as NavigatorWithTouch).msMaxTouchPoints ?? 0) > 0);
 
 export const AICommandBar: React.FC<AICommandBarProps> = ({
   onCommand,

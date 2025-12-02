@@ -12,10 +12,25 @@ interface FirebaseConfig {
   appId: string;
 }
 
+// Тип для import.meta.env (Vite environment variables)
+interface ImportMetaEnv {
+  VITE_FIREBASE_API_KEY?: string;
+  VITE_FIREBASE_AUTH_DOMAIN?: string;
+  VITE_FIREBASE_PROJECT_ID?: string;
+  VITE_FIREBASE_STORAGE_BUCKET?: string;
+  VITE_FIREBASE_MESSAGING_SENDER_ID?: string;
+  VITE_FIREBASE_APP_ID?: string;
+  DEV?: boolean;
+}
+
+interface CustomImportMeta {
+  env: ImportMetaEnv;
+}
+
 // Функция для загрузки конфигурации с сервера (runtime из Cloud Run)
 async function loadFirebaseConfig(): Promise<FirebaseConfig> {
   // Сначала проверяем build-time переменные (для локальной разработки)
-  const env = (import.meta as any).env;
+  const env = (import.meta as unknown as CustomImportMeta).env;
   const buildTimeConfig = {
     apiKey: env.VITE_FIREBASE_API_KEY,
     authDomain: env.VITE_FIREBASE_AUTH_DOMAIN,
@@ -27,12 +42,16 @@ async function loadFirebaseConfig(): Promise<FirebaseConfig> {
 
   // Если build-time конфигурация полная, используем её (локальная разработка)
   if (buildTimeConfig.apiKey && buildTimeConfig.projectId && buildTimeConfig.authDomain) {
-    console.log('✅ Using build-time Firebase configuration (local dev)');
+    if (env.DEV) {
+      console.log('✅ Using build-time Firebase configuration (local dev)');
+    }
     return buildTimeConfig as FirebaseConfig;
   }
 
   // Иначе загружаем с сервера (runtime конфигурация из Cloud Run)
-  console.log('🔧 Loading Firebase configuration from server (Cloud Run)...');
+  if (env.DEV) {
+    console.log('🔧 Loading Firebase configuration from server (Cloud Run)...');
+  }
   try {
     const response = await fetch('/api/config/firebase');
     if (!response.ok) {
@@ -44,13 +63,15 @@ async function loadFirebaseConfig(): Promise<FirebaseConfig> {
       throw new Error('Incomplete Firebase configuration from server');
     }
     
-    console.log('✅ Firebase configuration loaded from server');
-    console.log('📋 Config:', {
-      hasApiKey: !!config.apiKey,
-      hasAuthDomain: !!config.authDomain,
-      hasProjectId: !!config.projectId,
-      projectId: config.projectId
-    });
+    if (env.DEV) {
+      console.log('✅ Firebase configuration loaded from server');
+      console.log('📋 Config:', {
+        hasApiKey: !!config.apiKey,
+        hasAuthDomain: !!config.authDomain,
+        hasProjectId: !!config.projectId,
+        projectId: config.projectId
+      });
+    }
     
     return config as FirebaseConfig;
   } catch (error) {
@@ -77,7 +98,9 @@ async function initializeFirebase(): Promise<void> {
       app = initializeApp(firebaseConfig);
       auth = getAuth(app);
       db = getFirestore(app);
-      console.log('✅ Firebase initialized successfully');
+      if ((import.meta as unknown as CustomImportMeta).env.DEV) {
+        console.log('✅ Firebase initialized successfully');
+      }
     } catch (error) {
       console.error('❌ Failed to initialize Firebase:', error);
       throw error;

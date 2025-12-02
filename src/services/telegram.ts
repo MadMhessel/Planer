@@ -1,8 +1,9 @@
+import { logger } from '../utils/logger';
 
 export const TelegramService = {
   sendNotification: async (chatIds: string[], message: string): Promise<boolean> => {
     if (!chatIds || chatIds.length === 0) {
-      console.warn('TelegramService: No recipients provided');
+      logger.warn('TelegramService: No recipients provided');
       return false;
     }
 
@@ -20,20 +21,20 @@ export const TelegramService = {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        console.error('Failed to send notification via server:', errorData);
+        logger.error('Failed to send notification via server', undefined, errorData);
         return false;
       }
       
       const result = await response.json();
       if (result.success) {
-        console.log('Telegram notification sent successfully to', chatIds.length, 'recipients');
+        logger.info('Telegram notification sent successfully', { recipients: chatIds.length });
         return true;
       } else {
-        console.warn('Telegram notification partially failed:', result);
+        logger.warn('Telegram notification partially failed', result);
         return false;
       }
     } catch (error) {
-      console.error('Error calling notification endpoint:', error);
+      logger.error('Error calling notification endpoint', error instanceof Error ? error : undefined);
       return false;
     }
   },

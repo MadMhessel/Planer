@@ -9,7 +9,9 @@ import {
 } from 'firebase/auth';
 import { auth, db } from '../firebase';
 import { User, UserRole } from '../types';
+import { NewUserData } from '../types/auth';
 import { doc, getDoc, serverTimestamp, setDoc, updateDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import { logger } from '../utils/logger';
 
 const provider = new GoogleAuthProvider();
 
@@ -28,7 +30,7 @@ export const AuthService = {
         if (!snapshot.exists()) {
           // New user – create default profile
           // Firestore не принимает undefined, поэтому создаем объект без undefined полей
-          const newUser: any = {
+          const newUser: NewUserData = {
             id: firebaseUser.uid,
             email: firebaseUser.email || '',
             displayName: firebaseUser.displayName || firebaseUser.email || '',
@@ -56,7 +58,7 @@ export const AuthService = {
           });
         }
       } catch (error) {
-        console.error('Error in subscribeToAuth:', error);
+        logger.error('Error in subscribeToAuth', error instanceof Error ? error : undefined);
         // В случае ошибки все равно вызываем callback с null, чтобы не блокировать UI
         callback(null);
       }
@@ -161,23 +163,23 @@ export const AuthService = {
       const firebaseUser = result.user;
 
     const userRef = doc(db, 'users', firebaseUser.uid);
-    // Firestore не принимает undefined, поэтому создаем объект без undefined полей
-    const newUser: any = {
-      id: firebaseUser.uid,
-      email: firebaseUser.email || '',
-      displayName: displayName || firebaseUser.email || '',
-      role: 'MEMBER',
-      isActive: true,
-      createdAt: new Date().toISOString(),
-      lastLoginAt: new Date().toISOString()
-    };
-    // Добавляем photoURL только если оно есть
-    if (firebaseUser.photoURL) {
-      newUser.photoURL = firebaseUser.photoURL;
-    }
+      // Firestore не принимает undefined, поэтому создаем объект без undefined полей
+      const newUser: NewUserData = {
+        id: firebaseUser.uid,
+        email: firebaseUser.email || '',
+        displayName: displayName || firebaseUser.email || '',
+        role: 'MEMBER',
+        isActive: true,
+        createdAt: new Date().toISOString(),
+        lastLoginAt: new Date().toISOString()
+      };
+      // Добавляем photoURL только если оно есть
+      if (firebaseUser.photoURL) {
+        newUser.photoURL = firebaseUser.photoURL;
+      }
 
-    await setDoc(userRef, newUser);
-    return newUser as User;
+      await setDoc(userRef, newUser);
+      return newUser as User;
     } catch (error: any) {
       console.error('Registration error:', error);
       // Преобразуем технические ошибки в понятные сообщения
@@ -207,7 +209,7 @@ export const AuthService = {
       if (!snapshot.exists()) {
         // Создаем демо-пользователя
         // Firestore не принимает undefined, поэтому создаем объект без undefined полей
-        const demoUser: any = {
+        const demoUser: NewUserData = {
           id: firebaseUser.uid,
           email: 'demo@example.com',
           displayName: 'Демо пользователь',
@@ -229,7 +231,7 @@ export const AuthService = {
           await initializeDemoData(demoUser as User);
         } catch (demoError) {
           // Не блокируем вход, если демо-данные не создались
-          console.warn('Не удалось создать демо-данные:', demoError);
+          logger.warn('Не удалось создать демо-данные', { error: demoError });
         }
         
         return demoUser as User;
@@ -250,11 +252,11 @@ export const AuthService = {
           
           if (workspacesSnapshot.empty) {
             // У пользователя нет workspace, создаем демо-данные
-            console.log('У демо-пользователя нет workspace, создаем демо-данные...');
+            logger.info('У демо-пользователя нет workspace, создаем демо-данные');
             await initializeDemoData({ ...data, id: snapshot.id } as User);
           }
         } catch (demoError) {
-          console.warn('Не удалось проверить/создать демо-данные:', demoError);
+          logger.warn('Не удалось проверить/создать демо-данные', { error: demoError });
         }
         
         return {
@@ -262,8 +264,8 @@ export const AuthService = {
           id: snapshot.id
         };
       }
-    } catch (error: any) {
-      console.error('Demo login error:', error);
+    } catch (error) {
+      logger.error('Demo login error', error instanceof Error ? error : undefined);
       throw new Error('Не удалось войти в демо-режим. Попробуйте снова.');
     }
   },

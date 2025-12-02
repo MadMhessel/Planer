@@ -1,10 +1,13 @@
 import React, { useCallback, useEffect, useState, useMemo } from 'react';
 import { Layout } from './components/Layout';
+// Code splitting для больших компонентов
 import { TaskList } from './components/TaskList';
 import { KanbanBoard } from './components/KanbanBoard';
-import { CalendarView } from './components/CalendarView';
-import { GanttChart } from './components/GanttChart';
-import { Dashboard } from './components/Dashboard';
+import { lazy, Suspense } from 'react';
+
+const CalendarView = lazy(() => import('./components/CalendarView').then(m => ({ default: m.CalendarView })));
+const GanttChart = lazy(() => import('./components/GanttChart').then(m => ({ default: m.GanttChart })));
+const Dashboard = lazy(() => import('./components/Dashboard').then(m => ({ default: m.Dashboard })));
 import { TaskModal } from './components/TaskModal';
 import { ProjectModal } from './components/ProjectModal';
 import { UserModal } from './components/UserModal';
@@ -29,6 +32,8 @@ import { useProjects } from './hooks/useProjects';
 import { useMembers } from './hooks/useMembers';
 import { useInvites } from './hooks/useInvites';
 import { logger } from './utils/logger';
+import { membersToUsers } from './utils/userHelpers';
+import { MAX_CHAT_HISTORY_LENGTH } from './constants/ai';
 
 type AppView =
   | 'BOARD'
@@ -46,7 +51,7 @@ type InviteContext = {
 type ThemeMode = 'light' | 'dark' | 'system';
 
 const App: React.FC = () => {
-  console.log('📱 App component rendering...');
+  logger.info('App component rendering');
   
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
@@ -101,7 +106,7 @@ const App: React.FC = () => {
 
   // Firebase и Auth инициализация
   useEffect(() => {
-    console.log('🔐 Initializing Firebase and setting up auth listener...');
+    logger.info('Initializing Firebase and setting up auth listener');
     let mounted = true;
     let unsubscribe: (() => void) | null = null;
     
@@ -113,14 +118,14 @@ const App: React.FC = () => {
       
       // После инициализации Firebase настраиваем auth listener
       unsubscribe = AuthService.subscribeToAuth(async (user) => {
-        console.log('👤 Auth state changed:', user ? `User: ${user.email}` : 'No user');
+        logger.info('Auth state changed', { hasUser: !!user, email: user?.email });
         if (mounted) {
           try {
             setCurrentUser(user);
             setAuthLoading(false);
-            console.log('✅ Auth state updated');
+            logger.info('Auth state updated');
           } catch (error) {
-            console.error('❌ Error setting user state:', error);
+            logger.error('Error setting user state', error instanceof Error ? error : undefined);
             if (mounted) {
               setAuthLoading(false);
             }
@@ -128,14 +133,14 @@ const App: React.FC = () => {
         }
       });
     }).catch((error) => {
-      console.error('❌ Failed to initialize Firebase:', error);
+      logger.error('Failed to initialize Firebase', error instanceof Error ? error : undefined);
       if (mounted) {
         setAuthLoading(false);
       }
     });
 
     return () => {
-      console.log('🧹 Cleaning up auth listener');
+      logger.info('Cleaning up auth listener');
       mounted = false;
       if (unsubscribe) {
         unsubscribe();
@@ -205,13 +210,16 @@ const App: React.FC = () => {
   const handleAddTask = useCallback(async (partial: Partial<Task>) => {
     try {
       await addTask(partial);
+      toast.success('Задача успешно создана');
     } catch (error) {
       logger.error('Failed to add task', error instanceof Error ? error : undefined);
+      const errorMessage = error instanceof Error ? error.message : 'Не удалось создать задачу';
+      toast.error(errorMessage);
       setNotifications(prev => [{
         id: Date.now().toString(),
         type: 'SYSTEM',
         title: 'Ошибка создания задачи',
-        message: error instanceof Error ? error.message : 'Не удалось создать задачу',
+        message: errorMessage,
         createdAt: new Date().toISOString(),
         read: false
       }, ...prev]);
@@ -221,13 +229,16 @@ const App: React.FC = () => {
   const handleUpdateTask = useCallback(async (taskId: string, updates: Partial<Task>) => {
     try {
       await updateTask(taskId, updates);
+      toast.success('Задача обновлена');
     } catch (error) {
       logger.error('Failed to update task', error instanceof Error ? error : undefined);
+      const errorMessage = error instanceof Error ? error.message : 'Не удалось обновить задачу';
+      toast.error(errorMessage);
       setNotifications(prev => [{
         id: Date.now().toString(),
         type: 'SYSTEM',
         title: 'Ошибка обновления задачи',
-        message: error instanceof Error ? error.message : 'Не удалось обновить задачу',
+        message: errorMessage,
         createdAt: new Date().toISOString(),
         read: false
       }, ...prev]);
@@ -237,13 +248,16 @@ const App: React.FC = () => {
   const handleDeleteTask = useCallback(async (taskId: string) => {
     try {
       await deleteTask(taskId);
+      toast.success('Задача удалена');
     } catch (error) {
       logger.error('Failed to delete task', error instanceof Error ? error : undefined);
+      const errorMessage = error instanceof Error ? error.message : 'Не удалось удалить задачу';
+      toast.error(errorMessage);
       setNotifications(prev => [{
         id: Date.now().toString(),
         type: 'SYSTEM',
         title: 'Ошибка удаления задачи',
-        message: error instanceof Error ? error.message : 'Не удалось удалить задачу',
+        message: errorMessage,
         createdAt: new Date().toISOString(),
         read: false
       }, ...prev]);
@@ -253,13 +267,16 @@ const App: React.FC = () => {
   const handleAddProject = useCallback(async (partial: Partial<Project>) => {
     try {
       await addProject(partial);
+      toast.success('Проект успешно создан');
     } catch (error) {
       logger.error('Failed to add project', error instanceof Error ? error : undefined);
+      const errorMessage = error instanceof Error ? error.message : 'Не удалось создать проект';
+      toast.error(errorMessage);
       setNotifications(prev => [{
         id: Date.now().toString(),
         type: 'SYSTEM',
         title: 'Ошибка создания проекта',
-        message: error instanceof Error ? error.message : 'Не удалось создать проект',
+        message: errorMessage,
         createdAt: new Date().toISOString(),
         read: false
       }, ...prev]);
@@ -319,8 +336,8 @@ const App: React.FC = () => {
           { role: 'user' as const, content: command },
           { role: 'assistant' as const, content: response.textResponse }
         ];
-        // Оставляем только последние 10 сообщений для контекста
-        return newHistory.slice(-10);
+        // Оставляем только последние N сообщений для контекста
+        return newHistory.slice(-MAX_CHAT_HISTORY_LENGTH);
       });
 
       // Преобразуем projectName и assigneeName в ID
@@ -433,17 +450,7 @@ const App: React.FC = () => {
   }, [currentWorkspaceId, members]);
 
   // Мемоизированное преобразование members в users
-  const usersFromMembers = useMemo(() => 
-    members.map(m => ({
-      id: m.userId,
-      email: m.email,
-      displayName: m.email,
-      role: m.role,
-      isActive: m.status === 'ACTIVE',
-      createdAt: m.joinedAt
-    })),
-    [members]
-  );
+  const usersFromMembers = useMemo(() => membersToUsers(members), [members]);
 
   // Parse invite from URL
   useEffect(() => {
@@ -541,41 +548,46 @@ const App: React.FC = () => {
           )}
 
           {view === 'CALENDAR' && (
-            <CalendarView
-              tasks={tasks}
-              onTaskClick={t => {
-                setEditingTask(t);
-                setIsTaskModalOpen(true);
-              }}
-              onCreateTask={(date) => {
-                setEditingTask({
-                  id: '',
-                  title: '',
-                  status: TaskStatus.TODO,
-                  createdAt: new Date().toISOString(),
-                  updatedAt: new Date().toISOString(),
-                  workspaceId: currentWorkspaceId!,
-                  dueDate: date,
-                  priority: TaskPriority.NORMAL
-                } as Task);
-                setIsTaskModalOpen(true);
-              }}
-            />
+            <Suspense fallback={<LoadingSpinner text="Загрузка календаря..." />}>
+              <CalendarView
+                tasks={tasks}
+                onTaskClick={t => {
+                  setEditingTask(t);
+                  setIsTaskModalOpen(true);
+                }}
+                onCreateTask={(date) => {
+                  if (!currentWorkspaceId) return;
+                  setEditingTask({
+                    id: '',
+                    title: '',
+                    status: TaskStatus.TODO,
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString(),
+                    workspaceId: currentWorkspaceId,
+                    dueDate: date,
+                    priority: TaskPriority.NORMAL
+                  } as Task);
+                  setIsTaskModalOpen(true);
+                }}
+              />
+            </Suspense>
           )}
 
           {view === 'GANTT' && (
-            <GanttChart
-              tasks={tasks}
-              projects={projects}
-              onTaskClick={t => {
-                setEditingTask(t);
-                setIsTaskModalOpen(true);
-              }}
-              onEditTask={t => {
-                setEditingTask(t);
-                setIsTaskModalOpen(true);
-              }}
-            />
+            <Suspense fallback={<LoadingSpinner text="Загрузка диаграммы Ганта..." />}>
+              <GanttChart
+                tasks={tasks}
+                projects={projects}
+                onTaskClick={t => {
+                  setEditingTask(t);
+                  setIsTaskModalOpen(true);
+                }}
+                onEditTask={t => {
+                  setEditingTask(t);
+                  setIsTaskModalOpen(true);
+                }}
+              />
+            </Suspense>
           )}
 
           {view === 'LIST' && (
@@ -595,10 +607,12 @@ const App: React.FC = () => {
           )}
 
           {view === 'DASHBOARD' && (
-            <Dashboard
-              tasks={tasks}
-              projects={projects}
-            />
+            <Suspense fallback={<LoadingSpinner text="Загрузка аналитики..." />}>
+              <Dashboard
+                tasks={tasks}
+                projects={projects}
+              />
+            </Suspense>
           )}
 
           {view === 'SETTINGS' && currentWorkspace && (
@@ -634,14 +648,7 @@ const App: React.FC = () => {
             isOpen={isTaskModalOpen}
             task={editingTask}
             projects={projects}
-            users={members.map(m => ({
-              id: m.userId,
-              email: m.email,
-              displayName: m.email,
-              role: m.role,
-              isActive: m.status === 'ACTIVE',
-              createdAt: m.joinedAt
-            }))}
+            users={usersFromMembers}
             onClose={() => setIsTaskModalOpen(false)}
             onSave={async (t) => {
               if (!currentWorkspaceId) return;

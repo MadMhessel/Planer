@@ -1,49 +1,72 @@
-import React from "react";
-import ReactDOM from "react-dom/client";
-import App from "./App";
-import { ErrorBoundary } from "./components/ErrorBoundary";
-import "../index.css";
+import React from 'react';
+import ReactDOM from 'react-dom/client';
+import App from './App';
+import ErrorBoundary from './components/ErrorBoundary';
+import { Toaster } from 'react-hot-toast';
+import { logger } from './utils/logger';
+import './index.css';
 
-// Глобальная обработка необработанных ошибок
+// Глобальная обработка ошибок
 window.addEventListener('error', (event) => {
-  console.error('❌ Unhandled error:', event.error);
-  console.error('Error details:', {
+  logger.error('Unhandled error', event.error instanceof Error ? event.error : undefined, {
     message: event.message,
     filename: event.filename,
     lineno: event.lineno,
-    colno: event.colno,
-    error: event.error
+    colno: event.colno
   });
 });
 
 window.addEventListener('unhandledrejection', (event) => {
-  console.error('❌ Unhandled promise rejection:', event.reason);
+  logger.error('Unhandled promise rejection', event.reason instanceof Error ? event.reason : undefined);
 });
 
-// Логирование начала загрузки
-console.log('🚀 Application starting...');
-console.log('📍 Current URL:', window.location.href);
-console.log('🌐 User Agent:', navigator.userAgent);
-
-// Проверка наличия root элемента
-const rootElement = document.getElementById("root");
-if (!rootElement) {
-  console.error('❌ Root element not found!');
-  throw new Error('Root element (#root) not found in DOM');
+if (import.meta.env.DEV) {
+  logger.info('Application starting', {
+    url: window.location.href,
+    userAgent: navigator.userAgent
+  });
 }
 
-console.log('✅ Root element found, rendering app...');
+const rootElement = document.getElementById('root');
+
+if (!rootElement) {
+  logger.error('Root element not found');
+  throw new Error('Root element not found');
+}
 
 try {
   ReactDOM.createRoot(rootElement).render(
     <React.StrictMode>
       <ErrorBoundary>
         <App />
+        <Toaster
+          position="top-right"
+          toastOptions={{
+            duration: 4000,
+            style: {
+              background: 'var(--toast-bg, #fff)',
+              color: 'var(--toast-color, #000)',
+            },
+            success: {
+              iconTheme: {
+                primary: '#22c55e',
+                secondary: '#fff',
+              },
+            },
+            error: {
+              iconTheme: {
+                primary: '#ef4444',
+                secondary: '#fff',
+              },
+            },
+          }}
+        />
       </ErrorBoundary>
     </React.StrictMode>
   );
-  console.log('✅ App rendered successfully');
+  if (import.meta.env.DEV) {
+    logger.info('App rendered successfully');
+  }
 } catch (error) {
-  console.error('❌ Failed to render app:', error);
-  throw error;
+  logger.error('Failed to render app', error instanceof Error ? error : undefined);
 }
