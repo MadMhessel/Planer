@@ -8,9 +8,7 @@ import {
   doc, 
   arrayUnion,
   writeBatch,
-  getDocs,
-  getDoc,
-  deleteDoc
+  getDocs 
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import { Notification, WorkspaceMember } from '../types';
@@ -85,22 +83,7 @@ export class NotificationsService {
    */
   static async markAsRead(workspaceId: string, notificationId: string, userId: string) {
     try {
-      const notificationRef = doc(this.workspaceCollection(workspaceId), notificationId);
-      const notificationDoc = await getDoc(notificationRef);
-      
-      if (!notificationDoc.exists()) {
-        logger.warn('Notification not found', { notificationId, workspaceId });
-        return;
-      }
-      
-      const data = notificationDoc.data() as Notification;
-      // Проверяем, не помечено ли уже как прочитанное
-      if (data.readBy?.includes(userId)) {
-        logger.info('Notification already marked as read', { notificationId, userId });
-        return;
-      }
-      
-      await updateDoc(notificationRef, {
+      await updateDoc(doc(this.workspaceCollection(workspaceId), notificationId), {
         readBy: arrayUnion(userId)
       });
       logger.info('Notification marked as read', { notificationId, userId });
@@ -132,56 +115,6 @@ export class NotificationsService {
       logger.info('All notifications marked as read', { workspaceId, userId });
     } catch (error) {
       logger.error('Failed to mark all notifications as read', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Delete a notification
-   */
-  static async delete(workspaceId: string, notificationId: string) {
-    try {
-      await deleteDoc(doc(this.workspaceCollection(workspaceId), notificationId));
-      logger.info('Notification deleted', { notificationId, workspaceId });
-    } catch (error) {
-      logger.error('Failed to delete notification', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Delete all notifications for a user (only those visible to the user)
-   * Uses the same filtering logic as subscribe()
-   */
-  static async clearAll(workspaceId: string, userId: string) {
-    try {
-      const q = query(this.workspaceCollection(workspaceId), orderBy('createdAt', 'desc'));
-      const snapshot = await getDocs(q);
-      
-      const batch = writeBatch(db);
-      let hasDeletions = false;
-      
-      snapshot.docs.forEach(docSnap => {
-        const data = docSnap.data() as Notification;
-        // Используем ту же логику фильтрации, что и в subscribe()
-        // If no recipients specified, show to everyone (delete it)
-        // Otherwise only delete if user is in recipients list
-        const shouldDelete = !data.recipients || data.recipients.length === 0 || data.recipients.includes(userId);
-        
-        if (shouldDelete) {
-          batch.delete(docSnap.ref);
-          hasDeletions = true;
-        }
-      });
-      
-      if (hasDeletions) {
-        await batch.commit();
-        logger.info('All notifications cleared', { workspaceId, userId, count: hasDeletions });
-      } else {
-        logger.info('No notifications to clear', { workspaceId, userId });
-      }
-    } catch (error) {
-      logger.error('Failed to clear notifications', error);
       throw error;
     }
   }
