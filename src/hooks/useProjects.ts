@@ -2,10 +2,10 @@ import { useState, useEffect, useCallback } from 'react';
 import { Project, WorkspaceMember, User } from '../types';
 import { FirestoreService } from '../services/firestore';
 import { TelegramService } from '../services/telegram';
+import { NotificationsService } from '../services/notifications';
 import { validateProject } from '../utils/validators';
 import { createTelegramMessage, getAllTelegramRecipients } from '../utils/notificationHelpers';
 import { logger } from '../utils/logger';
-import { Notification } from '../types';
 
 export const useProjects = (
   workspaceId: string | null,
@@ -75,15 +75,17 @@ export const useProjects = (
 
       const created = await FirestoreService.createProject(projectData);
       
-      // Уведомления
-({
-        id: Date.now().toString(),
-        type: 'PROJECT_UPDATED',
-        title: 'Проект создан',
-        message: `Проект "${created.name}" был создан`,
-        createdAt: new Date().toISOString(),
-        read: false
-      });
+      // Уведомления через NotificationsService
+      if (workspaceId) {
+        const telegramRecipients = getAllTelegramRecipients(members);
+        await NotificationsService.add(workspaceId, {
+          title: 'Проект создан',
+          message: `Проект "${created.name}" был создан`,
+          type: 'PROJECT_UPDATED',
+          recipients: telegramRecipients.length > 0 ? telegramRecipients.map(r => r.userId) : undefined,
+          readBy: []
+        });
+      }
 
       const recipients = getAllTelegramRecipients(members);
       if (recipients.length > 0) {
