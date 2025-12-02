@@ -36,6 +36,7 @@ import { useInvites } from './hooks/useInvites';
 import { logger } from './utils/logger';
 import { membersToUsers } from './utils/userHelpers';
 import { MAX_CHAT_HISTORY_LENGTH } from './constants/ai';
+import { SUPER_ADMINS } from './constants/superAdmins';
 
 type AppView =
   | 'BOARD'
@@ -445,7 +446,11 @@ const App: React.FC = () => {
   }, [members]);
 
   const canManageWorkspace = useCallback((user: User | null): boolean => {
-    if (!user || !currentWorkspaceId) return false;
+    if (!user) return false;
+    // Глобальные супер-админы управляют любым workspace
+    if (SUPER_ADMINS.includes(user.email)) return true;
+
+    if (!currentWorkspaceId) return false;
     const member = members.find(m => m.userId === user.id);
     if (!member) return false;
     return member.role === 'OWNER' || member.role === 'ADMIN';
@@ -525,13 +530,6 @@ const App: React.FC = () => {
 
       {currentWorkspace && (
         <>
-          <WorkspaceSelector
-            workspaces={workspaces}
-            currentWorkspaceId={currentWorkspaceId}
-            onWorkspaceChange={handleWorkspaceChange}
-            onCreateWorkspace={handleCreateWorkspace}
-          />
-
           {view === 'BOARD' && (
             <KanbanBoard
               tasks={tasks}
