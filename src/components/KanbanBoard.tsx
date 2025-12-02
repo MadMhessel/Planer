@@ -146,29 +146,29 @@ export const KanbanBoard: React.FC<Props> = ({
       </div>
 
       {/* Mobile: Single Column View with Navigation */}
-      <div className="md:hidden">
+      <div className="md:hidden w-full max-w-full overflow-x-hidden">
         {/* Column Header with Navigation */}
-        <div className="flex items-center justify-between mb-3 px-2 py-2 bg-gray-50 dark:bg-slate-800/50 rounded-lg border border-gray-200 dark:border-slate-700">
+        <div className="flex items-center justify-between mb-3 px-2 py-2 bg-gray-50 dark:bg-slate-800/50 rounded-lg border border-gray-200 dark:border-slate-700 w-full">
           <button
             onClick={handlePrevColumn}
             disabled={currentColumnIndex === 0}
-            className="p-1.5 sm:p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed text-gray-600 dark:text-slate-400 transition-all"
+            className="p-1.5 sm:p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed text-gray-600 dark:text-slate-400 transition-all flex-shrink-0"
             aria-label="Предыдущая колонка"
           >
             <ChevronLeft className="w-4 h-4 sm:w-5 sm:h-5" />
           </button>
-          <div className="flex-1 text-center px-2">
-            <h3 className="text-sm sm:text-base font-bold text-gray-900 dark:text-white">
+          <div className="flex-1 text-center px-2 min-w-0">
+            <h3 className="text-sm sm:text-base font-bold text-gray-900 dark:text-white truncate">
               {currentColumn.title}
             </h3>
-            <p className="text-[10px] sm:text-xs text-gray-500 dark:text-slate-400 mt-0.5">
+            <p className="text-[10px] sm:text-xs text-gray-500 dark:text-slate-400 mt-0.5 truncate">
               {currentColumnIndex + 1} из {columns.length} • {currentTasks.length} {currentTasks.length === 1 ? 'задача' : currentTasks.length < 5 ? 'задачи' : 'задач'}
             </p>
           </div>
           <button
             onClick={handleNextColumn}
             disabled={currentColumnIndex === columns.length - 1}
-            className="p-1.5 sm:p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed text-gray-600 dark:text-slate-400 transition-all"
+            className="p-1.5 sm:p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed text-gray-600 dark:text-slate-400 transition-all flex-shrink-0"
             aria-label="Следующая колонка"
           >
             <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5" />
@@ -176,11 +176,11 @@ export const KanbanBoard: React.FC<Props> = ({
         </div>
 
         {/* Tasks List for Current Column */}
-        <div className="space-y-2.5 pb-4">
+        <div className="space-y-2.5 pb-4 w-full max-w-full">
           {currentTasks.length > 0 ? currentTasks.map(task => (
             <div
               key={task.id}
-              className="rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2.5 text-xs shadow-sm hover:shadow-md transition-all cursor-pointer active:scale-[0.98]"
+              className="rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-2.5 sm:px-3 py-2 sm:py-2.5 text-xs shadow-sm hover:shadow-md transition-all cursor-pointer active:scale-[0.98] w-full max-w-full overflow-hidden"
               onClick={() => onTaskClick(task)}
             >
               <div className="flex items-start justify-between gap-1">

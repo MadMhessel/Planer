@@ -9,7 +9,7 @@ import {
 } from 'firebase/auth';
 import { auth, db } from '../firebase';
 import { User, UserRole } from '../types';
-import { doc, getDoc, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, serverTimestamp, setDoc, updateDoc, collection, query, where, getDocs } from 'firebase/firestore';
 
 const provider = new GoogleAuthProvider();
 
@@ -238,6 +238,25 @@ export const AuthService = {
         await updateDoc(userRef, {
           lastLoginAt: serverTimestamp()
         });
+        
+        // Проверяем, есть ли у пользователя workspace, если нет - создаем демо-данные
+        const { initializeDemoData } = await import('./demoData');
+        try {
+          const workspacesQuery = query(
+            collection(db, 'workspaces'),
+            where('ownerId', '==', firebaseUser.uid)
+          );
+          const workspacesSnapshot = await getDocs(workspacesQuery);
+          
+          if (workspacesSnapshot.empty) {
+            // У пользователя нет workspace, создаем демо-данные
+            console.log('У демо-пользователя нет workspace, создаем демо-данные...');
+            await initializeDemoData({ ...data, id: snapshot.id } as User);
+          }
+        } catch (demoError) {
+          console.warn('Не удалось проверить/создать демо-данные:', demoError);
+        }
+        
         return {
           ...data,
           id: snapshot.id

@@ -38,47 +38,47 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, projects, users, onTaskClick 
   return (
     <div 
       onClick={() => onTaskClick(task)}
-      className="bg-white dark:bg-slate-800/80 backdrop-blur-sm p-4 rounded-xl shadow-md border border-gray-100 dark:border-slate-700/50 mb-3 active:scale-[0.98] transition-all hover:shadow-lg hover:-translate-y-0.5 cursor-pointer"
+      className="bg-white dark:bg-slate-800/80 backdrop-blur-sm p-3 sm:p-4 rounded-xl shadow-md border border-gray-100 dark:border-slate-700/50 mb-3 active:scale-[0.98] transition-all hover:shadow-lg hover:-translate-y-0.5 cursor-pointer w-full max-w-full overflow-hidden"
     >
-      <div className="flex justify-between items-start mb-2">
+      <div className="flex justify-between items-start mb-2 gap-2">
           {project ? (
-              <span className="text-[10px] font-bold px-2 py-1 rounded-md text-white shadow-sm" style={{ backgroundColor: project.color }}>
+              <span className="text-[9px] sm:text-[10px] font-bold px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-md text-white shadow-sm truncate max-w-[40%]" style={{ backgroundColor: project.color }}>
               {project.name}
               </span>
           ) : <span />}
-          <span className={`px-2 py-1 text-[10px] font-bold uppercase tracking-wide rounded-full ${getPriorityColorForTable(task.priority)}`}>
+          <span className={`px-1.5 sm:px-2 py-0.5 sm:py-1 text-[9px] sm:text-[10px] font-bold uppercase tracking-wide rounded-full flex-shrink-0 ${getPriorityColorForTable(task.priority)}`}>
               {getPriorityLabel(task.priority)}
           </span>
       </div>
       
-      <h3 className="font-semibold text-gray-900 mb-1 leading-snug">{task.title}</h3>
+      <h3 className="font-semibold text-sm sm:text-base text-gray-900 dark:text-slate-100 mb-1 leading-snug line-clamp-2">{task.title}</h3>
       
       {task.tags && task.tags.length > 0 && (
-        <div className="flex flex-wrap gap-1 mb-3">
+        <div className="flex flex-wrap gap-1 mb-3 overflow-hidden">
           {task.tags.map(t => (
-            <span key={t} className="text-[10px] px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded border border-gray-200">#{t}</span>
+            <span key={t} className="text-[9px] sm:text-[10px] px-1 sm:px-1.5 py-0.5 bg-gray-100 dark:bg-slate-700 text-gray-500 dark:text-slate-400 rounded border border-gray-200 dark:border-slate-600">#{t}</span>
           ))}
         </div>
       )}
 
-      <div className="flex items-center justify-between border-t border-gray-50 pt-3 mt-2">
-          <div className="flex items-center gap-2">
-               <div className="w-6 h-6 rounded-full bg-gray-100 border border-gray-200 flex items-center justify-center overflow-hidden">
+      <div className="flex items-center justify-between border-t border-gray-50 dark:border-slate-700 pt-2 sm:pt-3 mt-2 gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 flex-1">
+               <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-gray-100 dark:bg-slate-700 border border-gray-200 dark:border-slate-600 flex items-center justify-center overflow-hidden flex-shrink-0">
                     {user?.photoURL ? (
                         <img src={user.photoURL} className="w-full h-full object-cover" alt="" />
                     ) : (
-                        <span className="text-[9px] font-bold text-gray-500">{user ? getInitials(user.displayName || user.email) : '?'}</span>
+                        <span className="text-[8px] sm:text-[9px] font-bold text-gray-500 dark:text-slate-400">{user ? getInitials(user.displayName || user.email) : '?'}</span>
                     )}
                </div>
-               <div className={`px-2 py-0.5 rounded text-xs font-medium ${getStatusColor(task.status)}`}>
+               <div className={`px-1.5 sm:px-2 py-0.5 rounded text-[10px] sm:text-xs font-medium truncate ${getStatusColor(task.status)}`}>
                   {getStatusLabel(task.status)}
                </div>
           </div>
-          <div className="flex items-center text-xs text-gray-400 font-medium">
+          <div className="flex items-center text-[10px] sm:text-xs text-gray-400 dark:text-slate-500 font-medium flex-shrink-0">
               {task.dueDate && (
                 <>
-                  <Calendar size={14} className="mr-1" />
-                  {new Date(task.dueDate).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}
+                  <Calendar size={12} className="mr-0.5 sm:mr-1" />
+                  <span className="whitespace-nowrap">{new Date(task.dueDate).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}</span>
                 </>
               )}
           </div>
@@ -180,7 +180,7 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks, projects, users, onTa
       </div>
 
       {/* Mobile View: Cards */}
-      <div className="md:hidden space-y-2 pb-20">
+      <div className="md:hidden space-y-2 pb-20 w-full max-w-full overflow-x-hidden">
         {sortedTasks.map(task => (
           <TaskCard 
             key={task.id} 
