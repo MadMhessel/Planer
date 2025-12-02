@@ -109,6 +109,34 @@ export type Notification = {
   recipients?: string[]; // Optional: specific userIds to notify (for @mentions)
 };
 
+// AI Action types for function calling
+export type AIActionType = 
+  | 'create_task'
+  | 'update_task'
+  | 'delete_task'
+  | 'create_project'
+  | 'update_project'
+  | 'delete_project'
+  | 'change_task_status'
+  | 'assign_task'
+  | 'set_task_priority'
+  | 'list_tasks'
+  | 'list_projects'
+  | 'get_task_info'
+  | 'get_project_info';
+
+export type AIAction = {
+  type: AIActionType;
+  params: Record<string, any>;
+  description?: string;
+};
+
+export type AIResponse = {
+  actions?: AIAction[];
+  tasks?: Partial<Task>[]; // Для обратной совместимости
+  textResponse: string;
+};
+
 // User notification settings
 export type UserNotificationSettings = {
   channels: {

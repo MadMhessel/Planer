@@ -332,6 +332,7 @@ app.post('/api/ai/generate',
     body('context').optional().isObject(),
     body('context.projectNames').optional().isArray(),
     body('context.userNames').optional().isArray(),
+    body('context.taskTitles').optional().isArray(),
     body('chatHistory').optional().isArray(),
     body('chatHistory.*.role').optional().isIn(['user', 'assistant']),
     body('chatHistory.*.content').optional().isString()
@@ -366,6 +367,9 @@ app.post('/api/ai/generate',
     // Construct context string
     const projectContext = context?.projectNames?.join(', ') || 'нет запланированных проектов';
     const userContext = context?.userNames?.join(', ') || 'нет известных пользователей';
+    const taskContext = context?.taskTitles && context.taskTitles.length > 0
+      ? `Существующие задачи: ${context.taskTitles.slice(0, 30).join(', ')}${context.taskTitles.length > 30 ? '...' : ''}`
+      : 'нет существующих задач';
 
     const systemInstruction = `
       Ты — интеллектуальный помощник-планировщик задач для небольшой команды.
@@ -373,26 +377,51 @@ app.post('/api/ai/generate',
       
       Доступные проекты: ${projectContext}.
       Доступные пользователи: ${userContext}.
+      ${taskContext}.
       
-      Твоя цель: интерпретировать команду пользователя на естественном языке (русском или английском) и:
-      1. Вывести структурированный JSON-массив объектов, представляющих задачи
-      2. Дать понятный текстовый ответ пользователю о том, что было сделано
+      Твоя цель: интерпретировать команду пользователя на естественном языке (русском или английском) и выполнить нужные действия.
       
-      Каждый объект задачи должен содержать поля:
-      - "title": краткое название задачи
-      - "description": подробное описание
-      - "projectName": название проекта (если логично привязать к одному из доступных проектов)
-      - "assigneeName": имя исполнителя (если подходит к одному из доступных пользователей)
-      - "dueDate": желаемый крайний срок (ISO-формат YYYY-MM-DD, если из контекста понятно)
-      - "priority": одна из: LOW, NORMAL, HIGH, CRITICAL
+      Ты можешь выполнять следующие действия:
+      1. СОЗДАНИЕ ЗАДАЧ: "создай задачу", "добавь задачу", "нужно сделать"
+      2. ОБНОВЛЕНИЕ ЗАДАЧ: "измени задачу", "обнови задачу", "переименуй задачу"
+      3. УДАЛЕНИЕ ЗАДАЧ: "удали задачу", "убери задачу", "удалить"
+      4. СОЗДАНИЕ ПРОЕКТОВ: "создай проект", "добавь проект"
+      5. ИЗМЕНЕНИЕ СТАТУСА: "перемести в работу", "отметь как выполненное", "поставь на паузу"
+      6. НАЗНАЧЕНИЕ ИСПОЛНИТЕЛЯ: "назначь на", "поручи"
+      7. ИЗМЕНЕНИЕ ПРИОРИТЕТА: "сделай приоритетной", "низкий приоритет"
+      8. ПОЛУЧЕНИЕ ИНФОРМАЦИИ: "покажи задачи", "какие задачи", "список проектов"
+      
+      Формат ответа - JSON объект:
+      {
+        "actions": [
+          {
+            "type": "create_task" | "update_task" | "delete_task" | "create_project" | "change_task_status" | "assign_task" | "set_task_priority" | "list_tasks" | "list_projects",
+            "params": { ...параметры действия... },
+            "description": "описание действия"
+          }
+        ],
+        "tasks": [ ...массив задач для создания (обратная совместимость)... ],
+        "textResponse": "понятный текстовый ответ пользователю на русском языке"
+      }
+      
+      Параметры для действий:
+      - create_task: { title, description?, projectName?, assigneeName?, dueDate?, priority?, status? }
+      - update_task: { taskId или taskTitle, title?, description?, projectName?, assigneeName?, dueDate?, priority?, status? }
+      - delete_task: { taskId или taskTitle }
+      - create_project: { name, description?, color? }
+      - change_task_status: { taskId или taskTitle, status: "TODO" | "IN_PROGRESS" | "REVIEW" | "DONE" | "HOLD" }
+      - assign_task: { taskId или taskTitle, assigneeName }
+      - set_task_priority: { taskId или taskTitle, priority: "LOW" | "NORMAL" | "HIGH" | "CRITICAL" }
+      - list_tasks: { status?, projectName?, assigneeName? }
+      - list_projects: {}
       
       Правила:
-      - Формат ответа: JSON объект с двумя полями: "tasks" (массив задач) и "textResponse" (текстовый ответ пользователю)
-      - Если проект не указан, оставьте "projectName" пустым.
-      - Если исполнитель не указан, оставьте "assigneeName" пустым.
-      - Если дата относительная (например, "в следующую пятницу"), вычислите ISO дату YYYY-MM-DD.
+      - Если команда требует создания задачи, используй action "create_task" или массив "tasks" (для обратной совместимости)
+      - Если команда требует изменения/удаления, используй соответствующий action
+      - Если задача идентифицируется по названию, используй taskTitle в params
       - textResponse должен быть понятным и дружелюбным ответом на русском языке
       - Учитывай контекст предыдущих сообщений из истории чата
+      - Если команда неясна, спроси уточнение в textResponse
     `;
 
     // Формируем промпт с историей чата
@@ -418,9 +447,13 @@ app.post('/api/ai/generate',
       
       ВАЖНО: Верни JSON объект в формате:
       {
-        "tasks": [массив задач],
-        "textResponse": "понятный текстовый ответ пользователю"
+        "actions": [массив действий],
+        "tasks": [массив задач для создания - опционально, для обратной совместимости],
+        "textResponse": "понятный текстовый ответ пользователю на русском языке"
       }
+      
+      Если команда требует создания задач, используй массив "tasks" или action "create_task".
+      Если команда требует других действий (удаление, обновление и т.д.), используй массив "actions".
     `;
 
     const result = await model.generateContent(prompt);
@@ -456,14 +489,22 @@ app.post('/api/ai/generate',
       }
     }
 
-    if (!parsed || !parsed.tasks) {
+    // Проверяем наличие actions или tasks
+    if (!parsed || (!parsed.actions && !parsed.tasks)) {
       if (process.env.NODE_ENV === 'development') {
         console.error('Gemini returned unparseable payload:', text.substring(0, 500));
       }
       return res.status(422).json({
-        error: 'Gemini не смог сформировать задачи. Попробуйте переформулировать запрос.',
+        error: 'Gemini не смог сформировать ответ. Попробуйте переформулировать запрос.',
         textResponse: 'Извините, не удалось обработать ваш запрос. Попробуйте переформулировать его.'
       });
+    }
+    
+    // Если есть actions, валидируем их
+    if (parsed.actions && Array.isArray(parsed.actions)) {
+      parsed.actions = parsed.actions
+        .filter(action => action && action.type && action.params)
+        .slice(0, 20); // Ограничение на количество действий
     }
     
     // Санитизация текстового ответа

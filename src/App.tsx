@@ -287,6 +287,147 @@ const App: React.FC = () => {
     }
   }, [updateTask]);
 
+  // Функция для выполнения действий от AI
+  const executeAIAction = async (
+    action: { type: string; params: Record<string, any> },
+    allTasks: Task[],
+    allProjects: Project[],
+    allMembers: typeof members
+  ) => {
+    const { type, params } = action;
+
+    // Находим задачу по ID или названию
+    const findTask = (taskIdOrTitle: string): Task | undefined => {
+      // Сначала ищем по ID
+      let task = allTasks.find(t => t.id === taskIdOrTitle);
+      if (task) return task;
+      // Затем ищем по названию (нечеткое совпадение)
+      const titleLower = taskIdOrTitle.toLowerCase().trim();
+      task = allTasks.find(t => t.title.toLowerCase().trim() === titleLower);
+      return task;
+    };
+
+    switch (type) {
+      case 'create_task': {
+        const taskData: Partial<Task> = {
+          title: params.title,
+          description: params.description,
+          priority: params.priority || TaskPriority.NORMAL,
+          status: params.status || TaskStatus.TODO,
+          dueDate: params.dueDate,
+          startDate: params.startDate
+        };
+        
+        if (params.projectName) {
+          const project = allProjects.find(p => p.name === params.projectName);
+          if (project) taskData.projectId = project.id;
+        }
+        
+        if (params.assigneeName) {
+          const member = allMembers.find(m => m.email === params.assigneeName);
+          if (member) taskData.assigneeId = member.userId;
+        }
+        
+        await addTask(taskData);
+        toast.success(`Задача "${params.title}" создана`);
+        break;
+      }
+
+      case 'update_task': {
+        const task = findTask(params.taskId || params.taskTitle);
+        if (!task) {
+          throw new Error(`Задача "${params.taskId || params.taskTitle}" не найдена`);
+        }
+
+        const updates: Partial<Task> = {};
+        if (params.title) updates.title = params.title;
+        if (params.description !== undefined) updates.description = params.description;
+        if (params.priority) updates.priority = params.priority;
+        if (params.status) updates.status = params.status;
+        if (params.dueDate) updates.dueDate = params.dueDate;
+        
+        if (params.projectName) {
+          const project = allProjects.find(p => p.name === params.projectName);
+          if (project) updates.projectId = project.id;
+        }
+        
+        if (params.assigneeName) {
+          const member = allMembers.find(m => m.email === params.assigneeName);
+          if (member) updates.assigneeId = member.userId;
+        }
+        
+        await updateTask(task.id, updates);
+        toast.success(`Задача "${task.title}" обновлена`);
+        break;
+      }
+
+      case 'delete_task': {
+        const task = findTask(params.taskId || params.taskTitle);
+        if (!task) {
+          throw new Error(`Задача "${params.taskId || params.taskTitle}" не найдена`);
+        }
+        await deleteTask(task.id);
+        toast.success(`Задача "${task.title}" удалена`);
+        break;
+      }
+
+      case 'create_project': {
+        const projectData: Partial<Project> = {
+          name: params.name,
+          description: params.description,
+          color: params.color || '#3b82f6'
+        };
+        await addProject(projectData);
+        toast.success(`Проект "${params.name}" создан`);
+        break;
+      }
+
+      case 'change_task_status': {
+        const task = findTask(params.taskId || params.taskTitle);
+        if (!task) {
+          throw new Error(`Задача "${params.taskId || params.taskTitle}" не найдена`);
+        }
+        await updateTask(task.id, { status: params.status });
+        toast.success(`Статус задачи "${task.title}" изменен на ${params.status}`);
+        break;
+      }
+
+      case 'assign_task': {
+        const task = findTask(params.taskId || params.taskTitle);
+        if (!task) {
+          throw new Error(`Задача "${params.taskId || params.taskTitle}" не найдена`);
+        }
+        const member = allMembers.find(m => m.email === params.assigneeName);
+        if (!member) {
+          throw new Error(`Пользователь "${params.assigneeName}" не найден`);
+        }
+        await updateTask(task.id, { assigneeId: member.userId });
+        toast.success(`Задача "${task.title}" назначена на ${params.assigneeName}`);
+        break;
+      }
+
+      case 'set_task_priority': {
+        const task = findTask(params.taskId || params.taskTitle);
+        if (!task) {
+          throw new Error(`Задача "${params.taskId || params.taskTitle}" не найдена`);
+        }
+        await updateTask(task.id, { priority: params.priority });
+        toast.success(`Приоритет задачи "${task.title}" изменен`);
+        break;
+      }
+
+      case 'list_tasks':
+      case 'list_projects':
+      case 'get_task_info':
+      case 'get_project_info':
+        // Эти действия только для информации, не требуют выполнения
+        break;
+
+      default:
+        logger.warn('Unknown AI action type', { type, params });
+    }
+  };
+
   const handleDeleteTask = useCallback(async (taskId: string) => {
     try {
       await deleteTask(taskId);
@@ -370,11 +511,14 @@ const App: React.FC = () => {
     try {
       const projectNames = projects.map(p => p.name);
       const userNames = members.map(m => m.email);
+      // Добавляем контекст текущих задач для поиска по названию
+      const taskTitles = tasks.map(t => t.title).slice(0, 50); // Ограничиваем для промпта
 
       // Получаем ответ от AI с историей
       const response = await GeminiService.suggestTasksFromCommand(command, {
         projectNames,
-        userNames
+        userNames,
+        taskTitles
       }, chatHistory);
 
       // Обновляем историю чата
@@ -388,33 +532,46 @@ const App: React.FC = () => {
         return newHistory.slice(-MAX_CHAT_HISTORY_LENGTH);
       });
 
-      // Преобразуем projectName и assigneeName в ID
-      const processedSuggestions = response.tasks.map((suggestion: any) => {
-        const processed: Partial<Task> = { ...suggestion };
-        
-        // Преобразуем projectName в projectId
-        if (suggestion.projectName && !suggestion.projectId) {
-          const project = projects.find(p => p.name === suggestion.projectName);
-          if (project) {
-            processed.projectId = project.id;
+      // Выполняем действия, если они есть
+      if (response.actions && response.actions.length > 0) {
+        for (const action of response.actions) {
+          try {
+            await executeAIAction(action, tasks, projects, members);
+          } catch (error) {
+            logger.error('Failed to execute AI action', error instanceof Error ? error : undefined);
+            logger.warn(`AI action failed: ${action.type}`, { params: action.params });
           }
-          delete (processed as any).projectName;
         }
-        
-        // Преобразуем assigneeName в assigneeId
-        if (suggestion.assigneeName && !suggestion.assigneeId) {
-          const member = members.find(m => m.email === suggestion.assigneeName);
-          if (member) {
-            processed.assigneeId = member.userId;
+      }
+
+      // Обработка задач для обратной совместимости
+      if (response.tasks && response.tasks.length > 0) {
+        // Преобразуем projectName и assigneeName в ID
+        const processedSuggestions = response.tasks.map((suggestion: any) => {
+          const processed: Partial<Task> = { ...suggestion };
+          
+          // Преобразуем projectName в projectId
+          if (suggestion.projectName && !suggestion.projectId) {
+            const project = projects.find(p => p.name === suggestion.projectName);
+            if (project) {
+              processed.projectId = project.id;
+            }
+            delete (processed as any).projectName;
           }
-          delete (processed as any).assigneeName;
-        }
+          
+          // Преобразуем assigneeName в assigneeId
+          if (suggestion.assigneeName && !suggestion.assigneeId) {
+            const member = members.find(m => m.email === suggestion.assigneeName);
+            if (member) {
+              processed.assigneeId = member.userId;
+            }
+            delete (processed as any).assigneeName;
+          }
 
-        return processed;
-      });
+          return processed;
+        });
 
-      // Создаем задачи, если они есть
-      if (processedSuggestions.length > 0) {
+        // Создаем задачи
         let createdCount = 0;
         for (const suggestion of processedSuggestions) {
           try {

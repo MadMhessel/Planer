@@ -1,4 +1,4 @@
-import type { Task } from '../types';
+import type { Task, AIResponse, AIAction } from '../types';
 import { logger } from '../utils/logger';
 
 export interface ChatMessage {
@@ -6,15 +6,10 @@ export interface ChatMessage {
   content: string;
 }
 
-export interface AIResponse {
-  tasks: Partial<Task>[];
-  textResponse: string;
-}
-
 export const GeminiService = {
   async suggestTasksFromCommand(
     command: string,
-    context: { projectNames: string[]; userNames: string[] },
+    context: { projectNames: string[]; userNames: string[]; taskTitles?: string[] },
     chatHistory?: ChatMessage[]
   ): Promise<AIResponse> {
     try {
@@ -41,7 +36,16 @@ export const GeminiService = {
         };
       }
       
-      // Новый формат с текстовым ответом
+      // Новый формат с действиями
+      if (data.actions && Array.isArray(data.actions)) {
+        return {
+          actions: data.actions as AIAction[],
+          tasks: data.tasks ? (Array.isArray(data.tasks) ? data.tasks : [data.tasks]) : undefined,
+          textResponse: data.textResponse || 'Действия выполнены'
+        };
+      }
+      
+      // Формат с текстовым ответом и задачами
       if (data.tasks && data.textResponse) {
         return {
           tasks: Array.isArray(data.tasks) ? data.tasks : [data.tasks],
