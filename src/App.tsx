@@ -18,6 +18,8 @@ import { NotificationCenter } from './components/NotificationCenter';
 import { AcceptInviteView } from './components/AcceptInviteView';
 import { AICommandBar } from './components/AICommandBar';
 
+// Spinner for Suspense fallbacks
+import { LoadingSpinner } from './components/LoadingSpinner';
 import { AuthService } from './services/auth';
 import { StorageService } from './services/storage';
 import { GeminiService } from './services/gemini';
