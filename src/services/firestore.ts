@@ -366,11 +366,21 @@ export const FirestoreService = {
   },
 
   async createProject(project: Omit<Project, 'id' | 'createdAt' | 'updatedAt'>): Promise<Project> {
-    const docRef = await addDoc(collection(db, 'projects'), {
-      ...project,
+    // Фильтруем undefined значения, так как Firestore их не принимает
+    const projectData: any = {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
+    };
+
+    // Копируем только определенные поля
+    Object.keys(project).forEach(key => {
+      const value = (project as any)[key];
+      if (value !== undefined) {
+        projectData[key] = value;
+      }
     });
+
+    const docRef = await addDoc(collection(db, 'projects'), projectData);
 
     const docSnap = await getDoc(docRef);
     return {
@@ -381,10 +391,21 @@ export const FirestoreService = {
 
   async updateProject(projectId: string, updates: Partial<Project>) {
     const projectRef = doc(db, 'projects', projectId);
-    await updateDoc(projectRef, {
-      ...updates,
+    
+    // Фильтруем undefined значения, так как Firestore их не принимает
+    const updateData: any = {
       updatedAt: new Date().toISOString()
-    } as any);
+    };
+
+    // Копируем только определенные поля
+    Object.keys(updates).forEach(key => {
+      const value = (updates as any)[key];
+      if (value !== undefined) {
+        updateData[key] = value;
+      }
+    });
+
+    await updateDoc(projectRef, updateData);
   },
 
   async deleteProject(projectId: string) {

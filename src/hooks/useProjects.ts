@@ -53,20 +53,27 @@ export const useProjects = (
 
     try {
       const now = new Date().toISOString();
-      const project: Omit<Project, 'id' | 'createdAt' | 'updatedAt'> = {
+      // Создаем объект проекта, исключая undefined значения
+      const projectData: any = {
         name: partial.name || 'Новый проект',
         description: partial.description || '',
         color: partial.color,
         ownerId: currentUser.id,
         createdAt: now,
         updatedAt: now,
-        startDate: partial.startDate,
-        endDate: partial.endDate,
         status: partial.status || 'ACTIVE',
         workspaceId: workspaceId
       };
 
-      const created = await FirestoreService.createProject(project);
+      // Добавляем опциональные поля только если они определены
+      if (partial.startDate) {
+        projectData.startDate = partial.startDate;
+      }
+      if (partial.endDate) {
+        projectData.endDate = partial.endDate;
+      }
+
+      const created = await FirestoreService.createProject(projectData);
       
       // Уведомления
 ({
