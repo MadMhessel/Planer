@@ -374,7 +374,15 @@ const App: React.FC = () => {
 
   const handleAuth = async (isLogin: boolean, ...args: string[]) => {
     if (!isLogin) {
-      await AuthService.loginWithGoogle();
+      try {
+        await AuthService.loginWithGoogle();
+        // Аутентификация успешна - состояние обновится через onAuthStateChanged
+        // Ошибки не нужно пробрасывать, так как AuthView обрабатывает их сам
+      } catch (error: any) {
+        console.error('Ошибка при входе:', error);
+        // Пробрасываем ошибку, чтобы AuthView мог её отобразить
+        throw error;
+      }
     }
   };
 

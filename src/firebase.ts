@@ -23,6 +23,12 @@ if (!firebaseConfig.apiKey || !firebaseConfig.projectId) {
   console.error('  VITE_FIREBASE_AUTH_DOMAIN:', firebaseConfig.authDomain ? '✓' : '✗');
   console.error('  VITE_FIREBASE_PROJECT_ID:', firebaseConfig.projectId ? '✓' : '✗');
   console.error('These variables must be set during Docker build with --build-arg');
+} else {
+  console.log('✅ Firebase configuration loaded:');
+  console.log('  Project ID:', firebaseConfig.projectId);
+  console.log('  Auth Domain:', firebaseConfig.authDomain);
+  console.log('  Current URL:', window.location.origin);
+  console.log('  ⚠️  Убедитесь, что домен', window.location.origin, 'добавлен в Firebase Console > Authentication > Settings > Authorized domains');
 }
 
 const app = initializeApp(firebaseConfig);
