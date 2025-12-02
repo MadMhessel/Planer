@@ -448,7 +448,7 @@ const App: React.FC = () => {
   const canManageWorkspace = useCallback((user: User | null): boolean => {
     if (!user) return false;
     // Глобальные супер-админы управляют любым workspace
-    if (SUPER_ADMINS.includes(user.email)) return true;
+    if (user.email && SUPER_ADMINS.map(e=>e.toLowerCase()).includes(user.email.toLowerCase())) return true;
 
     if (!currentWorkspaceId) return false;
     const member = members.find(m => m.userId === user.id);
