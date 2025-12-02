@@ -21,7 +21,9 @@ RUN npm run build
 RUN ls -la dist/ && \
     test -f dist/index.html || (echo "ERROR: dist/index.html not found!" && exit 1) && \
     test -d dist/assets || (echo "ERROR: dist/assets directory not found!" && exit 1) && \
-    echo "✓ Build verification passed"
+    echo "✓ Build verification passed" && \
+    echo "✓ Listing assets files:" && \
+    ls -la dist/assets/ | head -20
 
 # 6. Настройки окружения по умолчанию
 ENV NODE_ENV=production
