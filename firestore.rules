@@ -68,7 +68,12 @@ service cloud.firestore {
         allow read: if request.auth != null && isMember(workspaceId);
         allow create: if request.auth != null && isMember(workspaceId);
         allow update: if request.auth != null && isMember(workspaceId);
-        allow delete: if request.auth != null && isAdminOrOwner(workspaceId);
+        // Пользователи могут удалять уведомления, которые им видны
+        // (нет recipients или пользователь в recipients)
+        allow delete: if request.auth != null && isMember(workspaceId) &&
+          (!resource.data.keys().hasAny(['recipients']) || 
+           resource.data.recipients.size() == 0 || 
+           resource.data.recipients.hasAny([request.auth.uid]));
       }
     }
     

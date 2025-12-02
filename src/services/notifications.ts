@@ -8,7 +8,8 @@ import {
   doc, 
   arrayUnion,
   writeBatch,
-  getDocs 
+  getDocs,
+  deleteDoc
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import { Notification, WorkspaceMember } from '../types';
@@ -115,6 +116,43 @@ export class NotificationsService {
       logger.info('All notifications marked as read', { workspaceId, userId });
     } catch (error) {
       logger.error('Failed to mark all notifications as read', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Delete all notifications for a user (only those visible to the user)
+   * Uses the same filtering logic as subscribe()
+   */
+  static async clearAll(workspaceId: string, userId: string) {
+    try {
+      const q = query(this.workspaceCollection(workspaceId), orderBy('createdAt', 'desc'));
+      const snapshot = await getDocs(q);
+      
+      const batch = writeBatch(db);
+      let deletionCount = 0;
+      
+      snapshot.docs.forEach(docSnap => {
+        const data = docSnap.data() as Notification;
+        // Используем ту же логику фильтрации, что и в subscribe()
+        // If no recipients specified, show to everyone (delete it)
+        // Otherwise only delete if user is in recipients list
+        const shouldDelete = !data.recipients || data.recipients.length === 0 || data.recipients.includes(userId);
+        
+        if (shouldDelete) {
+          batch.delete(docSnap.ref);
+          deletionCount++;
+        }
+      });
+      
+      if (deletionCount > 0) {
+        await batch.commit();
+        logger.info('All notifications cleared', { workspaceId, userId, count: deletionCount });
+      } else {
+        logger.info('No notifications to clear', { workspaceId, userId });
+      }
+    } catch (error) {
+      logger.error('Failed to clear notifications', error);
       throw error;
     }
   }
