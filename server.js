@@ -69,6 +69,13 @@ app.use((req, res, next) => {
     if (process.env.NODE_ENV === 'development' || req.path.startsWith('/api/')) {
         console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
     }
+    // Логируем ошибки статических файлов в production для отладки
+    if (req.path.startsWith('/assets/') && process.env.NODE_ENV === 'production') {
+        const filePath = path.join(distPath, req.path);
+        if (!fs.existsSync(filePath)) {
+            console.error(`[${new Date().toISOString()}] Static file not found: ${req.path} (${filePath})`);
+        }
+    }
     next();
 });
 
@@ -443,7 +450,46 @@ app.post('/api/ai/generate',
 // --- Static Files ---
 // Раздаём собранный фронт Vite
 const distPath = path.join(__dirname, 'dist');
-app.use(express.static(distPath));
+
+// Проверяем существование dist директории при запуске
+if (!fs.existsSync(distPath)) {
+  console.error(`ERROR: dist directory not found at ${distPath}`);
+  console.error('Make sure to run "npm run build" before starting the server');
+} else {
+  console.log(`✓ Static files directory found: ${distPath}`);
+  // Логируем структуру dist в development
+  if (process.env.NODE_ENV === 'development') {
+    try {
+      const files = fs.readdirSync(distPath);
+      console.log(`✓ Dist directory contains: ${files.join(', ')}`);
+      if (fs.existsSync(path.join(distPath, 'assets'))) {
+        const assets = fs.readdirSync(path.join(distPath, 'assets'));
+        console.log(`✓ Assets directory contains ${assets.length} files`);
+      }
+    } catch (e) {
+      console.warn('Could not read dist directory:', e.message);
+    }
+  }
+}
+
+// Настройка для статических файлов с правильными MIME типами
+app.use(express.static(distPath, {
+  maxAge: '1y', // Кеширование на год для production
+  etag: true,
+  lastModified: true,
+  setHeaders: (res, filePath) => {
+    // Убеждаемся что CSS файлы имеют правильный MIME тип
+    if (filePath.endsWith('.css')) {
+      res.setHeader('Content-Type', 'text/css; charset=utf-8');
+    }
+    // Убеждаемся что JS файлы имеют правильный MIME тип
+    if (filePath.endsWith('.js')) {
+      res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+    }
+  },
+  // Если файл не найден, не отправляем ответ, чтобы SPA fallback мог обработать
+  fallthrough: true
+}));
 
 // SPA Fallback - для всех маршрутов возвращаем index.html
 // В Express 5.x используем middleware вместо wildcard маршрута
@@ -452,8 +498,32 @@ app.use((req, res, next) => {
   if (req.path.startsWith('/api/')) {
     return next();
   }
+  
+  // Если это запрос к статическому файлу (assets), и он не был найден, возвращаем 404
+  if (req.path.startsWith('/assets/')) {
+    const assetPath = path.join(distPath, req.path);
+    if (!fs.existsSync(assetPath)) {
+      console.error(`[${new Date().toISOString()}] Asset not found: ${req.path}`);
+      return res.status(404).json({ error: 'Asset not found', path: req.path });
+    }
+  }
+  
+  // Проверяем существование index.html перед отправкой
+  const indexPath = path.join(distPath, 'index.html');
+  if (!fs.existsSync(indexPath)) {
+    console.error(`ERROR: index.html not found at ${indexPath}`);
+    return res.status(500).send('Application not built. Please run "npm run build" first.');
+  }
+  
   // Для всех остальных маршрутов возвращаем index.html
-  res.sendFile(path.join(distPath, 'index.html'));
+  res.sendFile(indexPath, (err) => {
+    if (err) {
+      console.error('Error sending index.html:', err);
+      if (!res.headersSent) {
+        res.status(500).send('Error loading application');
+      }
+    }
+  });
 });
 
 // Запуск сервера с обработкой ошибок

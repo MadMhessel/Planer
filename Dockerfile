@@ -17,8 +17,11 @@ COPY . .
 # из переменных окружения Cloud Run, поэтому build-time переменные не нужны
 RUN npm run build
 
-# Проверяем что dist собран
-RUN ls -la dist/ && test -f dist/index.html || (echo "ERROR: dist/index.html not found!" && exit 1)
+# Проверяем что dist собран и содержит необходимые файлы
+RUN ls -la dist/ && \
+    test -f dist/index.html || (echo "ERROR: dist/index.html not found!" && exit 1) && \
+    test -d dist/assets || (echo "ERROR: dist/assets directory not found!" && exit 1) && \
+    echo "✓ Build verification passed"
 
 # 6. Настройки окружения по умолчанию
 ENV NODE_ENV=production
