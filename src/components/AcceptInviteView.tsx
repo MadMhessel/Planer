@@ -84,6 +84,10 @@ export const AcceptInviteView: React.FC<Props> = ({
       );
       setState({ status: 'accepted' });
 
+      // Сохраняем выбранную рабочую область в localStorage
+      const { StorageService } = await import('../services/storage');
+      StorageService.setSelectedWorkspaceId(inviteContext.workspaceId);
+
       // чистим параметры в адресной строке
       const url = new URL(window.location.href);
       url.searchParams.delete('invite');

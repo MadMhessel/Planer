@@ -25,11 +25,25 @@ export const useWorkspace = (currentUser: User | null) => {
       const unsubscribe = FirestoreService.subscribeToWorkspaces(currentUser, (ws) => {
         setWorkspaces(ws);
 
-        if (!currentWorkspaceId && ws.length > 0) {
-          const saved = StorageService.getSelectedWorkspaceId();
-          const found = ws.find(x => x.id === saved) || ws[0];
-          setCurrentWorkspaceId(found.id);
-        }
+        // Если нет выбранной рабочей области, выбираем сохраненную или первую доступную
+        setCurrentWorkspaceId(prev => {
+          // Если уже есть выбранная и она все еще в списке, оставляем её
+          if (prev && ws.find(w => w.id === prev)) {
+            return prev;
+          }
+          
+          // Иначе выбираем сохраненную или первую доступную
+          if (ws.length > 0) {
+            const saved = StorageService.getSelectedWorkspaceId();
+            const found = ws.find(x => x.id === saved) || ws[0];
+            // Сохраняем выбранную рабочую область
+            StorageService.setSelectedWorkspaceId(found.id);
+            return found.id;
+          }
+          
+          return null;
+        });
+        
         setLoading(false);
       });
 
@@ -42,7 +56,7 @@ export const useWorkspace = (currentUser: User | null) => {
       setError(error);
       setLoading(false);
     }
-  }, [currentUser, currentWorkspaceId]);
+  }, [currentUser]);
 
   const handleWorkspaceChange = useCallback((workspaceId: string) => {
     setCurrentWorkspaceId(workspaceId);

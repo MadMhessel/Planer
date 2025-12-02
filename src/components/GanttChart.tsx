@@ -13,6 +13,26 @@ interface GanttChartProps {
 export const GanttChart: React.FC<GanttChartProps> = ({ tasks, projects, onTaskClick, onEditTask }) => {
   const [viewDate, setViewDate] = useState(new Date());
   const [isMobile, setIsMobile] = useState(false);
+  const [hasUserScrolled, setHasUserScrolled] = useState(false);
+  
+  // Инициализируем viewDate на основе задач при первой загрузке
+  useEffect(() => {
+    if (!hasUserScrolled && tasks.length > 0) {
+      const taskDates = tasks
+        .filter(t => t.startDate || t.dueDate)
+        .map(t => {
+          if (t.startDate) return new Date(t.startDate);
+          if (t.dueDate) return new Date(t.dueDate);
+          return null;
+        })
+        .filter((d): d is Date => d !== null);
+      
+      if (taskDates.length > 0) {
+        const minDate = new Date(Math.min(...taskDates.map(d => d.getTime())));
+        setViewDate(minDate);
+      }
+    }
+  }, [tasks, hasUserScrolled]);
   
   // Сортируем задачи: сначала по дате начала, затем по приоритету
   const sortedTasks = useMemo(() => {
@@ -53,33 +73,20 @@ export const GanttChart: React.FC<GanttChartProps> = ({ tasks, projects, onTaskC
   const dayWidth = isMobile ? 30 : 40;
   const daysToShow = isMobile ? 14 : 30;
   
-  // Автоматически подстраиваем startDate под задачи
+  // Вычисляем startDate на основе viewDate (для прокрутки)
+  // startDate всегда сдвигается вместе с viewDate
   const startDate = useMemo(() => {
-    // Находим минимальную дату начала среди всех задач
-    const taskDates = tasks
-      .filter(t => t.startDate || t.dueDate)
-      .map(t => {
-        if (t.startDate) return new Date(t.startDate);
-        if (t.dueDate) return new Date(t.dueDate);
-        return null;
-      })
-      .filter((d): d is Date => d !== null);
+    const viewDateStart = new Date(viewDate);
+    viewDateStart.setHours(0, 0, 0, 0);
     
-    if (taskDates.length > 0) {
-      const minDate = new Date(Math.min(...taskDates.map(d => d.getTime())));
-      // Начинаем за 3 дня до самой ранней задачи
-      minDate.setDate(minDate.getDate() - 3);
-      // Округляем до начала дня
-      minDate.setHours(0, 0, 0, 0);
-      return minDate;
-    }
+    // Начинаем за несколько дней до viewDate, чтобы показать контекст
+    const daysBeforeView = Math.floor(daysToShow / 3);
+    const baseDate = new Date(viewDateStart);
+    baseDate.setDate(baseDate.getDate() - daysBeforeView);
+    baseDate.setHours(0, 0, 0, 0);
     
-    // Если нет задач с датами, используем текущую дату
-    const d = new Date(viewDate);
-    d.setDate(d.getDate() - 3);
-    d.setHours(0, 0, 0, 0);
-    return d;
-  }, [viewDate, tasks]);
+    return baseDate;
+  }, [viewDate, daysToShow]);
 
   const dates = useMemo(() => {
     const arr = [];
@@ -184,9 +191,16 @@ export const GanttChart: React.FC<GanttChartProps> = ({ tasks, projects, onTaskC
     const newDate = new Date(viewDate);
     newDate.setDate(newDate.getDate() + amt);
     setViewDate(newDate);
+    setHasUserScrolled(true);
   };
 
-  const currentMonthYear = viewDate.toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' });
+  // Вычисляем месяц и год на основе центра видимой области или viewDate
+  const currentMonthYear = useMemo(() => {
+    // Используем дату в центре видимой области для отображения месяца
+    const centerDate = new Date(startDate);
+    centerDate.setDate(centerDate.getDate() + Math.floor(daysToShow / 2));
+    return centerDate.toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' });
+  }, [startDate, daysToShow]);
 
   return (
     <div className="flex flex-col h-full bg-white dark:bg-slate-800/80 backdrop-blur-sm rounded-xl shadow-lg border border-gray-200 dark:border-slate-700/50 overflow-hidden pb-20 md:pb-0">
@@ -203,7 +217,10 @@ export const GanttChart: React.FC<GanttChartProps> = ({ tasks, projects, onTaskC
             <button onClick={() => handleScroll(-7)} className="p-2 bg-white dark:bg-slate-700/50 border border-gray-200 dark:border-slate-600 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg shadow-md hover:shadow-lg transition-all text-gray-600 dark:text-slate-300">
                 <ChevronLeft size={18}/>
             </button>
-            <button onClick={() => setViewDate(new Date())} className="text-xs font-semibold px-4 py-2 bg-white dark:bg-slate-700/50 border border-gray-200 dark:border-slate-600 rounded-lg shadow-md hover:shadow-lg hover:bg-gray-50 dark:hover:bg-slate-700 transition-all text-gray-700 dark:text-slate-200">
+            <button onClick={() => {
+              setViewDate(new Date());
+              setHasUserScrolled(true);
+            }} className="text-xs font-semibold px-4 py-2 bg-white dark:bg-slate-700/50 border border-gray-200 dark:border-slate-600 rounded-lg shadow-md hover:shadow-lg hover:bg-gray-50 dark:hover:bg-slate-700 transition-all text-gray-700 dark:text-slate-200">
                 Сегодня
             </button>
             <button onClick={() => handleScroll(7)} className="p-2 bg-white dark:bg-slate-700/50 border border-gray-200 dark:border-slate-600 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg shadow-md hover:shadow-lg transition-all text-gray-600 dark:text-slate-300">
