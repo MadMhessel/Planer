@@ -148,37 +148,39 @@ export const KanbanBoard: React.FC<Props> = ({
       {/* Mobile: Single Column View with Navigation */}
       <div className="md:hidden">
         {/* Column Header with Navigation */}
-        <div className="flex items-center justify-between mb-3 px-1">
+        <div className="flex items-center justify-between mb-3 px-2 py-2 bg-gray-50 dark:bg-slate-800/50 rounded-lg border border-gray-200 dark:border-slate-700">
           <button
             onClick={handlePrevColumn}
             disabled={currentColumnIndex === 0}
-            className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed text-gray-600 dark:text-slate-400"
+            className="p-1.5 sm:p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed text-gray-600 dark:text-slate-400 transition-all"
+            aria-label="Предыдущая колонка"
           >
-            <ChevronLeft className="w-5 h-5" />
+            <ChevronLeft className="w-4 h-4 sm:w-5 sm:h-5" />
           </button>
-          <div className="flex-1 text-center">
-            <h3 className="text-base font-bold text-gray-900 dark:text-white">
+          <div className="flex-1 text-center px-2">
+            <h3 className="text-sm sm:text-base font-bold text-gray-900 dark:text-white">
               {currentColumn.title}
             </h3>
-            <p className="text-xs text-gray-500 dark:text-slate-400">
-              {currentColumnIndex + 1} из {columns.length}
+            <p className="text-[10px] sm:text-xs text-gray-500 dark:text-slate-400 mt-0.5">
+              {currentColumnIndex + 1} из {columns.length} • {currentTasks.length} {currentTasks.length === 1 ? 'задача' : currentTasks.length < 5 ? 'задачи' : 'задач'}
             </p>
           </div>
           <button
             onClick={handleNextColumn}
             disabled={currentColumnIndex === columns.length - 1}
-            className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed text-gray-600 dark:text-slate-400"
+            className="p-1.5 sm:p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed text-gray-600 dark:text-slate-400 transition-all"
+            aria-label="Следующая колонка"
           >
-            <ChevronRight className="w-5 h-5" />
+            <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5" />
           </button>
         </div>
 
         {/* Tasks List for Current Column */}
-        <div className="space-y-2">
-          {currentTasks.map(task => (
+        <div className="space-y-2.5 pb-4">
+          {currentTasks.length > 0 ? currentTasks.map(task => (
             <div
               key={task.id}
-              className="rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2.5 text-xs shadow-sm hover:shadow-md transition-all cursor-pointer"
+              className="rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2.5 text-xs shadow-sm hover:shadow-md transition-all cursor-pointer active:scale-[0.98]"
               onClick={() => onTaskClick(task)}
             >
               <div className="flex items-start justify-between gap-1">
@@ -244,11 +246,16 @@ export const KanbanBoard: React.FC<Props> = ({
                 </select>
               </div>
             </div>
-          ))}
-
-          {currentTasks.length === 0 && (
-            <div className="text-[11px] text-gray-500 dark:text-slate-400 text-center py-6 bg-gray-50 dark:bg-slate-900 rounded-lg border border-gray-200 dark:border-slate-700">
-              Нет задач
+          )) : (
+            <div className="text-center py-8 bg-gray-50 dark:bg-slate-900/50 rounded-lg border border-gray-200 dark:border-slate-700">
+              <p className="text-sm text-gray-500 dark:text-slate-400 mb-1">Нет задач</p>
+              <p className="text-xs text-gray-400 dark:text-slate-500">В этой колонке пока нет задач</p>
+              <button
+                onClick={onCreateTask}
+                className="mt-3 px-4 py-2 text-xs rounded-lg bg-gradient-to-r from-sky-500 to-indigo-600 text-white font-medium hover:from-sky-600 hover:to-indigo-700 transition-all shadow-sm"
+              >
+                Создать задачу
+              </button>
             </div>
           )}
         </div>

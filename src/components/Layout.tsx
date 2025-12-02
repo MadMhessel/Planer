@@ -127,11 +127,11 @@ export const Layout: React.FC<LayoutProps> = ({
               </div>
             </div>
 
-            {/* Center: Workspace Selector (Hidden on very small screens) */}
-            <div className="hidden xs:flex items-center gap-2 flex-1 max-w-xs mx-2">
-              <div className="relative flex-1">
+            {/* Center: Workspace Selector - Always visible on mobile */}
+            <div className="flex items-center gap-1.5 sm:gap-2 flex-1 max-w-xs mx-1 sm:mx-2 min-w-0">
+              <div className="relative flex-1 min-w-0">
                 <select
-                  className="w-full bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg text-xs sm:text-sm px-2 sm:px-3 py-1.5 pr-6 focus:ring-2 focus:ring-sky-500/50 focus:border-sky-500 transition-all text-gray-900 dark:text-slate-100"
+                  className="w-full bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg text-[10px] sm:text-xs px-1.5 sm:px-2 py-1 sm:py-1.5 pr-5 sm:pr-6 focus:ring-2 focus:ring-sky-500/50 focus:border-sky-500 transition-all text-gray-900 dark:text-slate-100 truncate"
                   value={currentWorkspaceId || ''}
                   onChange={e => onWorkspaceChange(e.target.value)}
                 >
@@ -144,13 +144,14 @@ export const Layout: React.FC<LayoutProps> = ({
                     </option>
                   ))}
                 </select>
-                <ChevronDown className="w-3 h-3 sm:w-4 sm:h-4 text-gray-400 dark:text-slate-500 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <ChevronDown className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-gray-400 dark:text-slate-500 absolute right-1 sm:right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
               </div>
               <button
                 onClick={handleCreateWorkspaceClick}
-                className="text-[10px] sm:text-xs px-2 sm:px-3 py-1.5 rounded-lg border border-gray-200 dark:border-slate-700 hover:bg-gray-100 dark:hover:bg-slate-800 transition-all font-medium text-gray-700 dark:text-slate-300"
+                className="text-[9px] sm:text-[10px] px-1.5 sm:px-2 py-1 sm:py-1.5 rounded-lg border border-gray-200 dark:border-slate-700 hover:bg-gray-100 dark:hover:bg-slate-800 transition-all font-medium text-gray-700 dark:text-slate-300 whitespace-nowrap"
+                title="Создать пространство"
               >
-                + Создать
+                + Новое
               </button>
             </div>
 
