@@ -46,6 +46,8 @@ type InviteContext = {
 type ThemeMode = 'light' | 'dark' | 'system';
 
 const App: React.FC = () => {
+  console.log('📱 App component rendering...');
+  
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -98,15 +100,18 @@ const App: React.FC = () => {
 
   // Auth Listener
   useEffect(() => {
+    console.log('🔐 Setting up auth listener...');
     let mounted = true;
     
     const unsubscribe = AuthService.subscribeToAuth(async (user) => {
+      console.log('👤 Auth state changed:', user ? `User: ${user.email}` : 'No user');
       if (mounted) {
         try {
           setCurrentUser(user);
           setAuthLoading(false);
+          console.log('✅ Auth state updated');
         } catch (error) {
-          console.error('Error setting user state:', error);
+          console.error('❌ Error setting user state:', error);
           if (mounted) {
             setAuthLoading(false);
           }
@@ -115,6 +120,7 @@ const App: React.FC = () => {
     });
 
     return () => {
+      console.log('🧹 Cleaning up auth listener');
       mounted = false;
       unsubscribe();
     };

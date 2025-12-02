@@ -5,6 +5,12 @@ import { getFirestore } from 'firebase/firestore';
 // Helper to access Vite environment variables without TypeScript errors
 const env = (import.meta as any).env;
 
+console.log('🔧 Loading Firebase configuration...');
+console.log('Environment check:', {
+  hasEnv: !!env,
+  keys: env ? Object.keys(env).filter(k => k.startsWith('VITE_')) : []
+});
+
 // These environment variables must be set in your build environment (Client-side)
 const firebaseConfig = {
   apiKey: env.VITE_FIREBASE_API_KEY,
@@ -14,6 +20,17 @@ const firebaseConfig = {
   messagingSenderId: env.VITE_FIREBASE_MESSAGING_SENDER_ID,
   appId: env.VITE_FIREBASE_APP_ID
 };
+
+console.log('📋 Firebase config values:', {
+  hasApiKey: !!firebaseConfig.apiKey,
+  hasAuthDomain: !!firebaseConfig.authDomain,
+  hasProjectId: !!firebaseConfig.projectId,
+  hasStorageBucket: !!firebaseConfig.storageBucket,
+  hasMessagingSenderId: !!firebaseConfig.messagingSenderId,
+  hasAppId: !!firebaseConfig.appId,
+  projectId: firebaseConfig.projectId || 'MISSING',
+  authDomain: firebaseConfig.authDomain || 'MISSING'
+});
 
 // Проверка что все переменные заданы (для отладки)
 const isConfigValid = firebaseConfig.apiKey && firebaseConfig.projectId && firebaseConfig.authDomain;
