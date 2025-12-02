@@ -35,9 +35,9 @@ firebase deploy --only firestore:rules
 
 ---
 
-## 📋 Шаг 2: Создание индексов для collection group queries
+## 📋 Шаг 2: Создание индексов
 
-Для работы подписки на workspace (чтобы находить workspace, где пользователь является участником) нужен индекс.
+Для работы приложения нужны несколько индексов.
 
 ### Автоматическое создание (Рекомендуется)
 
@@ -45,7 +45,11 @@ firebase deploy --only firestore:rules
 2. Если появится ошибка с ссылкой на создание индекса - нажмите на ссылку
 3. Firebase автоматически создаст нужный индекс
 
-### Ручное создание
+### Ручное создание индексов
+
+#### Индекс 1: Collection Group для `members`
+
+Для работы подписки на workspace (чтобы находить workspace, где пользователь является участником):
 
 1. Откройте [Firebase Console](https://console.firebase.google.com/)
 2. Перейдите в **Firestore Database** → **Indexes**
@@ -55,6 +59,68 @@ firebase deploy --only firestore:rules
    - **Fields to index**:
      - `userId` (Ascending)
      - `status` (Ascending)
+   - **Query scope**: Collection group
+5. Нажмите **"Create"**
+
+#### Индекс 2: Составной индекс для `projects`
+
+Для запросов проектов по workspace с сортировкой по дате создания:
+
+1. Откройте [Firebase Console](https://console.firebase.google.com/)
+2. Перейдите в **Firestore Database** → **Indexes**
+3. Нажмите **"Create Index"**
+4. Настройте индекс:
+   - **Collection ID**: `projects`
+   - **Fields to index**:
+     - `workspaceId` (Ascending)
+     - `createdAt` (Descending)
+   - **Query scope**: Collection
+5. Нажмите **"Create"**
+
+#### Индекс 3: Составной индекс для `tasks`
+
+Для запросов задач по workspace с сортировкой по дате создания:
+
+1. Откройте [Firebase Console](https://console.firebase.google.com/)
+2. Перейдите в **Firestore Database** → **Indexes**
+3. Нажмите **"Create Index"**
+4. Настройте индекс:
+   - **Collection ID**: `tasks`
+   - **Fields to index**:
+     - `workspaceId` (Ascending)
+     - `createdAt` (Descending)
+   - **Query scope**: Collection
+5. Нажмите **"Create"**
+
+#### Индекс 4: Collection Group для `projects` (если используется)
+
+Если в коде используются collection group queries для проектов:
+
+1. Откройте [Firebase Console](https://console.firebase.google.com/)
+2. Перейдите в **Firestore Database** → **Indexes**
+3. Нажмите **"Create Index"**
+4. Настройте индекс:
+   - **Collection ID**: `projects` (collection group)
+   - **Fields to index**:
+     - `workspaceId` (Ascending)
+     - `createdAt` (Descending)
+     - `__name__` (Ascending)
+   - **Query scope**: Collection group
+5. Нажмите **"Create"**
+
+#### Индекс 5: Collection Group для `tasks` (если используется)
+
+Если в коде используются collection group queries для задач:
+
+1. Откройте [Firebase Console](https://console.firebase.google.com/)
+2. Перейдите в **Firestore Database** → **Indexes**
+3. Нажмите **"Create Index"**
+4. Настройте индекс:
+   - **Collection ID**: `tasks` (collection group)
+   - **Fields to index**:
+     - `workspaceId` (Ascending)
+     - `createdAt` (Descending)
+     - `__name__` (Ascending)
    - **Query scope**: Collection group
 5. Нажмите **"Create"**
 
@@ -117,8 +183,12 @@ firebase deploy --only firestore:rules
 
 - [ ] Правила Firestore задеплоены через Firebase Console или CLI
 - [ ] Индекс для `members` collection group создан (если используется)
+- [ ] Индекс для `projects` с `workspaceId` и `createdAt` создан
+- [ ] Индекс для `tasks` с `workspaceId` и `createdAt` создан
+- [ ] Индексы для collection group queries созданы (если используются)
 - [ ] Пользователь является членом workspace (проверено в Firestore Console)
 - [ ] В консоли браузера нет ошибок при создании задач/проектов
+- [ ] В консоли браузера нет ошибок при подписке на уведомления
 - [ ] Логи показывают корректные `workspaceId` и другие данные
 
 ---
