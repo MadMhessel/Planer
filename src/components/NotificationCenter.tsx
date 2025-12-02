@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Bell, X } from 'lucide-react';
 import { Notification } from '../types';
 
@@ -6,6 +6,7 @@ type Props = {
   notifications: Notification[];
   onClear: () => void;
   onMarkAsRead?: (notificationId: string) => void;
+  onMarkAllAsRead?: () => void;
   isOpen?: boolean;
   onToggle?: () => void;
   currentUserId?: string;
@@ -15,6 +16,7 @@ export const NotificationCenter: React.FC<Props> = ({
   notifications,
   onClear,
   onMarkAsRead,
+  onMarkAllAsRead,
   isOpen: controlledOpen,
   onToggle,
   currentUserId
@@ -26,6 +28,14 @@ export const NotificationCenter: React.FC<Props> = ({
   const unread = notifications.filter(n => 
     currentUserId ? !n.readBy?.includes(currentUserId) : !n.readBy?.length
   );
+
+  // Автоматически помечаем все уведомления как прочитанные при открытии панели
+  useEffect(() => {
+    if (open && unread.length > 0 && onMarkAllAsRead) {
+      onMarkAllAsRead();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]); // Вызываем только при изменении состояния открытия, чтобы избежать бесконечных циклов
 
   return (
     <>

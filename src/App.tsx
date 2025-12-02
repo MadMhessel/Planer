@@ -880,6 +880,18 @@ const App: React.FC = () => {
                 logger.error('Failed to mark notification as read', error instanceof Error ? error : undefined);
               }
             }}
+            onMarkAllAsRead={async () => {
+              try {
+                // Помечаем все уведомления из Firestore как прочитанные
+                if (currentWorkspaceId && currentUser?.id) {
+                  await markAllAsRead();
+                }
+                // Удаляем все локальные уведомления
+                setLocalNotifications([]);
+              } catch (error) {
+                logger.error('Failed to mark all notifications as read', error instanceof Error ? error : undefined);
+              }
+            }}
             isOpen={notificationsOpen}
             onToggle={() => setNotificationsOpen(prev => !prev)}
             currentUserId={currentUser?.id}
