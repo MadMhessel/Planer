@@ -63,12 +63,25 @@ export const useNotifications = (
     }
   }, [workspaceId, userId]);
 
+  const clearAll = useCallback(async () => {
+    if (!workspaceId || !userId) return;
+
+    try {
+      await NotificationsService.clearAll(workspaceId, userId);
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error('Failed to clear notifications');
+      logger.error('Failed to clear notifications', error);
+      throw error;
+    }
+  }, [workspaceId, userId]);
+
   return {
     notifications,
     loading,
     error,
     markAsRead,
-    markAllAsRead
+    markAllAsRead,
+    clearAll
   };
 };
 

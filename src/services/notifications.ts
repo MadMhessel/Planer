@@ -8,7 +8,8 @@ import {
   doc, 
   arrayUnion,
   writeBatch,
-  getDocs 
+  getDocs,
+  deleteDoc
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import { Notification, WorkspaceMember } from '../types';
@@ -115,6 +116,50 @@ export class NotificationsService {
       logger.info('All notifications marked as read', { workspaceId, userId });
     } catch (error) {
       logger.error('Failed to mark all notifications as read', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Delete a notification
+   */
+  static async delete(workspaceId: string, notificationId: string) {
+    try {
+      await deleteDoc(doc(this.workspaceCollection(workspaceId), notificationId));
+      logger.info('Notification deleted', { notificationId, workspaceId });
+    } catch (error) {
+      logger.error('Failed to delete notification', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Delete all notifications for a user (only those visible to the user)
+   */
+  static async clearAll(workspaceId: string, userId: string) {
+    try {
+      const q = query(this.workspaceCollection(workspaceId));
+      const snapshot = await getDocs(q);
+      
+      const batch = writeBatch(db);
+      let hasDeletions = false;
+      
+      snapshot.docs.forEach(docSnap => {
+        const data = docSnap.data() as Notification;
+        // Удаляем только те уведомления, которые видны пользователю
+        // (нет recipients или пользователь в recipients)
+        if (!data.recipients || data.recipients.length === 0 || data.recipients.includes(userId)) {
+          batch.delete(docSnap.ref);
+          hasDeletions = true;
+        }
+      });
+      
+      if (hasDeletions) {
+        await batch.commit();
+        logger.info('All notifications cleared', { workspaceId, userId });
+      }
+    } catch (error) {
+      logger.error('Failed to clear notifications', error);
       throw error;
     }
   }

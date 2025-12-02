@@ -180,7 +180,9 @@ const App: React.FC = () => {
   // Notifications hook
   const {
     notifications: firestoreNotifications,
-    markAllAsRead
+    markAllAsRead,
+    markAsRead,
+    clearAll
   } = useNotifications(currentWorkspaceId, currentUser?.id || null);
 
   // Локальные уведомления (для ошибок и системных сообщений)
@@ -850,7 +852,23 @@ const App: React.FC = () => {
 
           <NotificationCenter
             notifications={notifications}
-            onClear={markAllAsRead}
+            onClear={async () => {
+              // Очищаем уведомления из Firestore
+              if (currentWorkspaceId && currentUser?.id) {
+                await clearAll();
+              }
+              // Очищаем локальные уведомления
+              setLocalNotifications([]);
+            }}
+            onMarkAsRead={async (notificationId: string) => {
+              // Помечаем как прочитанное только если это уведомление из Firestore
+              const notification = firestoreNotifications.find(n => n.id === notificationId);
+              if (notification && currentWorkspaceId && currentUser?.id) {
+                await markAsRead(notificationId);
+              }
+              // Для локальных уведомлений просто удаляем их
+              setLocalNotifications(prev => prev.filter(n => n.id !== notificationId));
+            }}
             isOpen={notificationsOpen}
             onToggle={() => setNotificationsOpen(prev => !prev)}
             currentUserId={currentUser?.id}

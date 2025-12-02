@@ -5,6 +5,7 @@ import { Notification } from '../types';
 type Props = {
   notifications: Notification[];
   onClear: () => void;
+  onMarkAsRead?: (notificationId: string) => void;
   isOpen?: boolean;
   onToggle?: () => void;
   currentUserId?: string;
@@ -13,6 +14,7 @@ type Props = {
 export const NotificationCenter: React.FC<Props> = ({
   notifications,
   onClear,
+  onMarkAsRead,
   isOpen: controlledOpen,
   onToggle,
   currentUserId
@@ -80,6 +82,11 @@ export const NotificationCenter: React.FC<Props> = ({
                 return (
                 <div
                   key={n.id}
+                  onClick={() => {
+                    if (!isRead && onMarkAsRead && n.id) {
+                      onMarkAsRead(n.id);
+                    }
+                  }}
                   className={`px-3 sm:px-4 py-2.5 sm:py-3 border-b border-gray-200 dark:border-slate-800 last:border-b-0 hover:bg-gray-50 dark:hover:bg-slate-800/30 transition-all cursor-pointer ${!isRead ? 'bg-blue-50 dark:bg-slate-800/20' : ''}`}
                 >
                   <div className="flex items-start justify-between gap-2">
