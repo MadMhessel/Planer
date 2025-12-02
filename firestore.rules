@@ -85,11 +85,15 @@ service cloud.firestore {
         
         // Создание: только админы/владельцы могут добавлять участников
         // ИЛИ пользователь может создать себя при принятии приглашения
+        // ИЛИ пользователь является владельцем workspace (при создании workspace)
         allow create: if request.auth != null && 
                          (isAdminOrOwner(workspaceId) || 
                           (request.auth.uid == memberId && 
                            request.resource.data.userId == request.auth.uid &&
-                           request.resource.data.status == 'ACTIVE'));
+                           request.resource.data.status == 'ACTIVE') ||
+                          (get(/databases/$(database)/documents/workspaces/$(workspaceId)).data.ownerId == request.auth.uid &&
+                           request.resource.data.role == 'OWNER' &&
+                           request.resource.data.userId == request.auth.uid));
         
         // Обновление: только админы/владельцы могут обновлять участников
         // ИЛИ пользователь может обновить себя при принятии приглашения

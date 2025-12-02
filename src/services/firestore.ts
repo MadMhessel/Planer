@@ -36,8 +36,6 @@ export const FirestoreService = {
       plan: 'FREE'
     };
 
-    await setDoc(workspaceRef, workspace);
-
     const member: WorkspaceMember = {
       id: owner.id,
       userId: owner.id,
@@ -49,7 +47,12 @@ export const FirestoreService = {
     };
 
     const memberRef = doc(collection(workspaceRef, 'members'), owner.id);
-    await setDoc(memberRef, member);
+
+    // Используем транзакцию, чтобы гарантировать атомарность создания workspace и member
+    await runTransaction(db, async (transaction) => {
+      transaction.set(workspaceRef, workspace);
+      transaction.set(memberRef, member);
+    });
 
     return workspace;
   },
