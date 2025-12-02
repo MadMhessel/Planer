@@ -27,19 +27,23 @@ export const AuthService = {
 
         if (!snapshot.exists()) {
           // New user – create default profile
-          const newUser: User = {
+          // Firestore не принимает undefined, поэтому создаем объект без undefined полей
+          const newUser: any = {
             id: firebaseUser.uid,
             email: firebaseUser.email || '',
             displayName: firebaseUser.displayName || firebaseUser.email || '',
-            photoURL: firebaseUser.photoURL || undefined,
             role: 'MEMBER',
             isActive: true,
             createdAt: new Date().toISOString(),
             lastLoginAt: new Date().toISOString()
           };
+          // Добавляем photoURL только если оно есть
+          if (firebaseUser.photoURL) {
+            newUser.photoURL = firebaseUser.photoURL;
+          }
 
           await setDoc(userRef, newUser);
-          callback(newUser);
+          callback(newUser as User);
         } else {
           const data = snapshot.data() as User;
           // Update lastLoginAt for existing user
@@ -67,19 +71,23 @@ export const AuthService = {
     const snapshot = await getDoc(userRef);
 
     if (!snapshot.exists()) {
-      const newUser: User = {
+      // Firestore не принимает undefined, поэтому создаем объект без undefined полей
+      const newUser: any = {
         id: firebaseUser.uid,
         email: firebaseUser.email || '',
         displayName: firebaseUser.displayName || firebaseUser.email || '',
-        photoURL: firebaseUser.photoURL || undefined,
         role: 'MEMBER',
         isActive: true,
         createdAt: new Date().toISOString(),
         lastLoginAt: new Date().toISOString()
       };
+      // Добавляем photoURL только если оно есть
+      if (firebaseUser.photoURL) {
+        newUser.photoURL = firebaseUser.photoURL;
+      }
 
       await setDoc(userRef, newUser);
-      return newUser;
+      return newUser as User;
     } else {
       const data = snapshot.data() as User;
       await updateDoc(userRef, {
@@ -101,19 +109,23 @@ export const AuthService = {
     const snapshot = await getDoc(userRef);
 
     if (!snapshot.exists()) {
-      const newUser: User = {
+      // Firestore не принимает undefined, поэтому создаем объект без undefined полей
+      const newUser: any = {
         id: firebaseUser.uid,
         email: firebaseUser.email || '',
         displayName: firebaseUser.displayName || firebaseUser.email || '',
-        photoURL: firebaseUser.photoURL || undefined,
         role: 'MEMBER',
         isActive: true,
         createdAt: new Date().toISOString(),
         lastLoginAt: new Date().toISOString()
       };
+      // Добавляем photoURL только если оно есть
+      if (firebaseUser.photoURL) {
+        newUser.photoURL = firebaseUser.photoURL;
+      }
 
       await setDoc(userRef, newUser);
-      return newUser;
+      return newUser as User;
     } else {
       const data = snapshot.data() as User;
       await updateDoc(userRef, {
@@ -149,19 +161,23 @@ export const AuthService = {
       const firebaseUser = result.user;
 
     const userRef = doc(db, 'users', firebaseUser.uid);
-    const newUser: User = {
+    // Firestore не принимает undefined, поэтому создаем объект без undefined полей
+    const newUser: any = {
       id: firebaseUser.uid,
       email: firebaseUser.email || '',
       displayName: displayName || firebaseUser.email || '',
-      photoURL: firebaseUser.photoURL || undefined,
       role: 'MEMBER',
       isActive: true,
       createdAt: new Date().toISOString(),
       lastLoginAt: new Date().toISOString()
     };
+    // Добавляем photoURL только если оно есть
+    if (firebaseUser.photoURL) {
+      newUser.photoURL = firebaseUser.photoURL;
+    }
 
     await setDoc(userRef, newUser);
-    return newUser;
+    return newUser as User;
     } catch (error: any) {
       console.error('Registration error:', error);
       // Преобразуем технические ошибки в понятные сообщения
@@ -190,19 +206,23 @@ export const AuthService = {
 
       if (!snapshot.exists()) {
         // Создаем демо-пользователя
-        const demoUser: User = {
+        // Firestore не принимает undefined, поэтому создаем объект без undefined полей
+        const demoUser: any = {
           id: firebaseUser.uid,
           email: 'demo@example.com',
           displayName: 'Демо пользователь',
-          photoURL: undefined,
           role: 'MEMBER',
           isActive: true,
           createdAt: new Date().toISOString(),
           lastLoginAt: new Date().toISOString()
         };
+        // Добавляем photoURL только если оно есть (для анонимных пользователей его нет)
+        if (firebaseUser.photoURL) {
+          demoUser.photoURL = firebaseUser.photoURL;
+        }
 
         await setDoc(userRef, demoUser);
-        return demoUser;
+        return demoUser as User;
       } else {
         const data = snapshot.data() as User;
         await updateDoc(userRef, {
