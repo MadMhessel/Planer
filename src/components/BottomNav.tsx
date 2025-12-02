@@ -43,16 +43,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
             </button>
           );
         })}
-        <button
-          onClick={onCreateTask}
-          className="flex flex-col items-center gap-0.5 sm:gap-1 px-1 sm:px-1.5 md:px-2 py-1 sm:py-1.5 md:py-2 rounded-lg text-sky-600 dark:text-sky-400 min-w-0 flex-shrink-0 touch-manipulation min-h-[44px] sm:min-h-[48px] justify-center"
-          aria-label="Создать задачу"
-        >
-          <div className="w-7 h-7 sm:w-8 sm:h-8 md:w-9 md:h-9 rounded-full bg-gradient-to-r from-sky-500 to-indigo-600 flex items-center justify-center shadow-lg active:scale-95 transition-transform">
-            <span className="text-white font-bold text-xs sm:text-sm md:text-base">+</span>
-          </div>
-          <span className="text-[8px] sm:text-[9px] md:text-[10px] font-medium truncate w-full text-center leading-tight">Создать</span>
-        </button>
+        {/* Убрана кнопка "Создать" в нижней навигации, чтобы не перекрываться с AI-кнопкой */}
       </div>
     </nav>
   );
