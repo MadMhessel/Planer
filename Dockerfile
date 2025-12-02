@@ -6,7 +6,8 @@ WORKDIR /app
 COPY package*.json ./
 
 # 2. Ставим зависимости
-RUN npm ci
+# Используем --legacy-peer-deps для разрешения конфликтов между React 19 и @testing-library/react
+RUN npm ci --legacy-peer-deps
 
 # 3. Копируем остальной код
 COPY . .
