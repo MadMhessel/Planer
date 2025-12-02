@@ -145,8 +145,16 @@ export const GanttChart: React.FC<GanttChartProps> = ({ tasks, projects, onTaskC
     const diffDaysStart = Math.floor(diffTimeStart / (1000 * 60 * 60 * 24));
     
     // Вычисляем длительность в днях (включая начальный и конечный день)
-    const diffTimeDuration = end.getTime() - start.getTime();
-    const durationDays = Math.max(1, Math.ceil(diffTimeDuration / (1000 * 60 * 60 * 24)) + 1);
+    // Нормализуем обе даты до начала дня для правильного вычисления
+    const startDay = new Date(start);
+    startDay.setHours(0, 0, 0, 0);
+    const endDay = new Date(end);
+    endDay.setHours(0, 0, 0, 0);
+    
+    // Вычисляем разницу в днях между датами (без учета времени)
+    const diffDays = Math.floor((endDay.getTime() - startDay.getTime()) / (1000 * 60 * 60 * 24));
+    // Добавляем 1, чтобы включить оба дня (начальный и конечный)
+    const durationDays = Math.max(1, diffDays + 1);
     
     // Позиция и ширина в пикселях
     const left = diffDaysStart * dayWidth;
