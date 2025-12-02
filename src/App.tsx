@@ -38,6 +38,7 @@ import { useNotifications } from './hooks/useNotifications';
 import { logger } from './utils/logger';
 import { membersToUsers } from './utils/userHelpers';
 import { MAX_CHAT_HISTORY_LENGTH } from './constants/ai';
+import toast from 'react-hot-toast';
 import { SUPER_ADMINS } from './constants/superAdmins';
 
 type AppView =
