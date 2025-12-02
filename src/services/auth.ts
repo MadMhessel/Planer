@@ -222,6 +222,16 @@ export const AuthService = {
         }
 
         await setDoc(userRef, demoUser);
+        
+        // Инициализируем демо-данные для нового пользователя
+        try {
+          const { initializeDemoData } = await import('./demoData');
+          await initializeDemoData(demoUser as User);
+        } catch (demoError) {
+          // Не блокируем вход, если демо-данные не создались
+          console.warn('Не удалось создать демо-данные:', demoError);
+        }
+        
         return demoUser as User;
       } else {
         const data = snapshot.data() as User;

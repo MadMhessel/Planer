@@ -23,11 +23,11 @@ export const WorkspaceSelector: React.FC<Props> = ({
 
   if (workspaces.length === 0) {
     return (
-      <div className="mb-4 p-4 rounded-xl border border-dashed border-slate-600/50 bg-slate-900/60 backdrop-blur-sm">
+      <div className="mb-4 p-4 rounded-xl border border-dashed border-gray-300 dark:border-slate-600/50 bg-gray-50 dark:bg-slate-900/60 backdrop-blur-sm">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
-            <p className="text-sm font-semibold text-slate-100 mb-1">Нет рабочих пространств</p>
-            <p className="text-xs text-slate-400">
+            <p className="text-sm font-semibold text-gray-900 dark:text-slate-100 mb-1">Нет рабочих пространств</p>
+            <p className="text-xs text-gray-600 dark:text-slate-400">
               Создайте первое пространство, чтобы добавить задачи и проекты.
             </p>
           </div>
@@ -43,11 +43,11 @@ export const WorkspaceSelector: React.FC<Props> = ({
   }
 
   return (
-    <div className="mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-3 rounded-xl bg-slate-900/40 backdrop-blur-sm border border-slate-700/30">
+    <div className="mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-3 rounded-xl bg-gray-50 dark:bg-slate-900/40 backdrop-blur-sm border border-gray-200 dark:border-slate-700/30">
       <div className="flex items-center gap-3">
-        <span className="text-xs font-semibold text-slate-400">Рабочее пространство:</span>
+        <span className="text-xs font-semibold text-gray-700 dark:text-slate-400">Рабочее пространство:</span>
         <select
-          className="bg-slate-800/80 border border-slate-700/50 rounded-lg text-sm px-3 py-1.5 focus:ring-2 focus:ring-sky-500/50 focus:border-sky-500/50 transition-all font-medium"
+          className="bg-white dark:bg-slate-800/80 border border-gray-300 dark:border-slate-700/50 rounded-lg text-sm px-3 py-1.5 text-gray-900 dark:text-slate-100 focus:ring-2 focus:ring-sky-500/50 focus:border-sky-500/50 transition-all font-medium"
           value={currentWorkspaceId || ''}
           onChange={e => onWorkspaceChange(e.target.value)}
         >
@@ -60,7 +60,7 @@ export const WorkspaceSelector: React.FC<Props> = ({
       </div>
       <button
         onClick={handleCreate}
-        className="self-start sm:self-auto px-4 py-2 text-sm rounded-lg border border-slate-600/50 hover:bg-slate-800/80 hover:border-slate-500 transition-all font-medium"
+        className="self-start sm:self-auto px-4 py-2 text-sm rounded-lg border border-gray-300 dark:border-slate-600/50 hover:bg-gray-100 dark:hover:bg-slate-800/80 hover:border-gray-400 dark:hover:border-slate-500 transition-all font-medium text-gray-700 dark:text-slate-300"
       >
         + Новое пространство
       </button>
