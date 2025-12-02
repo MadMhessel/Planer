@@ -212,6 +212,9 @@ export const FirestoreService = {
     const memberRef = doc(db, 'workspaces', workspaceId, 'members', user.id);
 
     await runTransaction(db, async (transaction) => {
+      // ВСЕ ЧТЕНИЯ ДОЛЖНЫ БЫТЬ ВЫПОЛНЕНЫ ПЕРВЫМИ, ДО ВСЕХ ЗАПИСЕЙ
+      
+      // 1. Читаем приглашение
       const inviteSnap = await transaction.get(inviteRef);
       if (!inviteSnap.exists()) {
         throw new Error('Приглашение не найдено');
@@ -231,7 +234,18 @@ export const FirestoreService = {
         throw new Error('Это приглашение предназначено для другого пользователя');
       }
 
+      // 2. Читаем member (если существует)
       const memberSnap = await transaction.get(memberRef);
+      
+      // 3. Читаем workspace (проверяем существование)
+      const workspaceSnap = await transaction.get(workspaceRef);
+      if (!workspaceSnap.exists()) {
+        throw new Error('Рабочее пространство не найдено');
+      }
+
+      // ТЕПЕРЬ ВЫПОЛНЯЕМ ВСЕ ЗАПИСИ (после всех чтений)
+      
+      // 4. Создаем или обновляем member
       if (!memberSnap.exists()) {
         const newMember: WorkspaceMember = {
           id: user.id,
@@ -251,15 +265,11 @@ export const FirestoreService = {
         } as any);
       }
 
+      // 5. Обновляем статус приглашения
       transaction.update(inviteRef, {
         status: 'ACCEPTED',
         acceptedAt: serverTimestamp()
       } as any);
-
-      const workspaceSnap = await transaction.get(workspaceRef);
-      if (!workspaceSnap.exists()) {
-        throw new Error('Рабочее пространство не найдено');
-      }
     });
   },
 
