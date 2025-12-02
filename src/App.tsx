@@ -63,6 +63,7 @@ const App: React.FC = () => {
   const [inviteContext, setInviteContext] = useState<InviteContext | null>(null);
   const [isProcessingCommand, setIsProcessingCommand] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [chatHistory, setChatHistory] = useState<Array<{ role: 'user' | 'assistant'; content: string }>>([]);
   const [theme, setTheme] = useState<ThemeMode>(() => {
     if (typeof window === 'undefined') return 'system';
     try {
@@ -297,21 +298,33 @@ const App: React.FC = () => {
     }
   }, [deleteProject]);
 
-  const handleCommand = async (command: string) => {
-    if (!currentWorkspaceId || !currentUser) return;
+  const handleCommand = async (command: string): Promise<string | null> => {
+    if (!currentWorkspaceId || !currentUser) return null;
 
     setIsProcessingCommand(true);
     try {
       const projectNames = projects.map(p => p.name);
       const userNames = members.map(m => m.email);
 
-      const suggestions = await GeminiService.suggestTasksFromCommand(command, {
+      // Получаем ответ от AI с историей
+      const response = await GeminiService.suggestTasksFromCommand(command, {
         projectNames,
         userNames
+      }, chatHistory);
+
+      // Обновляем историю чата
+      setChatHistory(prev => {
+        const newHistory = [
+          ...prev,
+          { role: 'user' as const, content: command },
+          { role: 'assistant' as const, content: response.textResponse }
+        ];
+        // Оставляем только последние 10 сообщений для контекста
+        return newHistory.slice(-10);
       });
 
       // Преобразуем projectName и assigneeName в ID
-      const processedSuggestions = suggestions.map(suggestion => {
+      const processedSuggestions = response.tasks.map(suggestion => {
         const processed: Partial<Task> = { ...suggestion };
         
         // Преобразуем projectName в projectId
@@ -335,74 +348,44 @@ const App: React.FC = () => {
         return processed;
       });
 
-      if (processedSuggestions.length === 0) {
-        setNotifications(prev => [
-          {
-            id: Date.now().toString(),
-            type: 'SYSTEM',
-            title: 'AI не вернул задачи',
-            message: 'Попробуйте переформулировать запрос или добавить больше деталей.',
-            createdAt: new Date().toISOString(),
-            read: false
-          },
-          ...prev
-        ]);
-        return;
-      }
-
-      let createdCount = 0;
-      for (const suggestion of processedSuggestions) {
-        try {
-          await addTask(suggestion);
-          createdCount++;
-        } catch (error) {
-          logger.error('Failed to create task from AI suggestion', error instanceof Error ? error : undefined);
-        }
-      }
-
-      setNotifications(prev => [
-        {
-          id: Date.now().toString(),
-          type: 'SYSTEM',
-          title: 'Команда обработана',
-          message: `Создано задач: ${createdCount}`,
-          createdAt: new Date().toISOString(),
-          read: false
-        },
-        ...prev
-      ]);
-
-      // Отправляем уведомление только если есть получатели
-      const allRecipients: string[] = [];
-      processedSuggestions.forEach(s => {
-        if (s.assigneeId) {
-          const member = members.find(m => m.userId === s.assigneeId);
-          if (member?.telegramChatId) {
-            allRecipients.push(member.telegramChatId);
+      // Создаем задачи, если они есть
+      if (processedSuggestions.length > 0) {
+        let createdCount = 0;
+        for (const suggestion of processedSuggestions) {
+          try {
+            await addTask(suggestion);
+            createdCount++;
+          } catch (error) {
+            logger.error('Failed to create task from AI suggestion', error instanceof Error ? error : undefined);
           }
         }
-      });
-      
-      if (allRecipients.length > 0 && createdCount > 0) {
-        const uniqueRecipients = [...new Set(allRecipients)];
-        await TelegramService.sendNotification(
-          uniqueRecipients, 
-          `🤖 <b>AI создал задачи</b>\n\nСоздано задач из команды: <b>${createdCount}</b>`
-        );
+
+        // Отправляем уведомление только если есть получатели
+        const allRecipients: string[] = [];
+        processedSuggestions.forEach(s => {
+          if (s.assigneeId) {
+            const member = members.find(m => m.userId === s.assigneeId);
+            if (member?.telegramChatId) {
+              allRecipients.push(member.telegramChatId);
+            }
+          }
+        });
+        
+        if (allRecipients.length > 0 && createdCount > 0) {
+          const uniqueRecipients = [...new Set(allRecipients)];
+          await TelegramService.sendNotification(
+            uniqueRecipients, 
+            `🤖 <b>AI создал задачи</b>\n\nСоздано задач из команды: <b>${createdCount}</b>`
+          );
+        }
       }
+
+      // Возвращаем текстовый ответ для отображения в чате
+      return response.textResponse;
     } catch (error) {
       logger.error('Error processing AI command', error instanceof Error ? error : undefined);
-      setNotifications(prev => [
-        {
-          id: Date.now().toString(),
-          type: 'SYSTEM',
-          title: 'Ошибка обработки команды',
-          message: error instanceof Error ? error.message : 'Не удалось обработать команду',
-          createdAt: new Date().toISOString(),
-          read: false
-        },
-        ...prev
-      ]);
+      const errorMessage = error instanceof Error ? error.message : 'Не удалось обработать команду';
+      return `Ошибка: ${errorMessage}`;
     } finally {
       setIsProcessingCommand(false);
     }
@@ -713,6 +696,7 @@ const App: React.FC = () => {
           <AICommandBar
             onCommand={handleCommand}
             isProcessing={isProcessingCommand}
+            chatHistory={chatHistory}
           />
         </>
       )}

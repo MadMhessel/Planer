@@ -172,7 +172,7 @@ app.post('/api/ai/generate', async (req, res) => {
   }
 
   try {
-    const { command, context } = req.body;
+    const { command, context, chatHistory = [] } = req.body;
     
     if (!command) {
       return res.status(400).json({ error: 'Command is required' });
@@ -191,9 +191,11 @@ app.post('/api/ai/generate', async (req, res) => {
       Доступные проекты: ${projectContext}.
       Доступные пользователи: ${userContext}.
       
-      Твоя цель: интерпретировать команду пользователя на естественном языке (русском или английском) и вывести структурированный JSON-массив объектов, представляющих задачи.
+      Твоя цель: интерпретировать команду пользователя на естественном языке (русском или английском) и:
+      1. Вывести структурированный JSON-массив объектов, представляющих задачи
+      2. Дать понятный текстовый ответ пользователю о том, что было сделано
       
-      Каждый объект должен содержать поля:
+      Каждый объект задачи должен содержать поля:
       - "title": краткое название задачи
       - "description": подробное описание
       - "projectName": название проекта (если логично привязать к одному из доступных проектов)
@@ -202,29 +204,79 @@ app.post('/api/ai/generate', async (req, res) => {
       - "priority": одна из: LOW, NORMAL, HIGH, CRITICAL
       
       Правила:
-      - Формат строго JSON-массив объектов без пояснений, комментариев и текста вокруг.
+      - Формат ответа: JSON объект с двумя полями: "tasks" (массив задач) и "textResponse" (текстовый ответ пользователю)
       - Если проект не указан, оставьте "projectName" пустым.
       - Если исполнитель не указан, оставьте "assigneeName" пустым.
       - Если дата относительная (например, "в следующую пятницу"), вычислите ISO дату YYYY-MM-DD.
-      - Верните ТОЛЬКО JSON массив, соответствующий схеме.
+      - textResponse должен быть понятным и дружелюбным ответом на русском языке
+      - Учитывай контекст предыдущих сообщений из истории чата
     `;
+
+    // Формируем промпт с историей чата
+    let historyContext = '';
+    if (chatHistory && chatHistory.length > 0) {
+      const recentHistory = chatHistory.slice(-6); // Последние 6 сообщений для контекста
+      historyContext = '\n\nИстория предыдущих сообщений:\n' + 
+        recentHistory.map(msg => `${msg.role === 'user' ? 'Пользователь' : 'Ассистент'}: ${msg.content}`).join('\n');
+    }
 
     const prompt = `
       ${systemInstruction}
+      ${historyContext}
       
       КОМАНДА ПОЛЬЗОВАТЕЛЯ: "${command}"
+      
+      ВАЖНО: Верни JSON объект в формате:
+      {
+        "tasks": [массив задач],
+        "textResponse": "понятный текстовый ответ пользователю"
+      }
     `;
 
     const result = await model.generateContent(prompt);
     const response = await result.response;
     const text = response.text();
-    const parsed = parseGeminiResponse(text);
+    
+    // Пытаемся извлечь JSON из ответа
+    let parsed;
+    try {
+      // Ищем JSON в ответе
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        parsed = JSON.parse(jsonMatch[0]);
+      } else {
+        // Если не нашли JSON, пытаемся парсить весь текст
+        parsed = parseGeminiResponse(text);
+        if (parsed) {
+          // Если это массив задач, оборачиваем в новый формат
+          parsed = {
+            tasks: Array.isArray(parsed) ? parsed : [parsed],
+            textResponse: `Обработано задач: ${Array.isArray(parsed) ? parsed.length : 1}`
+          };
+        }
+      }
+    } catch (e) {
+      // Если не удалось распарсить как JSON, пытаемся старый способ
+      parsed = parseGeminiResponse(text);
+      if (parsed) {
+        parsed = {
+          tasks: Array.isArray(parsed) ? parsed : [parsed],
+          textResponse: `Создано задач: ${Array.isArray(parsed) ? parsed.length : 1}`
+        };
+      }
+    }
 
-    if (!parsed) {
+    if (!parsed || !parsed.tasks) {
       console.error('Gemini returned unparseable payload:', text);
       return res.status(422).json({
-        error: 'Gemini не смог сформировать задачи. Попробуйте переформулировать запрос.'
+        error: 'Gemini не смог сформировать задачи. Попробуйте переформулировать запрос.',
+        textResponse: 'Извините, не удалось обработать ваш запрос. Попробуйте переформулировать его.'
       });
+    }
+    
+    // Убеждаемся, что есть текстовый ответ
+    if (!parsed.textResponse) {
+      parsed.textResponse = `Обработано задач: ${Array.isArray(parsed.tasks) ? parsed.tasks.length : 1}`;
     }
     
     res.json(parsed);
