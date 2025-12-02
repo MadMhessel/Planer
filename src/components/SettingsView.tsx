@@ -1,23 +1,32 @@
 import React, { useMemo, useState } from 'react';
-import { Workspace, WorkspaceInvite, WorkspaceMember, User, UserRole } from '../types';
+import { Workspace, WorkspaceInvite, WorkspaceMember, User, UserRole, Project } from '../types';
 import { FirestoreService } from '../services/firestore';
 import { SUPER_ADMINS } from '../constants/superAdmins';
+import { Plus, Edit2, Trash2, Folder } from 'lucide-react';
 
 type Props = {
   workspace: Workspace;
   members: WorkspaceMember[];
   invites: WorkspaceInvite[];
+  projects: Project[];
   currentUser: User;
+  onCreateProject: (project: Partial<Project>) => Promise<Project>;
+  onUpdateProject: (projectId: string, updates: Partial<Project>) => Promise<void>;
+  onDeleteProject: (projectId: string) => Promise<void>;
   onNotification?: (title: string, message: string, type?: 'TASK_ASSIGNED' | 'TASK_UPDATED' | 'PROJECT_UPDATED' | 'SYSTEM') => void;
 };
 
-type Tab = 'members' | 'invites' | 'notifications';
+type Tab = 'members' | 'invites' | 'projects';
 
 export const SettingsView: React.FC<Props> = ({
   workspace,
   members,
   invites,
+  projects,
   currentUser,
+  onCreateProject,
+  onUpdateProject,
+  onDeleteProject,
   onNotification
 }) => {
   const [activeTab, setActiveTab] = useState<Tab>('members');
@@ -26,6 +35,13 @@ export const SettingsView: React.FC<Props> = ({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  
+  // Project form state
+  const [projectName, setProjectName] = useState('');
+  const [projectDescription, setProjectDescription] = useState('');
+  const [projectColor, setProjectColor] = useState('#3b82f6');
+  const [editingProject, setEditingProject] = useState<Project | null>(null);
+  const [projectLoading, setProjectLoading] = useState(false);
 
   const currentMember = useMemo(
     () => members.find(m => m.userId === currentUser.id) || null,
@@ -177,6 +193,122 @@ export const SettingsView: React.FC<Props> = ({
 
   const pendingInvites = invites.filter(i => i.status === 'PENDING');
 
+  const handleCreateProject = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!projectName.trim()) return;
+    if (!canManage) return;
+
+    setProjectLoading(true);
+    setError(null);
+    setMessage(null);
+
+    try {
+      const newProject = await onCreateProject({
+        name: projectName.trim(),
+        description: projectDescription.trim() || undefined,
+        color: projectColor,
+        workspaceId: workspace.id,
+        status: 'ACTIVE'
+      });
+
+      setProjectName('');
+      setProjectDescription('');
+      setProjectColor('#3b82f6');
+      setMessage(`Проект "${newProject.name}" успешно создан`);
+
+      if (onNotification) {
+        onNotification(
+          'Проект создан',
+          `Проект "${newProject.name}" был успешно создан`,
+          'PROJECT_UPDATED'
+        );
+      }
+    } catch (e: any) {
+      setError(e?.message || 'Не удалось создать проект');
+    } finally {
+      setProjectLoading(false);
+    }
+  };
+
+  const handleEditProject = (project: Project) => {
+    setEditingProject(project);
+    setProjectName(project.name);
+    setProjectDescription(project.description || '');
+    setProjectColor(project.color || '#3b82f6');
+  };
+
+  const handleUpdateProject = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingProject || !projectName.trim()) return;
+    if (!canManage) return;
+
+    setProjectLoading(true);
+    setError(null);
+    setMessage(null);
+
+    try {
+      await onUpdateProject(editingProject.id, {
+        name: projectName.trim(),
+        description: projectDescription.trim() || undefined,
+        color: projectColor
+      });
+
+      setEditingProject(null);
+      setProjectName('');
+      setProjectDescription('');
+      setProjectColor('#3b82f6');
+      setMessage('Проект успешно обновлён');
+
+      if (onNotification) {
+        onNotification(
+          'Проект обновлён',
+          `Проект "${projectName.trim()}" был успешно обновлён`,
+          'PROJECT_UPDATED'
+        );
+      }
+    } catch (e: any) {
+      setError(e?.message || 'Не удалось обновить проект');
+    } finally {
+      setProjectLoading(false);
+    }
+  };
+
+  const handleDeleteProject = async (project: Project) => {
+    if (!canManage) return;
+    if (!window.confirm(`Удалить проект "${project.name}"? Все задачи в этом проекте останутся без проекта.`)) return;
+
+    setError(null);
+    setMessage(null);
+
+    try {
+      await onDeleteProject(project.id);
+      setMessage(`Проект "${project.name}" удалён`);
+
+      if (onNotification) {
+        onNotification(
+          'Проект удалён',
+          `Проект "${project.name}" был удалён`,
+          'PROJECT_UPDATED'
+        );
+      }
+    } catch (e: any) {
+      setError(e?.message || 'Не удалось удалить проект');
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setEditingProject(null);
+    setProjectName('');
+    setProjectDescription('');
+    setProjectColor('#3b82f6');
+  };
+
+  const sortedProjects = [...projects].sort((a, b) => {
+    if (a.status === 'ACTIVE' && b.status !== 'ACTIVE') return -1;
+    if (a.status !== 'ACTIVE' && b.status === 'ACTIVE') return 1;
+    return a.name.localeCompare(b.name);
+  });
+
   return (
     <div className="space-y-5">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 rounded-xl bg-gray-50 dark:bg-slate-900/40 backdrop-blur-sm border border-gray-200 dark:border-slate-700/30">
@@ -216,6 +348,17 @@ export const SettingsView: React.FC<Props> = ({
           }
         >
           Приглашения ({pendingInvites.length})
+        </button>
+        <button
+          onClick={() => setActiveTab('projects')}
+          className={
+            'px-4 py-2 rounded-lg font-semibold transition-all ' +
+            (activeTab === 'projects'
+              ? 'bg-gradient-to-r from-sky-500 to-indigo-600 text-white shadow-lg shadow-sky-500/30'
+              : 'text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-800/50')
+          }
+        >
+          Проекты ({projects.length})
         </button>
       </div>
 
@@ -410,6 +553,185 @@ export const SettingsView: React.FC<Props> = ({
           {!canManage && (
             <p className="text-[11px] text-gray-600 dark:text-slate-500">
               Только владелец или администратор могут создавать и отзывать приглашения.
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* Вкладка проекты */}
+      {activeTab === 'projects' && (
+        <div className="space-y-3">
+          {/* Форма создания/редактирования проекта */}
+          {canManage && (
+            <form
+              onSubmit={editingProject ? handleUpdateProject : handleCreateProject}
+              className="p-4 rounded-xl bg-white dark:bg-slate-900/40 backdrop-blur-sm border border-gray-200 dark:border-slate-700/50 shadow-lg space-y-3"
+            >
+              <div className="flex items-center gap-2 mb-3">
+                <Folder className="w-5 h-5 text-sky-500" />
+                <h3 className="text-sm font-bold text-gray-900 dark:text-slate-100">
+                  {editingProject ? 'Редактировать проект' : 'Создать новый проект'}
+                </h3>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="sm:col-span-2">
+                  <label className="block mb-1 text-xs text-gray-700 dark:text-slate-300">
+                    Название проекта *
+                  </label>
+                  <input
+                    type="text"
+                    value={projectName}
+                    onChange={e => setProjectName(e.target.value)}
+                    placeholder="Название проекта"
+                    className="w-full px-3 py-2 rounded-lg bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-sm text-gray-900 dark:text-slate-100 focus:ring-2 focus:ring-sky-500"
+                    disabled={projectLoading}
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block mb-1 text-xs text-gray-700 dark:text-slate-300">
+                    Цвет
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="color"
+                      value={projectColor}
+                      onChange={e => setProjectColor(e.target.value)}
+                      className="w-full h-10 rounded-lg border border-gray-300 dark:border-slate-600 cursor-pointer"
+                      disabled={projectLoading}
+                    />
+                    <input
+                      type="text"
+                      value={projectColor}
+                      onChange={e => setProjectColor(e.target.value)}
+                      className="w-20 px-2 py-2 rounded-lg bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-xs text-gray-900 dark:text-slate-100"
+                      disabled={projectLoading}
+                      pattern="^#[0-9A-Fa-f]{6}$"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label className="block mb-1 text-xs text-gray-700 dark:text-slate-300">
+                  Описание
+                </label>
+                <textarea
+                  value={projectDescription}
+                  onChange={e => setProjectDescription(e.target.value)}
+                  placeholder="Описание проекта (необязательно)"
+                  rows={3}
+                  className="w-full px-3 py-2 rounded-lg bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 text-sm text-gray-900 dark:text-slate-100 focus:ring-2 focus:ring-sky-500 resize-none"
+                  disabled={projectLoading}
+                />
+              </div>
+
+              <div className="flex gap-2">
+                <button
+                  type="submit"
+                  disabled={projectLoading || !projectName.trim()}
+                  className="flex items-center gap-2 px-4 py-2 rounded-lg bg-sky-500 text-white font-medium hover:bg-sky-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  <Plus className="w-4 h-4" />
+                  {projectLoading ? 'Сохранение...' : editingProject ? 'Сохранить изменения' : 'Создать проект'}
+                </button>
+                {editingProject && (
+                  <button
+                    type="button"
+                    onClick={handleCancelEdit}
+                    disabled={projectLoading}
+                    className="px-4 py-2 rounded-lg border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 font-medium hover:bg-gray-100 dark:hover:bg-slate-800 disabled:opacity-50 transition-colors"
+                  >
+                    Отмена
+                  </button>
+                )}
+              </div>
+            </form>
+          )}
+
+          {/* Список проектов */}
+          <div className="border border-gray-200 dark:border-slate-700/50 rounded-xl overflow-hidden bg-white dark:bg-slate-900/40 backdrop-blur-sm shadow-lg">
+            <table className="w-full text-xs">
+              <thead className="bg-gradient-to-r from-gray-100 to-gray-200 dark:from-slate-800/80 dark:to-slate-900/80">
+                <tr>
+                  <th className="px-4 py-3 text-left text-gray-900 dark:text-slate-300 font-semibold">Проект</th>
+                  <th className="px-4 py-3 text-left text-gray-900 dark:text-slate-300 font-semibold">Описание</th>
+                  <th className="px-4 py-3 text-left text-gray-900 dark:text-slate-300 font-semibold">Статус</th>
+                  <th className="px-4 py-3 text-right text-gray-900 dark:text-slate-300 font-semibold">Действия</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white dark:bg-slate-900/60">
+                {sortedProjects.map(project => (
+                  <tr key={project.id} className="border-t border-gray-200 dark:border-slate-800/50 hover:bg-gray-50 dark:hover:bg-slate-800/40 transition-colors">
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <div
+                          className="w-4 h-4 rounded"
+                          style={{ backgroundColor: project.color || '#3b82f6' }}
+                        />
+                        <span className="font-medium text-gray-900 dark:text-slate-100">
+                          {project.name}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-gray-600 dark:text-slate-400">
+                      {project.description || <span className="text-gray-400 dark:text-slate-600">—</span>}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className={`px-2 py-1 rounded text-[11px] font-medium ${
+                        project.status === 'ACTIVE'
+                          ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-700/50'
+                          : project.status === 'ARCHIVED'
+                          ? 'bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-slate-400'
+                          : 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border border-amber-300 dark:border-amber-700/50'
+                      }`}>
+                        {project.status === 'ACTIVE' ? 'Активен' : project.status === 'ARCHIVED' ? 'Архивирован' : 'Запланирован'}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        {canManage && (
+                          <>
+                            <button
+                              onClick={() => handleEditProject(project)}
+                              className="p-1.5 rounded-lg border border-gray-300 dark:border-slate-600 text-gray-600 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-800 hover:border-gray-400 dark:hover:border-slate-500 transition-all"
+                              title="Редактировать"
+                            >
+                              <Edit2 className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteProject(project)}
+                              className="p-1.5 rounded-lg border border-red-400 dark:border-red-500/60 text-red-600 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/40 hover:border-red-500 dark:hover:border-red-500/80 transition-all"
+                              title="Удалить"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+
+                {sortedProjects.length === 0 && (
+                  <tr>
+                    <td colSpan={4} className="px-4 py-8 text-center text-gray-600 dark:text-slate-400">
+                      <Folder className="w-8 h-8 mx-auto mb-2 text-gray-400 dark:text-slate-600" />
+                      <p className="text-sm">Проектов пока нет</p>
+                      {canManage && (
+                        <p className="text-xs mt-1">Создайте первый проект выше</p>
+                      )}
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {!canManage && (
+            <p className="text-[11px] text-gray-600 dark:text-slate-500">
+              Только владелец или администратор могут создавать и редактировать проекты.
             </p>
           )}
         </div>

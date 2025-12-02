@@ -282,10 +282,11 @@ const App: React.FC = () => {
     }
   }, [deleteTask]);
 
-  const handleAddProject = useCallback(async (partial: Partial<Project>) => {
+  const handleAddProject = useCallback(async (partial: Partial<Project>): Promise<Project> => {
     try {
-      await addProject(partial);
+      const project = await addProject(partial);
       toast.success('Проект успешно создан');
+      return project;
     } catch (error) {
       logger.error('Failed to add project', error instanceof Error ? error : undefined);
       const errorMessage = error instanceof Error ? error.message : 'Не удалось создать проект';
@@ -298,6 +299,7 @@ const App: React.FC = () => {
         createdAt: new Date().toISOString(),
         read: false
       }, ...prev]);
+      throw error;
     }
   }, [addProject]);
 
@@ -636,7 +638,11 @@ const App: React.FC = () => {
               workspace={currentWorkspace}
               members={members}
               invites={invites}
+              projects={projects}
               currentUser={currentUser}
+              onCreateProject={handleAddProject}
+              onUpdateProject={handleUpdateProject}
+              onDeleteProject={handleDeleteProject}
               onNotification={(title, message, type = 'SYSTEM') => {
                 setNotifications(prev => [
                   {
