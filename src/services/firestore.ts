@@ -311,11 +311,21 @@ export const FirestoreService = {
   },
 
   async createTask(task: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>): Promise<Task> {
-    const docRef = await addDoc(collection(db, 'tasks'), {
-      ...task,
+    // Фильтруем undefined значения, так как Firestore их не принимает
+    const taskData: any = {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
+    };
+    
+    // Копируем только определенные поля
+    Object.keys(task).forEach(key => {
+      const value = (task as any)[key];
+      if (value !== undefined) {
+        taskData[key] = value;
+      }
     });
+
+    const docRef = await addDoc(collection(db, 'tasks'), taskData);
 
     const docSnap = await getDoc(docRef);
     return {
