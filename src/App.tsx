@@ -414,10 +414,13 @@ const App: React.FC = () => {
       const [email, password] = args;
       await AuthService.loginWithEmail(email, password);
     } else {
-      // Проверяем, это Google или регистрация через email
+      // Проверяем, это Google, демо-режим или регистрация через email
       if (args.length === 0) {
         // Google аутентификация
         await AuthService.loginWithGoogle();
+      } else if (args[0] === 'demo') {
+        // Демо-режим
+        await AuthService.loginAsDemo();
       } else {
         // Регистрация через email/password
         const [email, password, displayName] = args;

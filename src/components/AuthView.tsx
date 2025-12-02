@@ -16,6 +16,20 @@ export const AuthView: React.FC<AuthViewProps> = ({ onAuth }) => {
     onAuth(false);
   };
 
+  const handleDemoLogin = async () => {
+    setError(null);
+    setIsLoading(true);
+    try {
+      // Используем специальный флаг для демо-режима
+      await onAuth(false, 'demo');
+    } catch (err: any) {
+      setError(err.message || 'Ошибка при входе в демо-режим');
+      console.error('Ошибка демо-входа:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleEmailAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -58,6 +72,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onAuth }) => {
                 type="text"
                 value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}
+                autoComplete="name"
                 className="w-full px-3 py-2 bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
                 placeholder="Ваше имя"
               />
@@ -68,29 +83,31 @@ export const AuthView: React.FC<AuthViewProps> = ({ onAuth }) => {
             <label className="block text-sm text-gray-700 dark:text-slate-300 mb-1">
               Email
             </label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              className="w-full px-3 py-2 bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
-              placeholder="your@email.com"
-            />
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                autoComplete={isLogin ? "email" : "username"}
+                className="w-full px-3 py-2 bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                placeholder="your@email.com"
+              />
           </div>
 
           <div>
             <label className="block text-sm text-gray-700 dark:text-slate-300 mb-1">
               Пароль
             </label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              minLength={6}
-              className="w-full px-3 py-2 bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
-              placeholder="••••••"
-            />
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                minLength={6}
+                autoComplete={isLogin ? "current-password" : "new-password"}
+                className="w-full px-3 py-2 bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                placeholder="••••••"
+              />
           </div>
 
           {error && (
@@ -129,10 +146,23 @@ export const AuthView: React.FC<AuthViewProps> = ({ onAuth }) => {
           <div className="flex-1 border-t border-gray-200 dark:border-slate-700"></div>
         </div>
 
+        {/* Кнопка Демо режим */}
+        <button
+          onClick={handleDemoLogin}
+          disabled={isLoading}
+          className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium py-2 rounded-lg transition shadow-md hover:shadow-lg"
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+          </svg>
+          <span>Демо режим</span>
+        </button>
+
         {/* Кнопка Google */}
         <button
           onClick={handleGoogleLogin}
-          className="w-full flex items-center justify-center gap-2 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 border border-gray-300 dark:border-slate-600 text-gray-900 dark:text-slate-100 font-medium py-2 rounded-lg transition"
+          disabled={isLoading}
+          className="w-full flex items-center justify-center gap-2 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 border border-gray-300 dark:border-slate-600 text-gray-900 dark:text-slate-100 font-medium py-2 rounded-lg transition mt-2"
         >
           <svg className="w-5 h-5" viewBox="0 0 24 24">
             <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
@@ -143,10 +173,15 @@ export const AuthView: React.FC<AuthViewProps> = ({ onAuth }) => {
           <span>Войти через Google</span>
         </button>
 
-        <p className="mt-4 text-[11px] text-gray-500 dark:text-slate-500 text-center">
-          Авторизация нужна только для привязки задач к вашему аккаунту
-          и совместной работы в рабочих пространствах.
-        </p>
+        <div className="mt-4 space-y-2">
+          <p className="text-[11px] text-gray-500 dark:text-slate-500 text-center">
+            Авторизация нужна только для привязки задач к вашему аккаунту
+            и совместной работы в рабочих пространствах.
+          </p>
+          <p className="text-[10px] text-gray-400 dark:text-slate-600 text-center">
+            💡 Демо режим позволяет протестировать приложение без регистрации
+          </p>
+        </div>
       </div>
     </div>
   );
