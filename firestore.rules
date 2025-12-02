@@ -2,6 +2,7 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
+    // Вспомогательные функции
     function isMember(workspaceId) {
       // Проверяем, что workspaceId не null и пользователь является членом
       return workspaceId != null && 
@@ -13,19 +14,45 @@ service cloud.firestore {
       return memberData.role == 'ADMIN' || memberData.role == 'OWNER';
     }
 
+    function isActiveMember(workspaceId) {
+      let memberData = get(/databases/$(database)/documents/workspaces/$(workspaceId)/members/$(request.auth.uid)).data;
+      return memberData.status == 'ACTIVE';
+    }
+
+    // ============================================
     // User Profiles
+    // ============================================
     match /users/{userId} {
+      // Чтение: любой авторизованный пользователь может читать профили
       allow read: if request.auth != null;
-      allow write: if request.auth != null && request.auth.uid == userId;
       
+      // Создание: пользователь может создать свой профиль при регистрации
+      allow create: if request.auth != null && 
+                       request.auth.uid == userId &&
+                       request.resource.data.id == userId &&
+                       request.resource.data.email == request.auth.token.email;
+      
+      // Обновление: только сам пользователь может обновлять свой профиль
+      allow update: if request.auth != null && 
+                       request.auth.uid == userId &&
+                       // Запрещаем изменение id и email
+                       resource.data.id == request.resource.data.id &&
+                       resource.data.email == request.resource.data.email;
+      
+      // Удаление: только сам пользователь (опционально, если нужно)
+      allow delete: if request.auth != null && request.auth.uid == userId;
+      
+      // Подколлекция уведомлений в users (для обратной совместимости, если используется)
       match /notifications/{notificationId} {
         allow read, write: if request.auth != null && request.auth.uid == userId;
       }
     }
 
+    // ============================================
     // Workspaces
+    // ============================================
     match /workspaces/{workspaceId} {
-      // Basic workspace read if member or listed in legacy allowedEmails
+      // Чтение: владелец, члены или в списке allowedEmails (legacy)
       allow read: if request.auth != null && 
         (
           resource.data.ownerId == request.auth.uid || 
@@ -33,42 +60,106 @@ service cloud.firestore {
           exists(/databases/$(database)/documents/workspaces/$(workspaceId)/members/$(request.auth.uid))
         );
       
-      allow create: if request.auth != null;
-      allow update: if request.auth != null && (resource.data.ownerId == request.auth.uid || isAdminOrOwner(workspaceId));
-
-      // Members Subcollection
-      match /members/{memberId} {
-        allow read: if request.auth != null && isMember(workspaceId);
-        // Only admins/owners can add/remove/update members
-        allow write: if request.auth != null && isAdminOrOwner(workspaceId); 
-      }
-
-      // Invites Subcollection
-      match /invites/{token} {
-        // Invite link viewer can read the specific token doc to validate it
-        allow list: if request.auth != null && isAdminOrOwner(workspaceId);
-        allow get: if request.auth != null; 
-        
-        allow create: if request.auth != null && isAdminOrOwner(workspaceId);
-        // Revoke (update)
-        allow update: if request.auth != null && (isAdminOrOwner(workspaceId) || request.resource.data.status == 'accepted');
-      }
-
-      // Tasks & Projects (subcollections)
-      match /tasks/{taskId} {
-        allow read, write: if request.auth != null && isMember(workspaceId);
-      }
+      // Создание: любой авторизованный пользователь может создать workspace
+      allow create: if request.auth != null &&
+                       request.resource.data.ownerId == request.auth.uid;
       
-      match /projects/{projectId} {
-        allow read, write: if request.auth != null && isMember(workspaceId);
+      // Обновление: только владелец или админ
+      allow update: if request.auth != null && 
+                       (resource.data.ownerId == request.auth.uid || isAdminOrOwner(workspaceId));
+      
+      // Удаление: только владелец (опционально, если нужно)
+      allow delete: if request.auth != null && 
+                       resource.data.ownerId == request.auth.uid;
+
+      // ============================================
+      // Members Subcollection
+      // ============================================
+      match /members/{memberId} {
+        // Чтение: члены workspace могут видеть список участников
+        allow read: if request.auth != null && isMember(workspaceId);
+        
+        // Создание: только админы/владельцы могут добавлять участников
+        // ИЛИ пользователь может создать себя при принятии приглашения
+        allow create: if request.auth != null && 
+                         (isAdminOrOwner(workspaceId) || 
+                          (request.auth.uid == memberId && 
+                           request.resource.data.userId == request.auth.uid &&
+                           request.resource.data.status == 'ACTIVE'));
+        
+        // Обновление: только админы/владельцы могут обновлять участников
+        // ИЛИ пользователь может обновить себя при принятии приглашения
+        allow update: if request.auth != null && 
+                         (isAdminOrOwner(workspaceId) || 
+                          (request.auth.uid == memberId && 
+                           request.resource.data.status == 'ACTIVE' &&
+                           resource.data.status != 'ACTIVE'));
+        
+        // Удаление: только админы/владельцы могут удалять участников
+        allow delete: if request.auth != null && isAdminOrOwner(workspaceId);
       }
 
-      // Notifications Subcollection
-      match /notifications/{notificationId} {
+      // ============================================
+      // Invites Subcollection
+      // ============================================
+      match /invites/{token} {
+        // List: только админы/владельцы могут видеть список приглашений
+        allow list: if request.auth != null && isAdminOrOwner(workspaceId);
+        
+        // Get: любой авторизованный может получить конкретное приглашение по token
+        // (для проверки при принятии приглашения)
+        allow get: if request.auth != null;
+        
+        // Создание: только админы/владельцы могут создавать приглашения
+        allow create: if request.auth != null && isAdminOrOwner(workspaceId);
+        
+        // Обновление: админы/владельцы могут обновлять (отзывать)
+        // ИЛИ пользователь может обновить статус на ACCEPTED при принятии
+        allow update: if request.auth != null && 
+                         (isAdminOrOwner(workspaceId) || 
+                          (resource.data.status == 'PENDING' &&
+                           request.resource.data.status == 'ACCEPTED' &&
+                           resource.data.email == request.auth.token.email));
+        
+        // Удаление: только админы/владельцы
+        allow delete: if request.auth != null && isAdminOrOwner(workspaceId);
+      }
+
+      // ============================================
+      // Tasks Subcollection (если используется)
+      // ============================================
+      match /tasks/{taskId} {
         allow read: if request.auth != null && isMember(workspaceId);
         allow create: if request.auth != null && isMember(workspaceId);
         allow update: if request.auth != null && isMember(workspaceId);
-        // Пользователи могут удалять уведомления, которые им видны
+        allow delete: if request.auth != null && isMember(workspaceId);
+      }
+      
+      // ============================================
+      // Projects Subcollection (если используется)
+      // ============================================
+      match /projects/{projectId} {
+        allow read: if request.auth != null && isMember(workspaceId);
+        allow create: if request.auth != null && isMember(workspaceId);
+        allow update: if request.auth != null && isMember(workspaceId);
+        allow delete: if request.auth != null && isMember(workspaceId);
+      }
+
+      // ============================================
+      // Notifications Subcollection
+      // ============================================
+      match /notifications/{notificationId} {
+        // Чтение: члены workspace могут читать уведомления
+        // Фильтрация по recipients происходит на клиенте
+        allow read: if request.auth != null && isMember(workspaceId);
+        
+        // Создание: члены workspace могут создавать уведомления
+        allow create: if request.auth != null && isMember(workspaceId);
+        
+        // Обновление: члены workspace могут обновлять уведомления (помечать как прочитанные)
+        allow update: if request.auth != null && isMember(workspaceId);
+        
+        // Удаление: пользователи могут удалять уведомления, которые им видны
         // (нет recipients или пользователь в recipients)
         allow delete: if request.auth != null && isMember(workspaceId) &&
           (!resource.data.keys().hasAny(['recipients']) || 
@@ -77,51 +168,93 @@ service cloud.firestore {
       }
     }
     
-    // Global Projects Collection (for backward compatibility and easier queries)
-    match /projects/{projectId} {
-      allow read: if request.auth != null && 
-        resource.data.workspaceId != null &&
-        isMember(resource.data.workspaceId);
-      allow create: if request.auth != null && 
-        request.resource.data.workspaceId != null &&
-        request.resource.data.ownerId != null &&
-        request.resource.data.name != null &&
-        request.resource.data.ownerId == request.auth.uid &&
-        isMember(request.resource.data.workspaceId);
-      allow update: if request.auth != null && 
-        resource.data.workspaceId != null &&
-        isMember(resource.data.workspaceId) &&
-        (resource.data.ownerId == request.auth.uid || isAdminOrOwner(resource.data.workspaceId));
-      allow delete: if request.auth != null && 
-        resource.data.workspaceId != null &&
-        isMember(resource.data.workspaceId) &&
-        (resource.data.ownerId == request.auth.uid || isAdminOrOwner(resource.data.workspaceId));
-    }
-    
-    // Global Tasks Collection (for backward compatibility and easier queries)
+    // ============================================
+    // Global Tasks Collection
+    // ============================================
     match /tasks/{taskId} {
+      // Чтение: члены workspace могут читать задачи своего workspace
       allow read: if request.auth != null && 
-        resource.data.workspaceId != null &&
-        isMember(resource.data.workspaceId);
+                     resource.data.workspaceId != null &&
+                     isMember(resource.data.workspaceId);
+      
+      // Создание: члены workspace могут создавать задачи
       allow create: if request.auth != null && 
-        request.resource.data.workspaceId != null &&
-        request.resource.data.title != null &&
-        request.resource.data.status != null &&
-        request.resource.data.priority != null &&
-        isMember(request.resource.data.workspaceId);
+                       request.resource.data.workspaceId != null &&
+                       request.resource.data.title != null &&
+                       request.resource.data.status != null &&
+                       request.resource.data.priority != null &&
+                       isMember(request.resource.data.workspaceId);
+      
+      // Обновление: члены workspace могут обновлять задачи
       allow update: if request.auth != null && 
-        resource.data.workspaceId != null &&
-        isMember(resource.data.workspaceId);
+                       resource.data.workspaceId != null &&
+                       isMember(resource.data.workspaceId) &&
+                       // Запрещаем изменение workspaceId
+                       resource.data.workspaceId == request.resource.data.workspaceId;
+      
+      // Удаление: члены workspace могут удалять задачи
       allow delete: if request.auth != null && 
-        resource.data.workspaceId != null &&
-        isMember(resource.data.workspaceId);
+                       resource.data.workspaceId != null &&
+                       isMember(resource.data.workspaceId);
     }
     
+    // ============================================
+    // Global Projects Collection
+    // ============================================
+    match /projects/{projectId} {
+      // Чтение: члены workspace могут читать проекты своего workspace
+      allow read: if request.auth != null && 
+                     resource.data.workspaceId != null &&
+                     isMember(resource.data.workspaceId);
+      
+      // Создание: члены workspace могут создавать проекты
+      allow create: if request.auth != null && 
+                       request.resource.data.workspaceId != null &&
+                       request.resource.data.ownerId != null &&
+                       request.resource.data.name != null &&
+                       request.resource.data.ownerId == request.auth.uid &&
+                       isMember(request.resource.data.workspaceId);
+      
+      // Обновление: владелец проекта или админ workspace могут обновлять
+      allow update: if request.auth != null && 
+                       resource.data.workspaceId != null &&
+                       isMember(resource.data.workspaceId) &&
+                       // Запрещаем изменение workspaceId и ownerId
+                       resource.data.workspaceId == request.resource.data.workspaceId &&
+                       resource.data.ownerId == request.resource.data.ownerId &&
+                       (resource.data.ownerId == request.auth.uid || 
+                        isAdminOrOwner(resource.data.workspaceId));
+      
+      // Удаление: владелец проекта или админ workspace могут удалять
+      allow delete: if request.auth != null && 
+                       resource.data.workspaceId != null &&
+                       isMember(resource.data.workspaceId) &&
+                       (resource.data.ownerId == request.auth.uid || 
+                        isAdminOrOwner(resource.data.workspaceId));
+    }
+    
+    // ============================================
     // Global Settings
+    // ============================================
     match /settings/global {
       allow read: if request.auth != null;
       allow write: if request.auth != null;
     }
+    
+    // ============================================
+    // Collection Group Queries
+    // ============================================
+    // Правила для collection group queries (например, collectionGroup('members'))
+    // Используется в subscribeToWorkspaces для поиска всех workspace, где пользователь является участником
+    
+    // Collection Group для members
+    // Путь: workspaces/{workspaceId}/members/{memberId}
+    // Запросы через collectionGroup('members') должны проверять, что пользователь является членом workspace
+    // Это обрабатывается через правила для подколлекции members выше
+    // Но для collection group queries нужны дополнительные проверки
+    
+    // Примечание: Firestore Security Rules автоматически применяют правила подколлекций
+    // к collection group queries, поэтому правила выше для /workspaces/{workspaceId}/members/{memberId}
+    // будут применяться и к collectionGroup('members')
   }
 }
-
