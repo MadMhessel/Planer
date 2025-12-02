@@ -12,13 +12,100 @@ require('dotenv').config();
 const app = express();
 const PORT = process.env.PORT || 8080;
 
-// CORS Configuration
+// Определяем distPath ДО использования
+const distPath = path.join(__dirname, 'dist');
+
+// Проверяем существование dist директории при запуске
+if (!fs.existsSync(distPath)) {
+  console.error(`ERROR: dist directory not found at ${distPath}`);
+  console.error('Make sure to run "npm run build" before starting the server');
+  process.exit(1);
+} else {
+  console.log(`✓ Static files directory found: ${distPath}`);
+  // Логируем структуру dist при запуске (важно для диагностики в Cloud Run)
+  try {
+    const files = fs.readdirSync(distPath);
+    console.log(`✓ Dist directory contains: ${files.join(', ')}`);
+    if (fs.existsSync(path.join(distPath, 'assets'))) {
+      const assets = fs.readdirSync(path.join(distPath, 'assets'));
+      console.log(`✓ Assets directory contains ${assets.length} files`);
+      // В production логируем первые несколько файлов для проверки
+      if (process.env.NODE_ENV === 'production' && assets.length > 0) {
+        console.log(`✓ Sample assets: ${assets.slice(0, 5).join(', ')}${assets.length > 5 ? '...' : ''}`);
+      }
+    } else {
+      console.error('ERROR: dist/assets directory not found!');
+    }
+  } catch (e) {
+    console.error('ERROR: Could not read dist directory:', e.message);
+    process.exit(1);
+  }
+}
+
+// ===== СТАТИЧЕСКИЕ ФАЙЛЫ ДОЛЖНЫ ОБРАБАТЫВАТЬСЯ ПЕРВЫМИ, ДО CORS =====
+
+// Явный маршрут для assets - обрабатывается ПЕРВЫМ, до всех других middleware
+app.get('/assets/*', (req, res, next) => {
+  // req.path будет содержать полный путь, например "/assets/index-C53v20yJ.js"
+  const match = req.path.match(/^\/assets\/(.+)$/);
+  if (!match) {
+    return res.status(400).json({ error: 'Invalid asset path', path: req.path });
+  }
+  
+  const fileName = match[1];
+  const assetPath = path.join(distPath, 'assets', fileName);
+  
+  // Проверяем существование файла
+  if (!fs.existsSync(assetPath)) {
+    console.error(`[${new Date().toISOString()}] Asset not found: ${req.path} -> ${assetPath}`);
+    return res.status(404).json({ 
+      error: 'Asset not found', 
+      path: req.path,
+      requestedFile: fileName,
+      resolvedPath: assetPath
+    });
+  }
+  
+  // Устанавливаем правильный MIME тип
+  if (assetPath.endsWith('.css')) {
+    res.setHeader('Content-Type', 'text/css; charset=utf-8');
+  } else if (assetPath.endsWith('.js')) {
+    res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+  } else if (assetPath.endsWith('.json')) {
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  }
+  
+  // Отправляем файл
+  res.sendFile(assetPath, (err) => {
+    if (err) {
+      console.error(`[${new Date().toISOString()}] Error sending asset ${req.path}:`, err);
+      if (!res.headersSent) {
+        res.status(500).json({ 
+          error: 'Failed to serve asset', 
+          path: req.path,
+          errorCode: err.code
+        });
+      }
+    }
+  });
+});
+
+// Также обслуживаем корневые статические файлы (index.html и т.д.)
+app.use(express.static(distPath, {
+  maxAge: '1y',
+  etag: true,
+  lastModified: true,
+  fallthrough: true
+}));
+
+// CORS Configuration - применяется только к API запросам
 const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || [
   'http://localhost:5173',
   'http://localhost:3000'
 ];
 
-app.use(cors({
+// CORS применяется только к API маршрутам, не к статическим файлам
+app.use('/api', cors({
   origin: (origin, callback) => {
     // Разрешаем запросы без origin (например, мобильные приложения, Postman)
     if (!origin || allowedOrigins.includes(origin)) {
@@ -439,140 +526,6 @@ app.post('/api/ai/generate',
     res.status(500).json({ error: 'Failed to process AI command', details: errorMessage });
   }
 });
-
-// --- Static Files ---
-// Раздаём собранный фронт Vite
-const distPath = path.join(__dirname, 'dist');
-
-// Проверяем существование dist директории при запуске
-if (!fs.existsSync(distPath)) {
-  console.error(`ERROR: dist directory not found at ${distPath}`);
-  console.error('Make sure to run "npm run build" before starting the server');
-  process.exit(1);
-} else {
-  console.log(`✓ Static files directory found: ${distPath}`);
-  // Логируем структуру dist при запуске (важно для диагностики в Cloud Run)
-  try {
-    const files = fs.readdirSync(distPath);
-    console.log(`✓ Dist directory contains: ${files.join(', ')}`);
-    if (fs.existsSync(path.join(distPath, 'assets'))) {
-      const assets = fs.readdirSync(path.join(distPath, 'assets'));
-      console.log(`✓ Assets directory contains ${assets.length} files`);
-      // В production логируем первые несколько файлов для проверки
-      if (process.env.NODE_ENV === 'production' && assets.length > 0) {
-        console.log(`✓ Sample assets: ${assets.slice(0, 5).join(', ')}${assets.length > 5 ? '...' : ''}`);
-      }
-    } else {
-      console.error('ERROR: dist/assets directory not found!');
-    }
-  } catch (e) {
-    console.error('ERROR: Could not read dist directory:', e.message);
-    process.exit(1);
-  }
-}
-
-// Настройка для статических файлов с правильными MIME типами
-// Важно: express.static должен обработать файлы ДО SPA fallback
-
-// Явный маршрут для assets - обрабатывается ПЕРВЫМ, до всех других middleware
-// Используем app.get с wildcard для обработки всех путей в /assets/
-app.get('/assets/*', (req, res, next) => {
-  // req.path будет содержать полный путь, например "/assets/index-C53v20yJ.js"
-  // Извлекаем имя файла (все после /assets/)
-  // Используем более надежный способ извлечения
-  const match = req.path.match(/^\/assets\/(.+)$/);
-  if (!match) {
-    console.error(`[${new Date().toISOString()}] Invalid asset path: ${req.path}`);
-    return res.status(400).json({ error: 'Invalid asset path', path: req.path });
-  }
-  
-  const fileName = match[1];
-  const assetPath = path.join(distPath, 'assets', fileName);
-  
-  // Детальное логирование для диагностики (только первые несколько запросов)
-  const logKey = '_assetLogCount';
-  const shouldLog = !global[logKey] || global[logKey] < 3;
-  if (shouldLog) {
-    global[logKey] = (global[logKey] || 0) + 1;
-    console.log(`[${new Date().toISOString()}] Asset request: ${req.path}`);
-    console.log(`[${new Date().toISOString()}] File name: ${fileName}`);
-    console.log(`[${new Date().toISOString()}] Resolved to: ${assetPath}`);
-    console.log(`[${new Date().toISOString()}] File exists: ${fs.existsSync(assetPath)}`);
-  }
-  
-  // Проверяем существование файла
-  if (!fs.existsSync(assetPath)) {
-    console.error(`[${new Date().toISOString()}] Asset not found: ${req.path} -> ${assetPath}`);
-    
-    // Попробуем проверить, что есть в dist/assets (только при первой ошибке)
-    if (!global._assetErrorLogged) {
-      global._assetErrorLogged = true;
-      const assetsDir = path.join(distPath, 'assets');
-      if (fs.existsSync(assetsDir)) {
-        try {
-          const files = fs.readdirSync(assetsDir);
-          console.error(`[${new Date().toISOString()}] Available assets (${files.length}):`, files.slice(0, 10).join(', '));
-        } catch (e) {
-          console.error(`[${new Date().toISOString()}] Could not read assets dir:`, e.message);
-        }
-      } else {
-        console.error(`[${new Date().toISOString()}] Assets directory does not exist: ${assetsDir}`);
-      }
-    }
-    
-    return res.status(404).json({ 
-      error: 'Asset not found', 
-      path: req.path,
-      requestedFile: fileName,
-      resolvedPath: assetPath,
-      distPath: distPath
-    });
-  }
-  
-  // Устанавливаем правильный MIME тип
-  if (assetPath.endsWith('.css')) {
-    res.setHeader('Content-Type', 'text/css; charset=utf-8');
-  } else if (assetPath.endsWith('.js')) {
-    res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
-  } else if (assetPath.endsWith('.json')) {
-    res.setHeader('Content-Type', 'application/json; charset=utf-8');
-  } else if (assetPath.endsWith('.woff') || assetPath.endsWith('.woff2')) {
-    res.setHeader('Content-Type', 'font/woff2');
-  }
-  
-  // Отправляем файл (без root, так как assetPath уже абсолютный)
-  res.sendFile(assetPath, (err) => {
-    if (err) {
-      console.error(`[${new Date().toISOString()}] Error sending asset ${req.path}:`, err);
-      console.error(`[${new Date().toISOString()}] Error details:`, {
-        code: err.code,
-        path: err.path,
-        syscall: err.syscall,
-        message: err.message
-      });
-      if (!res.headersSent) {
-        res.status(500).json({ 
-          error: 'Failed to serve asset', 
-          path: req.path,
-          resolvedPath: assetPath,
-          errorCode: err.code,
-          errorMessage: err.message
-        });
-      }
-    } else if (shouldLog) {
-      console.log(`[${new Date().toISOString()}] Successfully served: ${req.path}`);
-    }
-  });
-});
-
-// Также обслуживаем корневые статические файлы (index.html и т.д.)
-app.use(express.static(distPath, {
-  maxAge: '1y',
-  etag: true,
-  lastModified: true,
-  fallthrough: true
-}));
-
 
 // SPA Fallback - для всех остальных маршрутов возвращаем index.html
 // В Express 5.x используем middleware вместо wildcard маршрута
