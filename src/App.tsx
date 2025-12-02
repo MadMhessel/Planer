@@ -33,6 +33,7 @@ import { useTasks } from './hooks/useTasks';
 import { useProjects } from './hooks/useProjects';
 import { useMembers } from './hooks/useMembers';
 import { useInvites } from './hooks/useInvites';
+import { useNotifications } from './hooks/useNotifications';
 import { logger } from './utils/logger';
 import { membersToUsers } from './utils/userHelpers';
 import { MAX_CHAT_HISTORY_LENGTH } from './constants/ai';
@@ -58,7 +59,6 @@ const App: React.FC = () => {
   
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
-  const [notifications, setNotifications] = useState<Notification[]>([]);
 
   const [view, setView] = useState<AppView>('BOARD');
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
@@ -106,6 +106,15 @@ const App: React.FC = () => {
       // ignore storage errors (e.g., SSR)
     }
   }, [theme, applyTheme]);
+
+  // Initialize Web Push Service Worker
+  useEffect(() => {
+    import('./services/push').then(({ PushService }) => {
+      PushService.init().catch(err => {
+        logger.warn('Push service initialization failed', err);
+      });
+    });
+  }, []);
 
   // Firebase и Auth инициализация
   useEffect(() => {
@@ -165,6 +174,12 @@ const App: React.FC = () => {
   // Invites hook
   const { invites } = useInvites(currentWorkspaceId);
 
+  // Notifications hook
+  const {
+    notifications,
+    markAllAsRead
+  } = useNotifications(currentWorkspaceId, currentUser?.id || null);
+
   // Projects hook
   const {
     projects,
@@ -174,8 +189,7 @@ const App: React.FC = () => {
   } = useProjects(
     currentWorkspaceId,
     members,
-    currentUser,
-    (notification) => setNotifications(prev => [notification, ...prev])
+    currentUser
   );
 
   // Tasks hook
@@ -188,8 +202,7 @@ const App: React.FC = () => {
     currentWorkspaceId,
     members,
     projects,
-    currentUser,
-    (notification) => setNotifications(prev => [notification, ...prev])
+    currentUser
   );
 
   // 3. Restore view mode from localStorage
@@ -639,9 +652,10 @@ const App: React.FC = () => {
 
           <NotificationCenter
             notifications={notifications}
-            onClear={() => setNotifications([])}
+            onClear={markAllAsRead}
             isOpen={notificationsOpen}
             onToggle={() => setNotificationsOpen(prev => !prev)}
+            currentUserId={currentUser?.id}
           />
 
           <TaskModal

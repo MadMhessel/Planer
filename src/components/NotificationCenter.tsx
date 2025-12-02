@@ -7,19 +7,23 @@ type Props = {
   onClear: () => void;
   isOpen?: boolean;
   onToggle?: () => void;
+  currentUserId?: string;
 };
 
 export const NotificationCenter: React.FC<Props> = ({
   notifications,
   onClear,
   isOpen: controlledOpen,
-  onToggle
+  onToggle,
+  currentUserId
 }) => {
   const [internalOpen, setInternalOpen] = useState(false);
   const open = controlledOpen !== undefined ? controlledOpen : internalOpen;
   const setOpen = onToggle || setInternalOpen;
 
-  const unread = notifications.filter(n => !n.read);
+  const unread = notifications.filter(n => 
+    currentUserId ? !n.readBy?.includes(currentUserId) : !n.readBy?.length
+  );
 
   return (
     <>
@@ -71,10 +75,12 @@ export const NotificationCenter: React.FC<Props> = ({
                 </div>
               )}
 
-              {notifications.map(n => (
+              {notifications.map(n => {
+                const isRead = currentUserId ? n.readBy?.includes(currentUserId) : false;
+                return (
                 <div
                   key={n.id}
-                  className={`px-3 sm:px-4 py-2.5 sm:py-3 border-b border-gray-200 dark:border-slate-800 last:border-b-0 hover:bg-gray-50 dark:hover:bg-slate-800/30 transition-all cursor-pointer ${!n.read ? 'bg-blue-50 dark:bg-slate-800/20' : ''}`}
+                  className={`px-3 sm:px-4 py-2.5 sm:py-3 border-b border-gray-200 dark:border-slate-800 last:border-b-0 hover:bg-gray-50 dark:hover:bg-slate-800/30 transition-all cursor-pointer ${!isRead ? 'bg-blue-50 dark:bg-slate-800/20' : ''}`}
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex-1 min-w-0">
@@ -82,7 +88,7 @@ export const NotificationCenter: React.FC<Props> = ({
                         <span className="font-semibold text-gray-900 dark:text-slate-100 text-xs sm:text-sm truncate">
                           {n.title}
                         </span>
-                        {!n.read && (
+                        {!isRead && (
                           <span className="w-2 h-2 rounded-full bg-sky-500 flex-shrink-0"></span>
                         )}
                       </div>
@@ -95,7 +101,8 @@ export const NotificationCenter: React.FC<Props> = ({
                     </span>
                   </div>
                 </div>
-              ))}
+              );
+              })}
             </div>
           </div>
         </div>

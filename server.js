@@ -7,6 +7,7 @@ const rateLimit = require('express-rate-limit');
 const { body, validationResult } = require('express-validator');
 const createDOMPurify = require('isomorphic-dompurify');
 const DOMPurify = createDOMPurify();
+const webpush = require('web-push');
 require('dotenv').config();
 
 const app = express();
@@ -495,6 +496,70 @@ app.post('/api/ai/generate',
     res.status(500).json({ error: 'Failed to process AI command', details: errorMessage });
   }
 });
+
+// --- Web Push Setup ---
+const vapidKeys = {
+  publicKey: process.env.VAPID_PUBLIC_KEY || '',
+  privateKey: process.env.VAPID_PRIVATE_KEY || ''
+};
+
+if (vapidKeys.publicKey && vapidKeys.privateKey) {
+  webpush.setVapidDetails(
+    'mailto:support@commandtaskplanner.com',
+    vapidKeys.publicKey,
+    vapidKeys.privateKey
+  );
+  console.log('✓ Web Push configured');
+} else {
+  console.warn('⚠ VAPID keys not set - Web Push disabled');
+}
+
+// --- Web Push Endpoints ---
+app.get('/api/push/vapid-public-key', (req, res) => {
+  res.json({ publicKey: vapidKeys.publicKey });
+});
+
+app.post('/api/push/send',
+  [
+    body('subscription').isObject().withMessage('subscription must be an object'),
+    body('title').isString().isLength({ min: 1, max: 100 }).withMessage('Title is required'),
+    body('message').isString().isLength({ min: 1, max: 500 }).withMessage('Message is required')
+  ],
+  async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ error: 'Validation failed', details: errors.array() });
+    }
+
+    const { subscription, title, message } = req.body;
+
+    if (!vapidKeys.publicKey || !vapidKeys.privateKey) {
+      return res.status(503).json({ error: 'Web Push not configured' });
+    }
+
+    try {
+      const payload = JSON.stringify({
+        title: sanitizeHTML(title),
+        body: sanitizeHTML(message),
+        icon: '/icon-192.png',
+        badge: '/badge-72.png',
+        timestamp: Date.now()
+      });
+
+      await webpush.sendNotification(subscription, payload);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Web Push error:', error);
+      
+      // Если подписка устарела (410), сообщаем клиенту
+      if (error.statusCode === 410) {
+        return res.status(410).json({ error: 'Push subscription expired' });
+      }
+      
+      res.status(500).json({ error: 'Failed to send push notification' });
+    }
+  }
+);
 
 // SPA Fallback - для всех остальных маршрутов возвращаем index.html
 // В Express 5.x используем middleware вместо wildcard маршрута

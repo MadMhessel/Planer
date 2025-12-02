@@ -10,8 +10,7 @@ import { Notification } from '../types';
 export const useProjects = (
   workspaceId: string | null,
   members: WorkspaceMember[],
-  currentUser: User | null,
-  onNotification: (notification: Notification) => void
+  currentUser: User | null
 ) => {
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(false);
@@ -70,7 +69,7 @@ export const useProjects = (
       const created = await FirestoreService.createProject(project);
       
       // Уведомления
-      onNotification({
+({
         id: Date.now().toString(),
         type: 'PROJECT_UPDATED',
         title: 'Проект создан',
@@ -94,7 +93,7 @@ export const useProjects = (
     } finally {
       setLoading(false);
     }
-  }, [workspaceId, currentUser, members, onNotification]);
+  }, [workspaceId, currentUser, members, ]);
 
   const updateProject = useCallback(async (projectId: string, updates: Partial<Project>) => {
     if (!workspaceId || !currentUser) {
@@ -119,7 +118,7 @@ export const useProjects = (
       await FirestoreService.updateProject(projectId, updates);
       
       // Уведомления
-      onNotification({
+({
         id: Date.now().toString(),
         type: 'PROJECT_UPDATED',
         title: 'Проект обновлен',
@@ -142,7 +141,7 @@ export const useProjects = (
     } finally {
       setLoading(false);
     }
-  }, [workspaceId, currentUser, projects, members, onNotification]);
+  }, [workspaceId, currentUser, projects, members, ]);
 
   const deleteProject = useCallback(async (projectId: string) => {
     if (!workspaceId || !currentUser) {
@@ -161,7 +160,7 @@ export const useProjects = (
       await FirestoreService.deleteProject(projectId);
       
       // Уведомления
-      onNotification({
+({
         id: Date.now().toString(),
         type: 'PROJECT_UPDATED',
         title: 'Проект удален',
@@ -183,7 +182,7 @@ export const useProjects = (
     } finally {
       setLoading(false);
     }
-  }, [workspaceId, currentUser, projects, members, onNotification]);
+  }, [workspaceId, currentUser, projects, members, ]);
 
   return {
     projects,

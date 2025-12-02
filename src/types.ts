@@ -58,6 +58,8 @@ export type User = {
   createdAt: string;
   lastLoginAt?: string;
   telegramChatId?: string;
+  pushSubscription?: PushSubscription; // Web Push subscription
+  notificationSettings?: UserNotificationSettings;
 };
 
 export type Workspace = {
@@ -94,14 +96,27 @@ export type WorkspaceInvite = {
   expiresAt: string;
 };
 
-// Simplified notification type for the NotificationCenter
+// Notification type with Firestore persistence support
 export type Notification = {
-  id: string;
-  type: 'TASK_ASSIGNED' | 'TASK_UPDATED' | 'PROJECT_UPDATED' | 'SYSTEM';
+  id?: string; // Firestore doc ID
+  workspaceId: string;
+  type: 'TASK_ASSIGNED' | 'TASK_UPDATED' | 'PROJECT_UPDATED' | 'SYSTEM' | 'AI' | 'INFO';
   title: string;
   message: string;
   createdAt: string;
-  read: boolean;
+  readBy: string[]; // Array of userIds who have read this notification
+  recipients?: string[]; // Optional: specific userIds to notify (for @mentions)
+};
+
+// User notification settings
+export type UserNotificationSettings = {
+  channels: {
+    telegram: boolean;
+    push: boolean;
+    email: boolean;
+  };
+  muteUntil?: string; // ISO timestamp
+  soundEnabled: boolean;
 };
 
 export type ViewMode = 'BOARD' | 'CALENDAR' | 'GANTT' | 'LIST' | 'DASHBOARD';

@@ -2,17 +2,16 @@ import { useState, useEffect, useCallback } from 'react';
 import { Task, Project, WorkspaceMember, User, TaskStatus, TaskPriority } from '../types';
 import { FirestoreService } from '../services/firestore';
 import { TelegramService } from '../services/telegram';
+import { NotificationsService } from '../services/notifications';
 import { validateTask } from '../utils/validators';
 import { createTaskNotification, createTelegramMessage, getRecipientsForTask } from '../utils/notificationHelpers';
 import { logger } from '../utils/logger';
-import { Notification } from '../types';
 
 export const useTasks = (
   workspaceId: string | null,
   members: WorkspaceMember[],
   projects: Project[],
-  currentUser: User | null,
-  onNotification: (notification: Notification) => void
+  currentUser: User | null
 ) => {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(false);
@@ -82,25 +81,27 @@ export const useTasks = (
 
       const created = await FirestoreService.createTask(taskData);
       
-      // Локальное уведомление
-      const assignee = created.assigneeId ? members.find(m => m.userId === created.assigneeId) : null;
-      const assigneeName = assignee ? assignee.email : 'Не назначен';
+      // Определяем получателей уведомления
+      const notificationRecipients = created.assigneeId 
+        ? [created.assigneeId] // Если есть assignee, уведомляем только его
+        : NotificationsService.getRecipients(members, undefined, true); // Иначе уведомляем админов
       
-      onNotification({
-        id: Date.now().toString(),
-        type: 'TASK_ASSIGNED',
-        title: 'Новая задача создана',
-        message: `Задача "${created.title}" ${created.assigneeId ? `назначена ${assigneeName}` : 'создана'}`,
-        createdAt: new Date().toISOString(),
-        read: false
-      });
+      // Сохраняем уведомление в Firestore
+      const notification = createTaskNotification(
+        workspaceId,
+        'TASK_ASSIGNED',
+        created,
+        undefined,
+        notificationRecipients
+      );
+      await NotificationsService.add(workspaceId, notification);
 
       // Telegram уведомление
-      const recipients = getRecipientsForTask(created, members, currentUser.id);
-      if (recipients.length > 0) {
+      const telegramRecipients = getRecipientsForTask(created, members, currentUser.id);
+      if (telegramRecipients.length > 0) {
         const projectName = created.projectId ? projects.find(p => p.id === created.projectId)?.name : undefined;
         const message = createTelegramMessage('TASK_ASSIGNED', created, undefined, undefined, projectName);
-        await TelegramService.sendNotification(recipients, message);
+        await TelegramService.sendNotification(telegramRecipients, message);
       }
 
       return created;
@@ -112,7 +113,7 @@ export const useTasks = (
     } finally {
       setLoading(false);
     }
-  }, [workspaceId, currentUser, members, projects, onNotification]);
+  }, [workspaceId, currentUser, members, projects]);
 
   const updateTask = useCallback(async (taskId: string, updates: Partial<Task>) => {
     if (!workspaceId || !currentUser) {
@@ -179,14 +180,19 @@ export const useTasks = (
       }
 
       if (notificationTitle) {
-        onNotification({
-          id: Date.now().toString(),
-          type: 'TASK_UPDATED',
-          title: notificationTitle,
-          message: notificationMessage,
-          createdAt: new Date().toISOString(),
-          read: false
-        });
+        // Определяем получателей для обновления задачи
+        const notificationRecipients = newTaskState.assigneeId 
+          ? [newTaskState.assigneeId]
+          : NotificationsService.getRecipients(members, undefined, true);
+        
+        const notification = createTaskNotification(
+          workspaceId,
+          'TASK_UPDATED',
+          newTaskState,
+          updates,
+          notificationRecipients
+        );
+        await NotificationsService.add(workspaceId, notification);
       }
 
       if (telegramMessage && recipients.length > 0) {
@@ -207,7 +213,7 @@ export const useTasks = (
     } finally {
       setLoading(false);
     }
-  }, [workspaceId, currentUser, tasks, members, onNotification]);
+  }, [workspaceId, currentUser, tasks, members, ]);
 
   const deleteTask = useCallback(async (taskId: string) => {
     if (!workspaceId || !currentUser) {
@@ -225,14 +231,19 @@ export const useTasks = (
     try {
       await FirestoreService.deleteTask(taskId);
 
-      // Уведомления
-      onNotification({
-        id: Date.now().toString(),
+      // Уведомление об удалении
+      const notificationRecipients = taskToDelete.assigneeId 
+        ? [taskToDelete.assigneeId]
+        : NotificationsService.getRecipients(members, undefined, true);
+      
+      await NotificationsService.add(workspaceId, {
+        workspaceId,
         type: 'TASK_UPDATED',
         title: 'Задача удалена',
         message: `Задача "${taskToDelete.title}" была удалена`,
         createdAt: new Date().toISOString(),
-        read: false
+        readBy: [],
+        recipients: notificationRecipients
       });
 
       const recipients = getRecipientsForTask(taskToDelete, members, currentUser.id);
@@ -248,7 +259,7 @@ export const useTasks = (
     } finally {
       setLoading(false);
     }
-  }, [workspaceId, currentUser, tasks, members, onNotification]);
+  }, [workspaceId, currentUser, tasks, members, ]);
 
   return {
     tasks,

@@ -3,10 +3,12 @@ import { NOTIFICATION_TYPES } from '../constants/notifications';
 import { getStatusLabel, getPriorityLabel } from './taskHelpers';
 
 export const createTaskNotification = (
+  workspaceId: string,
   type: 'TASK_ASSIGNED' | 'TASK_UPDATED',
   task: Task,
-  changes?: Partial<Task>
-): Notification => {
+  changes?: Partial<Task>,
+  recipients?: string[]
+): Omit<Notification, 'id'> => {
   const assigneeName = changes?.assigneeId 
     ? 'назначена' 
     : task.assigneeId 
@@ -14,12 +16,13 @@ export const createTaskNotification = (
     : 'создана';
 
   return {
-    id: Date.now().toString(),
+    workspaceId,
     type,
     title: type === 'TASK_ASSIGNED' ? 'Новая задача создана' : 'Задача обновлена',
     message: `Задача "${task.title}" ${assigneeName}`,
     createdAt: new Date().toISOString(),
-    read: false
+    readBy: [],
+    recipients
   };
 };
 

@@ -10,7 +10,7 @@ type Props = {
   onNotification?: (title: string, message: string, type?: 'TASK_ASSIGNED' | 'TASK_UPDATED' | 'PROJECT_UPDATED' | 'SYSTEM') => void;
 };
 
-type Tab = 'members' | 'invites';
+type Tab = 'members' | 'invites' | 'notifications';
 
 export const SettingsView: React.FC<Props> = ({
   workspace,
