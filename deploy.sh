@@ -10,18 +10,39 @@ NC='\033[0m' # No Color
 
 echo -e "${GREEN}=== Деплой Command Task Planner в Cloud Run ===${NC}\n"
 
+# Загрузка переменных из .env.deploy если файл существует
+if [ -f .env.deploy ]; then
+    echo -e "${YELLOW}Загрузка переменных из .env.deploy...${NC}"
+    # Используем set -a для автоматического экспорта всех переменных
+    set -a
+    source .env.deploy
+    set +a
+    echo -e "${GREEN}✓ Переменные загружены${NC}\n"
+else
+    echo -e "${YELLOW}⚠ Файл .env.deploy не найден, используем переменные окружения${NC}\n"
+fi
+
 # Проверка переменных окружения Firebase
 if [ -z "$VITE_FIREBASE_API_KEY" ] || [ -z "$VITE_FIREBASE_AUTH_DOMAIN" ] || [ -z "$VITE_FIREBASE_PROJECT_ID" ]; then
     echo -e "${RED}ОШИБКА: Переменные окружения Firebase не заданы!${NC}"
-    echo -e "${YELLOW}Установите следующие переменные:${NC}"
+    echo -e "${YELLOW}Создайте файл .env.deploy или установите переменные:${NC}"
     echo "  export VITE_FIREBASE_API_KEY=your_api_key"
     echo "  export VITE_FIREBASE_AUTH_DOMAIN=your_auth_domain"
     echo "  export VITE_FIREBASE_PROJECT_ID=your_project_id"
     echo "  export VITE_FIREBASE_STORAGE_BUCKET=your_storage_bucket"
     echo "  export VITE_FIREBASE_MESSAGING_SENDER_ID=your_sender_id"
     echo "  export VITE_FIREBASE_APP_ID=your_app_id"
+    echo ""
+    echo -e "${YELLOW}Или создайте файл .env.deploy с этими переменными${NC}"
     exit 1
 fi
+
+# Вывод значений для проверки (без показа секретов)
+echo -e "${GREEN}Проверка переменных:${NC}"
+echo "  VITE_FIREBASE_API_KEY: ${VITE_FIREBASE_API_KEY:0:10}... (скрыто)"
+echo "  VITE_FIREBASE_AUTH_DOMAIN: $VITE_FIREBASE_AUTH_DOMAIN"
+echo "  VITE_FIREBASE_PROJECT_ID: $VITE_FIREBASE_PROJECT_ID"
+echo ""
 
 PROJECT_ID=$(gcloud config get-value project 2>/dev/null || echo "rugged-nucleus-476116-n8")
 IMAGE_NAME="gcr.io/${PROJECT_ID}/command-task-planner"

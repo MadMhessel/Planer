@@ -98,31 +98,47 @@ const App: React.FC = () => {
     }
   }, [theme, applyTheme]);
 
-  // Auth Listener
+  // Firebase и Auth инициализация
   useEffect(() => {
-    console.log('🔐 Setting up auth listener...');
+    console.log('🔐 Initializing Firebase and setting up auth listener...');
     let mounted = true;
+    let unsubscribe: (() => void) | null = null;
     
-    const unsubscribe = AuthService.subscribeToAuth(async (user) => {
-      console.log('👤 Auth state changed:', user ? `User: ${user.email}` : 'No user');
-      if (mounted) {
-        try {
-          setCurrentUser(user);
-          setAuthLoading(false);
-          console.log('✅ Auth state updated');
-        } catch (error) {
-          console.error('❌ Error setting user state:', error);
-          if (mounted) {
+    // Инициализируем Firebase и затем настраиваем auth listener
+    import('./firebase').then(({ firebaseInit }) => {
+      return firebaseInit;
+    }).then(() => {
+      if (!mounted) return;
+      
+      // После инициализации Firebase настраиваем auth listener
+      unsubscribe = AuthService.subscribeToAuth(async (user) => {
+        console.log('👤 Auth state changed:', user ? `User: ${user.email}` : 'No user');
+        if (mounted) {
+          try {
+            setCurrentUser(user);
             setAuthLoading(false);
+            console.log('✅ Auth state updated');
+          } catch (error) {
+            console.error('❌ Error setting user state:', error);
+            if (mounted) {
+              setAuthLoading(false);
+            }
           }
         }
+      });
+    }).catch((error) => {
+      console.error('❌ Failed to initialize Firebase:', error);
+      if (mounted) {
+        setAuthLoading(false);
       }
     });
 
     return () => {
       console.log('🧹 Cleaning up auth listener');
       mounted = false;
-      unsubscribe();
+      if (unsubscribe) {
+        unsubscribe();
+      }
     };
   }, []);
 

@@ -1,68 +1,111 @@
-import { initializeApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+import { initializeApp, FirebaseApp } from 'firebase/app';
+import { getAuth, Auth } from 'firebase/auth';
+import { getFirestore, Firestore } from 'firebase/firestore';
 
-// Helper to access Vite environment variables without TypeScript errors
-const env = (import.meta as any).env;
-
-console.log('🔧 Loading Firebase configuration...');
-console.log('Environment check:', {
-  hasEnv: !!env,
-  keys: env ? Object.keys(env).filter(k => k.startsWith('VITE_')) : []
-});
-
-// These environment variables must be set in your build environment (Client-side)
-const firebaseConfig = {
-  apiKey: env.VITE_FIREBASE_API_KEY,
-  authDomain: env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId: env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: env.VITE_FIREBASE_APP_ID
-};
-
-console.log('📋 Firebase config values:', {
-  hasApiKey: !!firebaseConfig.apiKey,
-  hasAuthDomain: !!firebaseConfig.authDomain,
-  hasProjectId: !!firebaseConfig.projectId,
-  hasStorageBucket: !!firebaseConfig.storageBucket,
-  hasMessagingSenderId: !!firebaseConfig.messagingSenderId,
-  hasAppId: !!firebaseConfig.appId,
-  projectId: firebaseConfig.projectId || 'MISSING',
-  authDomain: firebaseConfig.authDomain || 'MISSING'
-});
-
-// Проверка что все переменные заданы (для отладки)
-const isConfigValid = firebaseConfig.apiKey && firebaseConfig.projectId && firebaseConfig.authDomain;
-
-if (!isConfigValid) {
-  console.error('❌ Firebase configuration is missing!');
-  console.error('Required environment variables:');
-  console.error('  VITE_FIREBASE_API_KEY:', firebaseConfig.apiKey ? '✓' : '✗');
-  console.error('  VITE_FIREBASE_AUTH_DOMAIN:', firebaseConfig.authDomain ? '✓' : '✗');
-  console.error('  VITE_FIREBASE_PROJECT_ID:', firebaseConfig.projectId ? '✓' : '✗');
-  console.error('These variables must be set during Docker build with --build-arg');
-  console.error('Current URL:', typeof window !== 'undefined' ? window.location.href : 'SSR');
+// Типы для конфигурации
+interface FirebaseConfig {
+  apiKey: string;
+  authDomain: string;
+  projectId: string;
+  storageBucket: string;
+  messagingSenderId: string;
+  appId: string;
 }
 
-let app: any;
-let auth: any;
-let db: any;
+// Функция для загрузки конфигурации с сервера (runtime из Cloud Run)
+async function loadFirebaseConfig(): Promise<FirebaseConfig> {
+  // Сначала проверяем build-time переменные (для локальной разработки)
+  const env = (import.meta as any).env;
+  const buildTimeConfig = {
+    apiKey: env.VITE_FIREBASE_API_KEY,
+    authDomain: env.VITE_FIREBASE_AUTH_DOMAIN,
+    projectId: env.VITE_FIREBASE_PROJECT_ID,
+    storageBucket: env.VITE_FIREBASE_STORAGE_BUCKET,
+    messagingSenderId: env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+    appId: env.VITE_FIREBASE_APP_ID
+  };
 
-try {
-  app = initializeApp(firebaseConfig);
-  auth = getAuth(app);
-  db = getFirestore(app);
-  
-  if (isConfigValid) {
-    console.log('✅ Firebase initialized successfully');
+  // Если build-time конфигурация полная, используем её (локальная разработка)
+  if (buildTimeConfig.apiKey && buildTimeConfig.projectId && buildTimeConfig.authDomain) {
+    console.log('✅ Using build-time Firebase configuration (local dev)');
+    return buildTimeConfig as FirebaseConfig;
   }
-} catch (error) {
-  console.error('❌ Failed to initialize Firebase:', error);
-  // В продакшене это должно быть обработано лучше
-  // Пока выбрасываем ошибку, чтобы ErrorBoundary мог её поймать
-  throw new Error('Firebase initialization failed. Please check your configuration.');
+
+  // Иначе загружаем с сервера (runtime конфигурация из Cloud Run)
+  console.log('🔧 Loading Firebase configuration from server (Cloud Run)...');
+  try {
+    const response = await fetch('/api/config/firebase');
+    if (!response.ok) {
+      throw new Error(`Failed to fetch config: ${response.status} ${response.statusText}`);
+    }
+    const config = await response.json();
+    
+    if (!config.apiKey || !config.projectId || !config.authDomain) {
+      throw new Error('Incomplete Firebase configuration from server');
+    }
+    
+    console.log('✅ Firebase configuration loaded from server');
+    console.log('📋 Config:', {
+      hasApiKey: !!config.apiKey,
+      hasAuthDomain: !!config.authDomain,
+      hasProjectId: !!config.projectId,
+      projectId: config.projectId
+    });
+    
+    return config as FirebaseConfig;
+  } catch (error) {
+    console.error('❌ Failed to load Firebase configuration:', error);
+    throw new Error('Firebase configuration not available. Please check Cloud Run environment variables.');
+  }
 }
 
+// Инициализация Firebase
+let app: FirebaseApp | null = null;
+let auth: Auth | null = null;
+let db: Firestore | null = null;
+let initPromise: Promise<void> | null = null;
+
+// Функция инициализации (вызывается один раз)
+async function initializeFirebase(): Promise<void> {
+  if (initPromise) {
+    return initPromise;
+  }
+
+  initPromise = (async () => {
+    try {
+      const firebaseConfig = await loadFirebaseConfig();
+      app = initializeApp(firebaseConfig);
+      auth = getAuth(app);
+      db = getFirestore(app);
+      console.log('✅ Firebase initialized successfully');
+    } catch (error) {
+      console.error('❌ Failed to initialize Firebase:', error);
+      throw error;
+    }
+  })();
+
+  return initPromise;
+}
+
+// Экспортируем промис инициализации для использования в компонентах
+export const firebaseInit = initializeFirebase();
+
+// Экспортируем объекты (будут доступны после инициализации)
+export function getAuthInstance(): Auth {
+  if (!auth) {
+    throw new Error('Firebase Auth not initialized. Await firebaseInit first.');
+  }
+  return auth;
+}
+
+export function getFirestoreInstance(): Firestore {
+  if (!db) {
+    throw new Error('Firestore not initialized. Await firebaseInit first.');
+  }
+  return db;
+}
+
+// Для обратной совместимости - экспортируем напрямую
+// ВНИМАНИЕ: эти объекты будут null до завершения firebaseInit
 export { auth, db };
 export default app;

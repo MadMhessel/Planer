@@ -75,6 +75,30 @@ app.get('/api/health', (req, res) => {
   res.status(200).send('OK');
 });
 
+// Firebase Configuration Endpoint
+// Возвращает конфигурацию Firebase из переменных окружения Cloud Run
+app.get('/api/config/firebase', (req, res) => {
+  const config = {
+    apiKey: process.env.VITE_FIREBASE_API_KEY || process.env.FIREBASE_API_KEY,
+    authDomain: process.env.VITE_FIREBASE_AUTH_DOMAIN || process.env.FIREBASE_AUTH_DOMAIN,
+    projectId: process.env.VITE_FIREBASE_PROJECT_ID || process.env.FIREBASE_PROJECT_ID,
+    storageBucket: process.env.VITE_FIREBASE_STORAGE_BUCKET || process.env.FIREBASE_STORAGE_BUCKET,
+    messagingSenderId: process.env.VITE_FIREBASE_MESSAGING_SENDER_ID || process.env.FIREBASE_MESSAGING_SENDER_ID,
+    appId: process.env.VITE_FIREBASE_APP_ID || process.env.FIREBASE_APP_ID
+  };
+
+  // Проверка наличия обязательных полей
+  if (!config.apiKey || !config.projectId || !config.authDomain) {
+    console.warn('⚠️ Firebase config incomplete:', {
+      hasApiKey: !!config.apiKey,
+      hasProjectId: !!config.projectId,
+      hasAuthDomain: !!config.authDomain
+    });
+  }
+
+  res.json(config);
+});
+
 // Legacy Storage Endpoint (Fallback for older clients or cached builds)
 // Use /tmp for Cloud Run as it is the only writable system path (in-memory)
 const DB_FILE = path.join('/tmp', 'db.json');
