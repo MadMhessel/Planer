@@ -237,42 +237,42 @@ export const TaskModal: React.FC<TaskModalProps> = ({
               placeholder="Детали задачи..."
             />
           </div>
-        </form>
 
-        {/* Footer */}
-        <div className="flex justify-between items-center px-4 sm:px-6 py-3 sm:py-4 border-t border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-900 sticky bottom-0 z-10">
-          <div>
-             {task && (
-                 <button 
-                    type="button"
-                    onClick={() => {
-                        if (confirm('Вы уверены, что хотите удалить задачу?')) {
-                            onDelete(task.id);
-                            onClose();
-                        }
-                    }}
-                    className="flex items-center gap-2 text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 px-4 py-2 rounded-lg transition-all text-sm font-medium"
-                 >
-                     <Trash2 size={16} /> Удалить
-                 </button>
-             )}
+          {/* Footer */}
+          <div className="flex justify-between items-center pt-4 sm:pt-6 border-t border-gray-200 dark:border-slate-700 sticky bottom-0 bg-white dark:bg-slate-900 -mx-3 sm:-mx-4 md:-mx-6 px-3 sm:px-4 md:px-6 pb-0">
+            <div>
+               {task && (
+                   <button 
+                      type="button"
+                      onClick={() => {
+                          if (confirm('Вы уверены, что хотите удалить задачу?')) {
+                              onDelete(task.id);
+                              onClose();
+                          }
+                      }}
+                      className="flex items-center gap-2 text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 px-4 py-2 rounded-lg transition-all text-sm font-medium"
+                   >
+                       <Trash2 size={16} /> Удалить
+                   </button>
+               )}
+            </div>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-4 sm:px-5 py-2 sm:py-2.5 text-sm sm:text-base text-gray-600 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg transition-all font-medium"
+              >
+                Отмена
+              </button>
+              <button
+                type="submit"
+                className="flex items-center gap-2 px-4 sm:px-6 py-2 sm:py-2.5 bg-gradient-to-r from-sky-500 to-indigo-600 text-white rounded-lg hover:from-sky-600 hover:to-indigo-700 transition-all shadow-lg shadow-sky-500/30 hover:shadow-xl hover:shadow-sky-500/40 font-semibold text-sm sm:text-base"
+              >
+                <Save size={16} className="sm:w-[18px] sm:h-[18px]" /> Сохранить
+              </button>
+            </div>
           </div>
-          <div className="flex gap-3">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 sm:px-5 py-2 sm:py-2.5 text-sm sm:text-base text-gray-600 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg transition-all font-medium"
-            >
-              Отмена
-            </button>
-            <button
-              type="submit"
-              className="flex items-center gap-2 px-4 sm:px-6 py-2 sm:py-2.5 bg-gradient-to-r from-sky-500 to-indigo-600 text-white rounded-lg hover:from-sky-600 hover:to-indigo-700 transition-all shadow-lg shadow-sky-500/30 hover:shadow-xl hover:shadow-sky-500/40 font-semibold text-sm sm:text-base"
-            >
-              <Save size={16} className="sm:w-[18px] sm:h-[18px]" /> Сохранить
-            </button>
-          </div>
-        </div>
+        </form>
       </div>
     </div>
   );
