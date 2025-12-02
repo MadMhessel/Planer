@@ -38,7 +38,7 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, projects, users, onTaskClick 
   return (
     <div 
       onClick={() => onTaskClick(task)}
-      className="bg-white dark:bg-slate-800/80 backdrop-blur-sm p-3 sm:p-4 rounded-xl shadow-md border border-gray-100 dark:border-slate-700/50 mb-3 active:scale-[0.98] transition-all hover:shadow-lg hover:-translate-y-0.5 cursor-pointer w-full max-w-full overflow-hidden"
+      className="bg-white dark:bg-slate-800/80 backdrop-blur-sm p-2.5 sm:p-3 md:p-4 rounded-xl shadow-md border border-gray-100 dark:border-slate-700/50 mb-2 sm:mb-3 active:scale-[0.98] transition-all hover:shadow-lg hover:-translate-y-0.5 cursor-pointer w-full max-w-full overflow-hidden touch-manipulation"
     >
       <div className="flex justify-between items-start mb-2 gap-2">
           {project ? (
@@ -61,23 +61,23 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, projects, users, onTaskClick 
         </div>
       )}
 
-      <div className="flex items-center justify-between border-t border-gray-50 dark:border-slate-700 pt-2 sm:pt-3 mt-2 gap-2">
-          <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 flex-1">
-               <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-gray-100 dark:bg-slate-700 border border-gray-200 dark:border-slate-600 flex items-center justify-center overflow-hidden flex-shrink-0">
+      <div className="flex items-center justify-between border-t border-gray-50 dark:border-slate-700 pt-1.5 sm:pt-2 md:pt-3 mt-1.5 sm:mt-2 gap-1.5 sm:gap-2 min-w-0">
+          <div className="flex items-center gap-1 sm:gap-1.5 md:gap-2 min-w-0 flex-1">
+               <div className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 rounded-full bg-gray-100 dark:bg-slate-700 border border-gray-200 dark:border-slate-600 flex items-center justify-center overflow-hidden flex-shrink-0">
                     {user?.photoURL ? (
                         <img src={user.photoURL} className="w-full h-full object-cover" alt="" />
                     ) : (
-                        <span className="text-[8px] sm:text-[9px] font-bold text-gray-500 dark:text-slate-400">{user ? getInitials(user.displayName || user.email) : '?'}</span>
+                        <span className="text-[7px] sm:text-[8px] md:text-[9px] font-bold text-gray-500 dark:text-slate-400">{user ? getInitials(user.displayName || user.email) : '?'}</span>
                     )}
                </div>
-               <div className={`px-1.5 sm:px-2 py-0.5 rounded text-[10px] sm:text-xs font-medium truncate ${getStatusColor(task.status)}`}>
+               <div className={`px-1 sm:px-1.5 md:px-2 py-0.5 rounded text-[9px] sm:text-[10px] md:text-xs font-medium truncate min-w-0 ${getStatusColor(task.status)}`}>
                   {getStatusLabel(task.status)}
                </div>
           </div>
-          <div className="flex items-center text-[10px] sm:text-xs text-gray-400 dark:text-slate-500 font-medium flex-shrink-0">
+          <div className="flex items-center text-[9px] sm:text-[10px] md:text-xs text-gray-400 dark:text-slate-500 font-medium flex-shrink-0">
               {task.dueDate && (
                 <>
-                  <Calendar size={12} className="mr-0.5 sm:mr-1" />
+                  <Calendar size={10} className="sm:w-3 sm:h-3 mr-0.5 sm:mr-1" />
                   <span className="whitespace-nowrap">{new Date(task.dueDate).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}</span>
                 </>
               )}
@@ -134,13 +134,13 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks, projects, users, onTa
   return (
     <div className="h-full flex flex-col">
       {/* Toolbar */}
-      <div className="flex items-center justify-between mb-4 bg-white dark:bg-slate-800/80 backdrop-blur-sm p-4 rounded-xl shadow-lg border border-gray-200 dark:border-slate-700/50">
-         <div className="flex items-center gap-3 text-sm text-gray-600 dark:text-slate-300">
-             <span className="hidden sm:inline font-semibold">Сортировка:</span>
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 sm:gap-0 mb-3 sm:mb-4 bg-white dark:bg-slate-800/80 backdrop-blur-sm p-3 sm:p-4 rounded-xl shadow-lg border border-gray-200 dark:border-slate-700/50 w-full max-w-full overflow-x-hidden">
+         <div className="flex items-center gap-2 sm:gap-3 text-xs sm:text-sm text-gray-600 dark:text-slate-300 min-w-0 flex-1">
+             <span className="hidden sm:inline font-semibold whitespace-nowrap">Сортировка:</span>
              <select 
                 value={sortBy} 
                 onChange={(e) => setSortBy(e.target.value as SortOption)}
-                className="bg-gray-50 dark:bg-slate-700/50 border border-gray-200 dark:border-slate-600 focus:border-indigo-500 dark:focus:border-sky-500 focus:ring-2 focus:ring-indigo-500/20 dark:focus:ring-sky-500/20 rounded-lg py-2 px-3 text-sm cursor-pointer hover:bg-gray-100 dark:hover:bg-slate-700 transition-all font-medium"
+                className="bg-gray-50 dark:bg-slate-700/50 border border-gray-200 dark:border-slate-600 focus:border-indigo-500 dark:focus:border-sky-500 focus:ring-2 focus:ring-indigo-500/20 dark:focus:ring-sky-500/20 rounded-lg py-1.5 sm:py-2 px-2 sm:px-3 text-xs sm:text-sm cursor-pointer hover:bg-gray-100 dark:hover:bg-slate-700 transition-all font-medium flex-1 sm:flex-none min-w-0"
              >
                  <option value="dueDate">По сроку</option>
                  <option value="priority">По приоритету</option>
@@ -150,14 +150,15 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks, projects, users, onTa
              <button 
                 type="button"
                 onClick={toggleSortOrder}
-                className="p-2 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-all text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200"
+                className="p-1.5 sm:p-2 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-all text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200 flex-shrink-0 touch-manipulation min-h-[36px] sm:min-h-[40px] flex items-center justify-center"
                 title={sortOrder === 'asc' ? 'По возрастанию' : 'По убыванию'}
+                aria-label={sortOrder === 'asc' ? 'По возрастанию' : 'По убыванию'}
              >
-                 {sortOrder === 'asc' ? <ArrowUp size={18} /> : <ArrowDown size={18} />}
+                 {sortOrder === 'asc' ? <ArrowUp size={16} className="sm:w-[18px] sm:h-[18px]" /> : <ArrowDown size={16} className="sm:w-[18px] sm:h-[18px]" />}
              </button>
          </div>
-         <div className="flex items-center gap-4">
-           <div className="text-sm text-gray-500 dark:text-slate-400 font-semibold">
+         <div className="flex items-center justify-between sm:justify-end gap-2 sm:gap-4">
+           <div className="text-xs sm:text-sm text-gray-500 dark:text-slate-400 font-semibold whitespace-nowrap">
                {tasks.length} {tasks.length === 1 ? 'задача' : tasks.length < 5 ? 'задачи' : 'задач'}
            </div>
            <button
@@ -171,10 +172,11 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks, projects, users, onTa
                workspaceId: '',
                priority: TaskPriority.NORMAL
              } as Task)}
-             className="flex items-center gap-1.5 px-4 py-2 text-sm rounded-lg bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-semibold hover:from-indigo-700 hover:to-purple-700 transition-all shadow-lg shadow-indigo-500/30 hover:shadow-xl hover:shadow-indigo-500/40 hover:-translate-y-0.5"
+             className="flex items-center gap-1 sm:gap-1.5 px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm rounded-lg bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-semibold hover:from-indigo-700 hover:to-purple-700 transition-all shadow-lg shadow-indigo-500/30 hover:shadow-xl hover:shadow-indigo-500/40 hover:-translate-y-0.5 active:scale-95 touch-manipulation whitespace-nowrap flex-shrink-0"
            >
-             <Plus size={16} />
-             <span>Новая задача</span>
+             <Plus size={14} className="sm:w-4 sm:h-4" />
+             <span className="hidden xs:inline">Новая задача</span>
+             <span className="xs:hidden">Создать</span>
            </button>
          </div>
       </div>

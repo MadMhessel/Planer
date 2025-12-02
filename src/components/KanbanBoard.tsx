@@ -335,9 +335,9 @@ export const KanbanBoard: React.FC<Props> = ({
                     )}
 
                     <span
-                      className={`ml-auto px-2 py-0.5 rounded-full border text-[10px] ${priorityColor(task.priority)}`}
+                      className={`ml-auto px-2 py-0.5 rounded-full border text-[10px] ${getPriorityColor(task.priority)}`}
                     >
-                      {priorityLabel(task.priority)}
+                      {getPriorityLabel(task.priority)}
                     </span>
                   </div>
                 </div>

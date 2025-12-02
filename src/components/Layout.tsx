@@ -101,9 +101,9 @@ export const Layout: React.FC<LayoutProps> = ({
       <header className="sticky top-0 z-20 bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-slate-800 shadow-sm">
         <div className="max-w-7xl mx-auto">
           {/* Top Row - Logo, Menu, Actions */}
-          <div className="flex items-center justify-between px-2 sm:px-3 md:px-4 py-2 sm:py-2.5 gap-1 sm:gap-2 overflow-hidden">
+          <div className="flex items-center justify-between px-2 sm:px-3 md:px-4 py-2 sm:py-2.5 gap-1 sm:gap-2 overflow-hidden w-full">
             {/* Left: Logo + Menu Button (Mobile) */}
-            <div className="flex items-center gap-1.5 sm:gap-2 md:gap-3 flex-shrink-0 min-w-0">
+            <div className="flex items-center gap-1 sm:gap-1.5 md:gap-3 flex-shrink-0 min-w-0">
               {/* Mobile Menu Button */}
               <button
                 onClick={() => setMobileMenuOpen(true)}
@@ -128,12 +128,13 @@ export const Layout: React.FC<LayoutProps> = ({
             </div>
 
             {/* Center: Workspace Selector - Always visible on mobile */}
-            <div className="flex items-center gap-1 sm:gap-1.5 flex-1 max-w-[140px] sm:max-w-xs mx-0.5 sm:mx-1 md:mx-2 min-w-0 overflow-hidden">
+            <div className="flex items-center gap-0.5 sm:gap-1 flex-1 max-w-[120px] sm:max-w-[160px] md:max-w-xs mx-0.5 sm:mx-1 md:mx-2 min-w-0 overflow-hidden">
               <div className="relative flex-1 min-w-0">
                 <select
-                  className="w-full bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg text-[9px] sm:text-[10px] md:text-xs px-1 sm:px-1.5 md:px-2 py-0.5 sm:py-1 md:py-1.5 pr-4 sm:pr-5 md:pr-6 focus:ring-1 focus:ring-sky-500/50 focus:border-sky-500 transition-all text-gray-900 dark:text-slate-100 truncate appearance-none"
+                  className="w-full bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg text-[8px] sm:text-[10px] md:text-xs px-1 sm:px-1.5 md:px-2 py-1 sm:py-1.5 md:py-2 pr-5 sm:pr-6 md:pr-7 focus:ring-1 focus:ring-sky-500/50 focus:border-sky-500 transition-all text-gray-900 dark:text-slate-100 truncate appearance-none cursor-pointer"
                   value={currentWorkspaceId || ''}
                   onChange={e => onWorkspaceChange(e.target.value)}
+                  title={currentWorkspace?.name || 'Выберите workspace'}
                 >
                   {workspaces.length === 0 && (
                     <option value="">Нет пространств</option>
@@ -144,21 +145,22 @@ export const Layout: React.FC<LayoutProps> = ({
                     </option>
                   ))}
                 </select>
-                <ChevronDown className="w-2 h-2 sm:w-2.5 sm:h-2.5 md:w-3 md:h-3 text-gray-400 dark:text-slate-500 absolute right-0.5 sm:right-1 md:right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <ChevronDown className="w-2.5 h-2.5 sm:w-3 sm:h-3 md:w-3.5 md:h-3.5 text-gray-400 dark:text-slate-500 absolute right-1 sm:right-1.5 md:right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
               </div>
               <button
                 onClick={handleCreateWorkspaceClick}
-                className="text-[8px] sm:text-[9px] md:text-[10px] px-1 sm:px-1.5 md:px-2 py-0.5 sm:py-1 md:py-1.5 rounded-lg border border-gray-200 dark:border-slate-700 hover:bg-gray-100 dark:hover:bg-slate-800 transition-all font-medium text-gray-700 dark:text-slate-300 whitespace-nowrap flex-shrink-0"
+                className="text-[7px] sm:text-[8px] md:text-[10px] px-1 sm:px-1.5 md:px-2 py-1 sm:py-1.5 md:py-2 rounded-lg border border-gray-200 dark:border-slate-700 hover:bg-gray-100 dark:hover:bg-slate-800 transition-all font-medium text-gray-700 dark:text-slate-300 whitespace-nowrap flex-shrink-0 min-h-[28px] sm:min-h-[32px] md:min-h-[36px] flex items-center justify-center"
                 title="Создать пространство"
+                aria-label="Создать пространство"
               >
                 + Новое
               </button>
             </div>
 
             {/* Right: Theme, Notifications, User */}
-            <div className="flex items-center gap-1 sm:gap-1.5 md:gap-2 flex-shrink-0">
+            <div className="flex items-center gap-0.5 sm:gap-1 md:gap-2 flex-shrink-0">
               {/* Theme Toggle - Compact on Mobile */}
-              <div className="flex items-center gap-0.5 bg-gray-100 dark:bg-slate-800 rounded-full p-0.5 text-[10px] sm:text-xs border border-gray-200 dark:border-slate-700">
+              <div className="flex items-center gap-0 bg-gray-100 dark:bg-slate-800 rounded-full p-0.5 text-[10px] sm:text-xs border border-gray-200 dark:border-slate-700">
                 <button
                   onClick={() => handleThemeClick('light')}
                   type="button"
@@ -255,8 +257,8 @@ export const Layout: React.FC<LayoutProps> = ({
       </header>
 
       {/* Main Content */}
-      <main className="flex-1 max-w-7xl mx-auto w-full px-2 sm:px-3 md:px-4 lg:px-6 py-3 sm:py-4 pb-20 md:pb-4 overflow-x-hidden">
-        <div className="w-full max-w-full overflow-x-hidden">
+      <main className="flex-1 max-w-7xl mx-auto w-full px-2 sm:px-3 md:px-4 lg:px-6 py-2 sm:py-3 md:py-4 pb-20 md:pb-4 overflow-x-hidden">
+        <div className="w-full max-w-full overflow-x-hidden min-h-0">
           {children}
         </div>
       </main>

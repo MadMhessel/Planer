@@ -115,10 +115,11 @@ export const AICommandBar: React.FC<AICommandBarProps> = ({
           <button
             type="button"
             onClick={() => setIsOpen(true)}
-            className="fixed bottom-4 right-4 z-40 flex items-center gap-2 rounded-full bg-gradient-to-r from-indigo-500 to-purple-600 text-white px-4 py-3 shadow-xl shadow-indigo-500/40 hover:shadow-2xl hover:shadow-indigo-500/50 hover:scale-110 transition-all font-semibold"
+            className="fixed bottom-20 sm:bottom-24 right-4 z-40 flex items-center gap-2 rounded-full bg-gradient-to-r from-indigo-500 to-purple-600 text-white px-3 sm:px-4 py-2.5 sm:py-3 shadow-xl shadow-indigo-500/40 hover:shadow-2xl hover:shadow-indigo-500/50 hover:scale-110 active:scale-95 transition-all font-semibold touch-manipulation"
+            aria-label="Открыть AI-помощник"
           >
-            <Sparkles className="h-5 w-5" />
-            <span className="text-sm">AI-помощь</span>
+            <Sparkles className="h-4 w-4 sm:h-5 sm:w-5" />
+            <span className="text-xs sm:text-sm hidden xs:inline">AI-помощь</span>
           </button>
         )}
 

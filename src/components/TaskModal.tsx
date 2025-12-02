@@ -100,7 +100,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
         </div>
 
         {/* Body */}
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 sm:space-y-6 bg-white dark:bg-slate-900">
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-3 sm:p-4 md:p-6 space-y-3 sm:space-y-4 md:space-y-6 bg-white dark:bg-slate-900">
           {/* Title */}
           <div>
             <label className="block text-sm font-semibold text-gray-700 dark:text-slate-300 mb-2">Название задачи</label>
