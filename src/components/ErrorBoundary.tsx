@@ -39,24 +39,24 @@ export class ErrorBoundary extends Component<Props, State> {
   render() {
     if (this.state.hasError) {
       return (
-        <div className="min-h-screen flex items-center justify-center bg-slate-900 text-slate-100 p-4">
-          <div className="max-w-md w-full bg-slate-800 border border-red-500/50 rounded-lg p-6">
-            <h1 className="text-xl font-bold text-red-400 mb-4">
+        <div className="min-h-screen flex items-center justify-center bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100 p-4">
+          <div className="max-w-md w-full bg-white dark:bg-slate-800 border border-red-200 dark:border-red-500/50 rounded-lg p-6 shadow-lg">
+            <h1 className="text-xl font-bold text-red-600 dark:text-red-400 mb-4">
               Произошла ошибка
             </h1>
-            <p className="text-slate-300 mb-4">
+            <p className="text-gray-700 dark:text-slate-300 mb-4">
               Приложение столкнулось с неожиданной ошибкой. Пожалуйста, обновите страницу.
             </p>
             
             {this.state.error && (
-              <div className="mb-4 p-3 bg-slate-900 rounded text-sm">
-                <p className="text-red-400 font-mono mb-2">
+              <div className="mb-4 p-3 bg-gray-50 dark:bg-slate-900 rounded text-sm border border-gray-200 dark:border-slate-700">
+                <p className="text-red-600 dark:text-red-400 font-mono mb-2">
                   {this.state.error.toString()}
                 </p>
                 {this.state.errorInfo && (
-                  <details className="text-slate-400 text-xs">
+                  <details className="text-gray-600 dark:text-slate-400 text-xs">
                     <summary className="cursor-pointer mb-2">Детали ошибки</summary>
-                    <pre className="overflow-auto max-h-40">
+                    <pre className="overflow-auto max-h-40 text-gray-800 dark:text-slate-300">
                       {this.state.errorInfo.componentStack}
                     </pre>
                   </details>
@@ -68,7 +68,7 @@ export class ErrorBoundary extends Component<Props, State> {
               onClick={() => {
                 window.location.reload();
               }}
-              className="w-full bg-sky-500 hover:bg-sky-400 text-slate-900 font-medium py-2 rounded-lg transition"
+              className="w-full bg-sky-500 hover:bg-sky-400 text-white font-medium py-2 rounded-lg transition"
             >
               Обновить страницу
             </button>

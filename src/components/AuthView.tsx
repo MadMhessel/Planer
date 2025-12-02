@@ -38,12 +38,12 @@ export const AuthView: React.FC<AuthViewProps> = ({ onAuth }) => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-900 text-slate-100 p-4">
-      <div className="w-full max-w-sm bg-slate-900/70 border border-slate-700 rounded-2xl p-6 shadow-xl">
-        <h1 className="text-xl font-semibold mb-2 text-center">
+    <div className="min-h-screen flex items-center justify-center bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100 p-4">
+      <div className="w-full max-w-sm bg-white dark:bg-slate-900/70 border border-gray-200 dark:border-slate-700 rounded-2xl p-6 shadow-xl">
+        <h1 className="text-xl font-semibold mb-2 text-center text-gray-900 dark:text-slate-100">
           Command Task Planner
         </h1>
-        <p className="text-sm text-slate-400 mb-6 text-center">
+        <p className="text-sm text-gray-600 dark:text-slate-400 mb-6 text-center">
           {isLogin ? 'Войдите, чтобы управлять задачами' : 'Создайте аккаунт для начала работы'}
         </p>
 
@@ -51,21 +51,21 @@ export const AuthView: React.FC<AuthViewProps> = ({ onAuth }) => {
         <form onSubmit={handleEmailAuth} className="space-y-4 mb-4">
           {!isLogin && (
             <div>
-              <label className="block text-sm text-slate-300 mb-1">
+              <label className="block text-sm text-gray-700 dark:text-slate-300 mb-1">
                 Имя
               </label>
               <input
                 type="text"
                 value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}
-                className="w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded-lg text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                className="w-full px-3 py-2 bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
                 placeholder="Ваше имя"
               />
             </div>
           )}
 
           <div>
-            <label className="block text-sm text-slate-300 mb-1">
+            <label className="block text-sm text-gray-700 dark:text-slate-300 mb-1">
               Email
             </label>
             <input
@@ -73,13 +73,13 @@ export const AuthView: React.FC<AuthViewProps> = ({ onAuth }) => {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              className="w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded-lg text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
+              className="w-full px-3 py-2 bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
               placeholder="your@email.com"
             />
           </div>
 
           <div>
-            <label className="block text-sm text-slate-300 mb-1">
+            <label className="block text-sm text-gray-700 dark:text-slate-300 mb-1">
               Пароль
             </label>
             <input
@@ -88,13 +88,13 @@ export const AuthView: React.FC<AuthViewProps> = ({ onAuth }) => {
               onChange={(e) => setPassword(e.target.value)}
               required
               minLength={6}
-              className="w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded-lg text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
+              className="w-full px-3 py-2 bg-gray-50 dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
               placeholder="••••••"
             />
           </div>
 
           {error && (
-            <div className="p-3 bg-red-500/20 border border-red-500/50 rounded-lg text-red-300 text-sm">
+            <div className="p-3 bg-red-50 dark:bg-red-500/20 border border-red-200 dark:border-red-500/50 rounded-lg text-red-700 dark:text-red-300 text-sm">
               {error}
             </div>
           )}
@@ -102,7 +102,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onAuth }) => {
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full bg-sky-500 hover:bg-sky-400 disabled:bg-sky-600 disabled:opacity-50 disabled:cursor-not-allowed text-slate-900 font-medium py-2 rounded-lg transition"
+            className="w-full bg-sky-500 hover:bg-sky-400 disabled:bg-sky-600 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium py-2 rounded-lg transition"
           >
             {isLoading ? 'Загрузка...' : (isLogin ? 'Войти' : 'Зарегистрироваться')}
           </button>
@@ -116,7 +116,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onAuth }) => {
               setIsLogin(!isLogin);
               setError(null);
             }}
-            className="text-sm text-slate-400 hover:text-slate-300 underline"
+            className="text-sm text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-slate-300 underline"
           >
             {isLogin ? 'Нет аккаунта? Зарегистрироваться' : 'Уже есть аккаунт? Войти'}
           </button>
@@ -124,15 +124,15 @@ export const AuthView: React.FC<AuthViewProps> = ({ onAuth }) => {
 
         {/* Разделитель */}
         <div className="flex items-center my-4">
-          <div className="flex-1 border-t border-slate-700"></div>
-          <span className="px-3 text-sm text-slate-500">или</span>
-          <div className="flex-1 border-t border-slate-700"></div>
+          <div className="flex-1 border-t border-gray-200 dark:border-slate-700"></div>
+          <span className="px-3 text-sm text-gray-500 dark:text-slate-500">или</span>
+          <div className="flex-1 border-t border-gray-200 dark:border-slate-700"></div>
         </div>
 
         {/* Кнопка Google */}
         <button
           onClick={handleGoogleLogin}
-          className="w-full flex items-center justify-center gap-2 bg-white hover:bg-gray-100 text-slate-900 font-medium py-2 rounded-lg transition"
+          className="w-full flex items-center justify-center gap-2 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 border border-gray-300 dark:border-slate-600 text-gray-900 dark:text-slate-100 font-medium py-2 rounded-lg transition"
         >
           <svg className="w-5 h-5" viewBox="0 0 24 24">
             <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
@@ -143,7 +143,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ onAuth }) => {
           <span>Войти через Google</span>
         </button>
 
-        <p className="mt-4 text-[11px] text-slate-500 text-center">
+        <p className="mt-4 text-[11px] text-gray-500 dark:text-slate-500 text-center">
           Авторизация нужна только для привязки задач к вашему аккаунту
           и совместной работы в рабочих пространствах.
         </p>

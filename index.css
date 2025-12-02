@@ -41,8 +41,9 @@
     --color-shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.4), 0 8px 10px -6px rgb(0 0 0 / 0.4);
   }
 
+  /* Borders - светлые для light темы, темные для dark */
   * {
-    @apply border-slate-700;
+    @apply border-gray-200 dark:border-slate-700;
   }
   
   body {

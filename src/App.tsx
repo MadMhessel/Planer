@@ -472,10 +472,10 @@ const App: React.FC = () => {
 
   if (authLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-900 text-slate-100">
+      <div className="min-h-screen flex items-center justify-center bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100">
         <div className="text-center">
-          <div className="animate-pulse text-lg mb-2">Загрузка...</div>
-          <div className="text-sm text-slate-400">Инициализация приложения</div>
+          <div className="animate-pulse text-lg mb-2 text-gray-900 dark:text-slate-100">Загрузка...</div>
+          <div className="text-sm text-gray-600 dark:text-slate-400">Инициализация приложения</div>
         </div>
       </div>
     );
