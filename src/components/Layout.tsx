@@ -14,7 +14,8 @@ import {
   ChevronDown,
   Menu,
   X,
-  Plus
+  Plus,
+  User
 } from 'lucide-react';
 import { Workspace, User, ViewMode, Notification } from '../types';
 import { MobileDrawer } from './MobileDrawer';
@@ -37,6 +38,7 @@ type LayoutProps = {
   canManageCurrentWorkspace: boolean;
   onNotificationsToggle?: () => void;
   onCreateTask?: () => void;
+  onProfileClick?: () => void;
   children: React.ReactNode;
 };
 
@@ -64,6 +66,7 @@ export const Layout: React.FC<LayoutProps> = ({
   canManageCurrentWorkspace,
   onNotificationsToggle,
   onCreateTask,
+  onProfileClick,
   children
 }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -95,6 +98,7 @@ export const Layout: React.FC<LayoutProps> = ({
         onClose={() => setMobileMenuOpen(false)}
         currentView={view}
         onViewChange={onChangeView}
+        onProfileClick={onProfileClick}
       />
 
       {/* Header - Mobile First */}
@@ -220,6 +224,16 @@ export const Layout: React.FC<LayoutProps> = ({
                     </span>
                   )}
                 </div>
+                {onProfileClick && (
+                  <button
+                    onClick={onProfileClick}
+                    className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs border border-gray-200 dark:border-slate-700 hover:bg-gray-100 dark:hover:bg-slate-800 transition-all font-medium text-gray-700 dark:text-slate-300"
+                    title="Профиль"
+                  >
+                    <User className="w-3.5 h-3.5" />
+                    <span className="hidden md:inline">Профиль</span>
+                  </button>
+                )}
                 <button
                   onClick={onLogout}
                   className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs border border-gray-200 dark:border-slate-700 hover:bg-gray-100 dark:hover:bg-slate-800 transition-all font-medium text-gray-700 dark:text-slate-300"

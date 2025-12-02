@@ -402,5 +402,13 @@ export const FirestoreService = {
       ...(snap.data() as User),
       id: snap.id
     };
+  },
+
+  async updateUser(userId: string, updates: Partial<Omit<User, 'id' | 'email' | 'createdAt'>>): Promise<void> {
+    const userRef = doc(db, 'users', userId);
+    await updateDoc(userRef, {
+      ...updates,
+      updatedAt: new Date().toISOString()
+    });
   }
 };

@@ -11,6 +11,7 @@ const Dashboard = lazy(() => import('./components/Dashboard').then(m => ({ defau
 import { TaskModal } from './components/TaskModal';
 import { ProjectModal } from './components/ProjectModal';
 import { UserModal } from './components/UserModal';
+import { ProfileModal } from './components/ProfileModal';
 import { SettingsView } from './components/SettingsView';
 import { AuthView } from './components/AuthView';
 import { WorkspaceSelector } from './components/WorkspaceSelector';
@@ -67,6 +68,7 @@ const App: React.FC = () => {
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
 
   const [inviteContext, setInviteContext] = useState<InviteContext | null>(null);
   const [isProcessingCommand, setIsProcessingCommand] = useState(false);
@@ -531,6 +533,7 @@ const App: React.FC = () => {
         setEditingTask(null);
         setIsTaskModalOpen(true);
       }}
+      onProfileClick={() => setIsProfileModalOpen(true)}
     >
       {!currentWorkspace && (
         <div className="p-6 text-slate-200">
@@ -712,7 +715,23 @@ const App: React.FC = () => {
               setEditingUser(null);
               setIsUserModalOpen(false);
             }}
+            onDelete={async (userId) => {
+              // Placeholder: удаление пользователя
+              setEditingUser(null);
+              setIsUserModalOpen(false);
+            }}
           />
+
+          {currentUser && (
+            <ProfileModal
+              isOpen={isProfileModalOpen}
+              user={currentUser}
+              onClose={() => setIsProfileModalOpen(false)}
+              onUserUpdate={(updatedUser) => {
+                setCurrentUser(updatedUser);
+              }}
+            />
+          )}
 
           <AICommandBar
             onCommand={handleCommand}
