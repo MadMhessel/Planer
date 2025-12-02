@@ -23,20 +23,7 @@ export const NotificationCenter: React.FC<Props> = ({
 
   return (
     <>
-      {/* Плавающая кнопка колокольчика (только для мобильных) */}
-      {onToggle && (
-        <button
-          onClick={onToggle}
-          className="fixed bottom-20 right-4 z-30 rounded-full bg-gradient-to-r from-sky-500 to-indigo-600 text-white p-4 shadow-xl shadow-sky-500/40 hover:shadow-2xl hover:shadow-sky-500/50 hover:scale-110 transition-all md:hidden"
-        >
-          <Bell className="w-5 h-5" />
-          {unread.length > 0 && (
-            <span className="absolute -top-1 -right-1 bg-red-500 text-[10px] font-bold text-white rounded-full min-w-[18px] h-[18px] flex items-center justify-center shadow-lg animate-pulse px-1">
-              {unread.length > 9 ? '9+' : unread.length}
-            </span>
-          )}
-        </button>
-      )}
+      {/* Плавающая кнопка уведомлений скрыта, чтобы не перекрывать AI-кнопку */}
 
       {/* Панель уведомлений */}
       {open && (
