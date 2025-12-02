@@ -90,14 +90,20 @@ service cloud.firestore {
       // Members Subcollection
       // ============================================
       match /members/{memberId} {
-        // Чтение: члены workspace могут видеть список участников
+        // List: супер-админы и члены workspace могут видеть список участников
         // Для collection group queries разрешаем, если userId совпадает с текущим пользователем
-        // Для обычных запросов разрешаем, если пользователь является членом workspace
+        allow list: if request.auth != null && 
+                       (isSuperAdmin() || 
+                        isMember(workspaceId) ||
+                        resource.data.userId == request.auth.uid);
+        
+        // Get: члены workspace могут видеть конкретного участника
+        // Для collection group queries разрешаем, если userId совпадает с текущим пользователем
         // Супер-админы могут читать всех участников
-        allow read: if request.auth != null && 
-                       (isSuperAdmin() ||
-                        resource.data.userId == request.auth.uid || 
-                        isMember(workspaceId));
+        allow get: if request.auth != null && 
+                      (isSuperAdmin() ||
+                       resource.data.userId == request.auth.uid || 
+                       isMember(workspaceId));
         
         // Создание: только админы/владельцы могут добавлять участников
         // ИЛИ пользователь может создать себя при принятии приглашения
@@ -133,8 +139,8 @@ service cloud.firestore {
       // Invites Subcollection
       // ============================================
       match /invites/{token} {
-        // List: только админы/владельцы могут видеть список приглашений
-        allow list: if request.auth != null && isAdminOrOwner(workspaceId);
+        // List: только админы/владельцы или супер-админы могут видеть список приглашений
+        allow list: if request.auth != null && (isSuperAdmin() || isAdminOrOwner(workspaceId));
         
         // Get: любой авторизованный может получить конкретное приглашение по token
         // (для проверки при принятии приглашения)
