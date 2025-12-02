@@ -119,9 +119,11 @@ export const Layout: React.FC<LayoutProps> = ({
 
               {/* Logo */}
               <div className="flex items-center gap-2 sm:gap-3">
-                <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-gradient-to-br from-sky-500 to-indigo-600 flex items-center justify-center text-xs sm:text-sm font-bold text-white shadow-lg shadow-sky-500/30">
-                  CTP
-                </div>
+                <img 
+                  src="/logo.svg" 
+                  alt="Command Task Planner" 
+                  className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl shadow-lg"
+                />
                 <div className="hidden sm:flex flex-col leading-tight">
                   <span className="font-bold text-xs sm:text-sm bg-gradient-to-r from-sky-500 to-indigo-600 dark:from-sky-400 dark:to-indigo-400 bg-clip-text text-transparent">
                     Command Task Planner
