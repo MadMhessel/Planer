@@ -90,9 +90,12 @@ export const AcceptInviteView: React.FC<Props> = ({
       url.searchParams.delete('workspace');
       window.history.replaceState({}, '', url.toString());
 
+      // Даем время для обновления подписок Firestore
       setTimeout(() => {
         onClose();
-      }, 1500);
+        // Принудительно обновляем страницу, чтобы workspace появился в списке
+        window.location.reload();
+      }, 2000);
     } catch (e: any) {
       setState({
         status: 'error',
