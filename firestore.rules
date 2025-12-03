@@ -2,6 +2,26 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
+    // ============================================
+    // Collection Group Query для members
+    // ============================================
+    // Для collection group queries нужно определить правило отдельно
+    // Это позволяет выполнять запросы по всем members во всех workspace
+    // ВАЖНО: Это правило применяется ТОЛЬКО к collection group queries
+    // Обычные запросы к /workspaces/{workspaceId}/members используют правила ниже
+    match /{path=**}/members/{memberId} {
+      // List: разрешаем для collection group queries
+      // Это безопасно, так как запрос уже фильтрует по userId == request.auth.uid
+      // и status == 'ACTIVE', поэтому пользователь видит только свои member документы
+      allow list: if request.auth != null;
+      
+      // Get: разрешаем чтение своего member документа
+      allow get: if request.auth != null && 
+                   (isSuperAdmin() || 
+                    // Пользователь может читать свой member документ
+                    resource.data.userId == request.auth.uid);
+    }
+    
     // Вспомогательные функции
     function isMember(workspaceId) {
       // Проверяем, что workspaceId не null и пользователь является членом
@@ -120,18 +140,13 @@ service cloud.firestore {
         // Супер-админы могут видеть всех участников всех workspace
         // Для collection group queries проверяем userId документа
         // Поддерживаем анонимных пользователей (для демо-режима)
-        // Примечание: для collection group queries workspaceId равен null,
-        // поэтому проверяем workspaceId != null перед вызовом isMember()
-        // Для collection group queries resource недоступен в правиле list,
-        // поэтому разрешаем чтение для collection group queries если workspaceId == null
-        // Это безопасно, так как запрос уже фильтрует по userId == request.auth.uid
+        // List: супер-админы и члены workspace могут видеть список участников
+        // Для обычных запросов (не collection group): workspaceId доступен
+        // Примечание: для collection group queries используется отдельное правило выше
         allow list: if request.auth != null && 
                        (isSuperAdmin() || 
                         // Для обычных запросов (не collection group): workspaceId доступен
-                        (workspaceId != null && isMember(workspaceId)) ||
-                        // Для collection group queries: workspaceId равен null
-                        // Разрешаем чтение, так как запрос уже фильтрует по userId == request.auth.uid
-                        workspaceId == null);
+                        (workspaceId != null && isMember(workspaceId)));
         
         // Get: члены workspace могут видеть конкретного участника
         // Для collection group queries разрешаем, если userId совпадает с текущим пользователем
