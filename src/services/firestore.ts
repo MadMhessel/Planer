@@ -502,6 +502,14 @@ export const FirestoreService = {
   async updateTask(taskId: string, updates: Partial<Task>) {
     const taskRef = doc(db, 'tasks', taskId);
     
+    // Логируем всегда (не только в DEV режиме)
+    console.log('[updateTask] Received updates', { 
+      taskId, 
+      updatesKeys: Object.keys(updates),
+      assigneeIds: updates.assigneeIds,
+      assigneeId: updates.assigneeId,
+      fullUpdates: updates
+    });
     logger.info('[updateTask] Received updates', { 
       taskId, 
       updatesKeys: Object.keys(updates),
@@ -517,6 +525,13 @@ export const FirestoreService = {
       }
     }
     
+    console.log('[updateTask] Clean updates', { 
+      taskId, 
+      cleanUpdatesKeys: Object.keys(cleanUpdates),
+      assigneeIds: cleanUpdates.assigneeIds,
+      assigneeId: cleanUpdates.assigneeId,
+      fullCleanUpdates: cleanUpdates
+    });
     logger.info('[updateTask] Clean updates', { 
       taskId, 
       cleanUpdatesKeys: Object.keys(cleanUpdates),
@@ -692,7 +707,7 @@ export const FirestoreService = {
       }
     }
 
-    logger.info('[updateTask] Sending update to Firestore', {
+    console.log('[updateTask] Sending update to Firestore', {
       taskId,
       keys: Object.keys(deeplyCleaned),
       hasUndefined: Object.values(deeplyCleaned).some(v => v === undefined),
@@ -700,13 +715,21 @@ export const FirestoreService = {
       assigneeId: deeplyCleaned.assigneeId,
       assigneeIdsType: typeof deeplyCleaned.assigneeIds,
       assigneeIdsIsArray: Array.isArray(deeplyCleaned.assigneeIds),
-      updateData: JSON.stringify(deeplyCleaned, (key, value) => {
+      fullUpdateData: deeplyCleaned,
+      updateDataJSON: JSON.stringify(deeplyCleaned, (key, value) => {
         // Заменяем deleteField() на строку для логирования
         if (value && typeof value === 'object' && '_methodName' in value) {
           return '[FieldValue.delete]';
         }
         return value;
       })
+    });
+    logger.info('[updateTask] Sending update to Firestore', {
+      taskId,
+      keys: Object.keys(deeplyCleaned),
+      hasUndefined: Object.values(deeplyCleaned).some(v => v === undefined),
+      assigneeIds: deeplyCleaned.assigneeIds,
+      assigneeId: deeplyCleaned.assigneeId
     });
 
     await updateDoc(taskRef, deeplyCleaned);
