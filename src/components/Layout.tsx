@@ -21,7 +21,7 @@ import { Workspace, User, ViewMode, Notification } from '../types';
 import { MobileDrawer } from './MobileDrawer';
 import { BottomNav } from './BottomNav';
 
-type AppView = ViewMode | 'SETTINGS';
+type AppView = ViewMode | 'SETTINGS' | 'NOTIFICATIONS';
 
 type LayoutProps = {
   currentUser: User;
@@ -48,6 +48,7 @@ const viewButtons: { id: AppView; label: string; icon: React.ComponentType<any> 
   { id: 'GANTT', label: 'Гант', icon: BarChart3 },
   { id: 'LIST', label: 'Список', icon: ListTodo },
   { id: 'DASHBOARD', label: 'Аналитика', icon: LayoutDashboard },
+  { id: 'NOTIFICATIONS', label: 'Уведомления', icon: Bell },
   { id: 'SETTINGS', label: 'Настройки', icon: Settings }
 ];
 

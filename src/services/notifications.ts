@@ -121,7 +121,7 @@ export class NotificationsService {
   }
 
   /**
-   * Delete all notifications for a user (only those visible to the user)
+   * Mark all notifications as read for a user (instead of deleting them)
    * Uses the same filtering logic as subscribe()
    */
   static async clearAll(workspaceId: string, userId: string) {
@@ -130,29 +130,44 @@ export class NotificationsService {
       const snapshot = await getDocs(q);
       
       const batch = writeBatch(db);
-      let deletionCount = 0;
+      let markedCount = 0;
       
       snapshot.docs.forEach(docSnap => {
         const data = docSnap.data() as Notification;
         // Используем ту же логику фильтрации, что и в subscribe()
-        // If no recipients specified, show to everyone (delete it)
-        // Otherwise only delete if user is in recipients list
-        const shouldDelete = !data.recipients || data.recipients.length === 0 || data.recipients.includes(userId);
+        // If no recipients specified, show to everyone (mark as read)
+        // Otherwise only mark if user is in recipients list
+        const shouldMark = !data.recipients || data.recipients.length === 0 || data.recipients.includes(userId);
         
-        if (shouldDelete) {
-          batch.delete(docSnap.ref);
-          deletionCount++;
+        if (shouldMark && !data.readBy?.includes(userId)) {
+          batch.update(docSnap.ref, {
+            readBy: arrayUnion(userId)
+          });
+          markedCount++;
         }
       });
       
-      if (deletionCount > 0) {
+      if (markedCount > 0) {
         await batch.commit();
-        logger.info('All notifications cleared', { workspaceId, userId, count: deletionCount });
+        logger.info('All notifications marked as read', { workspaceId, userId, count: markedCount });
       } else {
-        logger.info('No notifications to clear', { workspaceId, userId });
+        logger.info('No notifications to mark as read', { workspaceId, userId });
       }
     } catch (error) {
-      logger.error('Failed to clear notifications', error);
+      logger.error('Failed to mark all notifications as read', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Delete a single notification
+   */
+  static async delete(workspaceId: string, notificationId: string) {
+    try {
+      await deleteDoc(doc(this.workspaceCollection(workspaceId), notificationId));
+      logger.info('Notification deleted', { notificationId, workspaceId });
+    } catch (error) {
+      logger.error('Failed to delete notification', error);
       throw error;
     }
   }
@@ -183,4 +198,5 @@ export class NotificationsService {
     // Remove duplicates
     return [...new Set(recipients)];
   }
+}
 }

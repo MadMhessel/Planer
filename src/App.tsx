@@ -16,6 +16,7 @@ import { SettingsView } from './components/SettingsView';
 import { AuthView } from './components/AuthView';
 import { WorkspaceSelector } from './components/WorkspaceSelector';
 import { NotificationCenter } from './components/NotificationCenter';
+import { NotificationHistory } from './components/NotificationHistory';
 import { AcceptInviteView } from './components/AcceptInviteView';
 import { AICommandBar } from './components/AICommandBar';
 
@@ -47,7 +48,8 @@ type AppView =
   | 'GANTT'
   | 'LIST'
   | 'DASHBOARD'
-  | 'SETTINGS';
+  | 'SETTINGS'
+  | 'NOTIFICATIONS';
 
 type InviteContext = {
   workspaceId: string;
@@ -182,7 +184,8 @@ const App: React.FC = () => {
     notifications: firestoreNotifications,
     markAllAsRead,
     markAsRead,
-    clearAll
+    clearAll,
+    deleteNotification
   } = useNotifications(currentWorkspaceId, currentUser?.id || null);
 
   // Локальные уведомления (для ошибок и системных сообщений)
@@ -821,6 +824,34 @@ const App: React.FC = () => {
                 projects={projects}
               />
             </Suspense>
+          )}
+
+          {view === 'NOTIFICATIONS' && currentWorkspace && currentUser && (
+            <NotificationHistory
+              notifications={notifications}
+              currentUserId={currentUser.id}
+              onMarkAsRead={async (notificationId: string) => {
+                try {
+                  if (firestoreNotifications.find(n => n.id === notificationId)) {
+                    await markAsRead(notificationId);
+                  }
+                } catch (error) {
+                  logger.error('Failed to mark notification as read', error instanceof Error ? error : undefined);
+                }
+              }}
+              onDelete={async (notificationId: string) => {
+                try {
+                  if (firestoreNotifications.find(n => n.id === notificationId)) {
+                    await deleteNotification(notificationId);
+                  } else {
+                    // Удаляем локальное уведомление
+                    setLocalNotifications(prev => prev.filter(n => n.id !== notificationId));
+                  }
+                } catch (error) {
+                  logger.error('Failed to delete notification', error instanceof Error ? error : undefined);
+                }
+              }}
+            />
           )}
 
           {view === 'SETTINGS' && currentWorkspace && (
