@@ -252,9 +252,12 @@ service cloud.firestore {
       // Notifications Subcollection
       // ============================================
       match /notifications/{notificationId} {
-        // Чтение: члены workspace могут читать уведомления
+        // List: члены workspace могут видеть список уведомлений
         // Фильтрация по recipients происходит на клиенте
-        allow read: if request.auth != null && isMember(workspaceId);
+        allow list: if request.auth != null && isMember(workspaceId);
+        
+        // Get: члены workspace могут читать конкретное уведомление
+        allow get: if request.auth != null && isMember(workspaceId);
         
         // Создание: члены workspace могут создавать уведомления
         allow create: if request.auth != null && isMember(workspaceId);

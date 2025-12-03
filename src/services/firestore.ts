@@ -232,6 +232,12 @@ export const FirestoreService = {
         id: docSnap.id
       }));
       callback(members);
+    }, (error) => {
+      logger.error('[subscribeToMembers] Error in snapshot', { 
+        workspaceId,
+        error: error instanceof Error ? error.message : String(error),
+        code: (error as any)?.code
+      });
     });
   },
 
@@ -438,6 +444,12 @@ export const FirestoreService = {
         id: docSnap.id
       }));
       callback(invites);
+    }, (error) => {
+      logger.error('[subscribeToInvites] Error in snapshot', { 
+        workspaceId,
+        error: error instanceof Error ? error.message : String(error),
+        code: (error as any)?.code
+      });
     });
   },
 
