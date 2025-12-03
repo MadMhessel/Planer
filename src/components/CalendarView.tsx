@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { Task } from '../types';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Play, Flag } from 'lucide-react';
 import { getMoscowDateString, formatMoscowDate } from '../utils/dateUtils';
 
 type Props = {
@@ -17,22 +17,24 @@ export const CalendarView: React.FC<Props> = ({
   const [currentDate, setCurrentDate] = useState(() => new Date());
 
   const tasksByDate = useMemo(() => {
-    const map = new Map<string, Task[]>();
+    // Используем Map с информацией о типе даты (start/end)
+    const map = new Map<string, { task: Task; isStart: boolean; isEnd: boolean }[]>();
 
     for (const t of tasks) {
-      const dateStrings = new Set<string>();
-
       if (t.startDate) {
-        dateStrings.add(t.startDate.slice(0, 10));
+        const startDateStr = t.startDate.slice(0, 10);
+        const arr = map.get(startDateStr) || [];
+        arr.push({ task: t, isStart: true, isEnd: t.dueDate ? t.dueDate.slice(0, 10) === startDateStr : false });
+        map.set(startDateStr, arr);
       }
       if (t.dueDate) {
-        dateStrings.add(t.dueDate.slice(0, 10));
-      }
-
-      for (const ds of dateStrings) {
-        const arr = map.get(ds) || [];
-        arr.push(t);
-        map.set(ds, arr);
+        const dueDateStr = t.dueDate.slice(0, 10);
+        // Добавляем задачу в дату окончания только если это не та же дата, что и начало
+        if (!t.startDate || t.startDate.slice(0, 10) !== dueDateStr) {
+          const arr = map.get(dueDateStr) || [];
+          arr.push({ task: t, isStart: false, isEnd: true });
+          map.set(dueDateStr, arr);
+        }
       }
     }
 
@@ -61,11 +63,15 @@ export const CalendarView: React.FC<Props> = ({
   };
 
   const buildIso = (day: number) => {
-    const d = new Date(year, month, day);
-    return d.toISOString().slice(0, 10);
+    // Создаем дату напрямую в формате YYYY-MM-DD без конвертации через UTC
+    // Это избегает смещения из-за часовых поясов
+    const yearStr = year;
+    const monthStr = String(month + 1).padStart(2, '0'); // month 0-11, нужно +1
+    const dayStr = String(day).padStart(2, '0');
+    return `${yearStr}-${monthStr}-${dayStr}`;
   };
 
-  const getTasksForDate = (iso: string): Task[] => {
+  const getTasksForDate = (iso: string): { task: Task; isStart: boolean; isEnd: boolean }[] => {
     return tasksByDate.get(iso) || [];
   };
 
@@ -139,19 +145,47 @@ export const CalendarView: React.FC<Props> = ({
               </div>
 
               <div className="mt-0.5 sm:mt-1.5 space-y-0.5 sm:space-y-1 flex-1 min-h-0 overflow-hidden">
-                {dayTasks.slice(0, (typeof window !== 'undefined' && window.innerWidth < 768) ? 2 : 3).map(task => (
-                  <div
-                    key={task.id}
-                    onClick={e => {
-                      e.stopPropagation();
-                      onTaskClick(task);
-                    }}
-                    className="truncate px-1 sm:px-2 py-0.5 sm:py-1 rounded-md bg-sky-50 dark:bg-slate-800/80 backdrop-blur-sm border border-sky-200 dark:border-slate-700/50 text-[9px] sm:text-[10px] text-gray-900 dark:text-slate-100 font-medium hover:bg-sky-100 dark:hover:bg-slate-700/80 hover:border-sky-500/50 cursor-pointer transition-all shadow-sm"
-                    title={task.title}
-                  >
-                    {task.title}
-                  </div>
-                ))}
+                {dayTasks.slice(0, (typeof window !== 'undefined' && window.innerWidth < 768) ? 2 : 3).map(({ task, isStart, isEnd }) => {
+                  // Определяем стиль в зависимости от типа даты
+                  let bgColor = 'bg-sky-50 dark:bg-slate-800/80';
+                  let borderColor = 'border-sky-200 dark:border-slate-700/50';
+                  let icon = null;
+                  let iconColor = 'text-sky-600 dark:text-sky-400';
+                  
+                  if (isStart && isEnd) {
+                    // Задача начинается и заканчивается в один день
+                    bgColor = 'bg-gradient-to-r from-emerald-50 to-sky-50 dark:from-emerald-900/30 dark:to-sky-900/30';
+                    borderColor = 'border-emerald-300 dark:border-emerald-700/50';
+                    iconColor = 'text-emerald-600 dark:text-emerald-400';
+                  } else if (isStart) {
+                    // Начало задачи
+                    bgColor = 'bg-emerald-50 dark:bg-emerald-900/30';
+                    borderColor = 'border-emerald-300 dark:border-emerald-700/50';
+                    icon = <Play className="w-2.5 h-2.5 sm:w-3 sm:h-3" />;
+                    iconColor = 'text-emerald-600 dark:text-emerald-400';
+                  } else if (isEnd) {
+                    // Конец задачи
+                    bgColor = 'bg-orange-50 dark:bg-orange-900/30';
+                    borderColor = 'border-orange-300 dark:border-orange-700/50';
+                    icon = <Flag className="w-2.5 h-2.5 sm:w-3 sm:h-3" />;
+                    iconColor = 'text-orange-600 dark:text-orange-400';
+                  }
+                  
+                  return (
+                    <div
+                      key={task.id}
+                      onClick={e => {
+                        e.stopPropagation();
+                        onTaskClick(task);
+                      }}
+                      className={`truncate px-1 sm:px-2 py-0.5 sm:py-1 rounded-md ${bgColor} backdrop-blur-sm border ${borderColor} text-[9px] sm:text-[10px] text-gray-900 dark:text-slate-100 font-medium hover:opacity-80 cursor-pointer transition-all shadow-sm flex items-center gap-1`}
+                      title={`${task.title}${isStart ? ' (начало)' : ''}${isEnd ? ' (окончание)' : ''}`}
+                    >
+                      {icon && <span className={`${iconColor} flex-shrink-0`}>{icon}</span>}
+                      <span className="truncate flex-1">{task.title}</span>
+                    </div>
+                  );
+                })}
                 {dayTasks.length > ((typeof window !== 'undefined' && window.innerWidth < 768) ? 2 : 3) && (
                   <div className="text-[9px] sm:text-[10px] text-gray-500 dark:text-slate-500 font-semibold px-1 sm:px-2">
                     +{dayTasks.length - ((typeof window !== 'undefined' && window.innerWidth < 768) ? 2 : 3)}
