@@ -49,17 +49,24 @@ service cloud.firestore {
       allow read: if request.auth != null;
       
       // Создание: пользователь может создать свой профиль при регистрации
+      // Поддерживаем как обычных пользователей (с email в токене), так и анонимных (для демо-режима)
       allow create: if request.auth != null && 
                        request.auth.uid == userId &&
                        request.resource.data.id == userId &&
-                       request.resource.data.email == request.auth.token.email;
+                       // Для анонимных пользователей email в токене может быть null, поэтому проверяем только если он есть
+                       (request.auth.token.email == null || 
+                        request.resource.data.email == request.auth.token.email ||
+                        request.resource.data.email == 'demo@example.com');
       
       // Обновление: только сам пользователь может обновлять свой профиль
       allow update: if request.auth != null && 
                        request.auth.uid == userId &&
-                       // Запрещаем изменение id и email
+                       // Запрещаем изменение id
                        resource.data.id == request.resource.data.id &&
-                       resource.data.email == request.resource.data.email;
+                       // Для анонимных пользователей разрешаем обновление email (если он не был установлен)
+                       (resource.data.email == request.resource.data.email ||
+                        resource.data.email == null ||
+                        request.resource.data.email == 'demo@example.com');
       
       // Удаление: только сам пользователь (опционально, если нужно)
       allow delete: if request.auth != null && request.auth.uid == userId;
@@ -75,15 +82,17 @@ service cloud.firestore {
     // ============================================
     match /workspaces/{workspaceId} {
       // Чтение: владелец, члены, супер-админы или в списке allowedEmails (legacy)
+      // Поддерживаем анонимных пользователей (для демо-режима)
       allow read: if request.auth != null && 
         (
           isSuperAdmin() ||
           resource.data.ownerId == request.auth.uid || 
-          resource.data.allowedEmails.hasAny([request.auth.token.email]) ||
+          (request.auth.token.email != null && 
+           resource.data.allowedEmails.hasAny([request.auth.token.email])) ||
           exists(/databases/$(database)/documents/workspaces/$(workspaceId)/members/$(request.auth.uid))
         );
       
-      // Создание: любой авторизованный пользователь может создать workspace
+      // Создание: любой авторизованный пользователь может создать workspace (включая анонимных для демо-режима)
       allow create: if request.auth != null &&
                        request.resource.data.ownerId == request.auth.uid;
       
@@ -105,6 +114,7 @@ service cloud.firestore {
         // Для collection group queries разрешаем, если userId совпадает с текущим пользователем
         // Супер-админы могут видеть всех участников всех workspace
         // Для collection group queries проверяем userId документа
+        // Поддерживаем анонимных пользователей (для демо-режима)
         allow list: if request.auth != null && 
                        (isSuperAdmin() || 
                         isMember(workspaceId) ||
