@@ -76,20 +76,49 @@ export const TaskModal: React.FC<TaskModalProps> = ({
       ? formData.assigneeIds 
       : (formData.assigneeId ? [formData.assigneeId] : []);
     
-    const taskData: Task = {
-      ...formData,
-      projectId: formData.projectId || undefined,
-      assigneeId: assigneeIds.length > 0 ? assigneeIds[0] : undefined, // Обратная совместимость
-      assigneeIds: assigneeIds.length > 0 ? assigneeIds : undefined,
+    // Создаем объект задачи, исключая undefined значения
+    const taskData: any = {
+      title: formData.title,
+      status: formData.status || TaskStatus.TODO,
+      priority: formData.priority || TaskPriority.NORMAL,
       id: task?.id || '', // Пустая строка для новой задачи
       createdAt: task?.createdAt || getMoscowISOString(),
       updatedAt: getMoscowISOString(),
       dependencies: task?.dependencies || [],
       tags: formData.tags || [],
       workspaceId: task?.workspaceId || '', // Будет установлено в App.tsx
-      status: formData.status || TaskStatus.TODO,
-      priority: formData.priority || TaskPriority.NORMAL
-    } as Task;
+    };
+    
+    // Добавляем опциональные поля только если они определены
+    if (formData.description) {
+      taskData.description = formData.description;
+    }
+    if (formData.projectId) {
+      taskData.projectId = formData.projectId;
+    }
+    if (formData.startDate) {
+      taskData.startDate = formData.startDate;
+    }
+    if (formData.dueDate) {
+      taskData.dueDate = formData.dueDate;
+    }
+    
+    // Обрабатываем assigneeIds и assigneeId
+    if (assigneeIds.length > 0) {
+      taskData.assigneeIds = assigneeIds;
+      taskData.assigneeId = assigneeIds[0]; // Обратная совместимость
+    } else {
+      // Если нет участников, устанавливаем пустой массив для assigneeIds
+      taskData.assigneeIds = [];
+    }
+    
+    // Добавляем опциональные числовые поля
+    if (formData.estimatedHours !== undefined) {
+      taskData.estimatedHours = formData.estimatedHours;
+    }
+    if (formData.loggedHours !== undefined) {
+      taskData.loggedHours = formData.loggedHours;
+    }
     
     onSave(taskData);
     onClose();

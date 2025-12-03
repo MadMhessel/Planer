@@ -14,7 +14,10 @@ import {
   where,
   deleteDoc,
   addDoc,
-  runTransaction
+  runTransaction,
+  deleteField,
+  writeBatch,
+  arrayUnion
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import { InviteStatus, Project, Task, TaskPriority, TaskStatus, User, UserRole, Workspace, WorkspaceInvite, WorkspaceMember } from '../types';
@@ -499,23 +502,58 @@ export const FirestoreService = {
   async updateTask(taskId: string, updates: Partial<Task>) {
     const taskRef = doc(db, 'tasks', taskId);
     
-    // Фильтруем undefined значения, так как Firestore их не принимает
+    // Фильтруем undefined, null и пустые строки, так как Firestore их не принимает
     const updateData: any = {
       updatedAt: getMoscowISOString()
     };
 
-    // Копируем только определенные поля
-    Object.keys(updates).forEach(key => {
-      const value = (updates as any)[key];
-      if (value !== undefined) {
-        // Если это массив assigneeIds и он пустой, не добавляем его
-        if (key === 'assigneeIds' && Array.isArray(value) && value.length === 0) {
-          // Не добавляем пустой массив, оставляем undefined чтобы не перезаписывать существующее значение
-          return;
+    // Обрабатываем assigneeIds отдельно, чтобы правильно синхронизировать с assigneeId
+    let hasAssigneeIds = false;
+    if (updates.assigneeIds !== undefined) {
+      if (Array.isArray(updates.assigneeIds) && updates.assigneeIds.length > 0) {
+        updateData.assigneeIds = updates.assigneeIds;
+        // Устанавливаем assigneeId из первого элемента для обратной совместимости
+        updateData.assigneeId = updates.assigneeIds[0];
+        hasAssigneeIds = true;
+      } else if (Array.isArray(updates.assigneeIds) && updates.assigneeIds.length === 0) {
+        // Если массив пустой, устанавливаем пустой массив и удаляем assigneeId
+        updateData.assigneeIds = [];
+        updateData.assigneeId = deleteField(); // Удаляем поле assigneeId
+        hasAssigneeIds = true;
+      }
+    }
+
+    // Копируем только определенные поля (исключая assigneeIds и assigneeId, которые обработаны выше)
+    // Используем Object.entries для более надежной обработки
+    for (const [key, value] of Object.entries(updates)) {
+      // Пропускаем assigneeIds и assigneeId, так как они обработаны выше
+      if (key === 'assigneeIds' || (key === 'assigneeId' && hasAssigneeIds)) {
+        continue;
+      }
+      
+      // Пропускаем undefined и null
+      if (value === undefined || value === null) {
+        continue;
+      }
+      
+      // Пропускаем пустые строки для опциональных полей
+      if (value === '' && (key === 'projectId' || key === 'description' || key === 'assigneeId')) {
+        continue;
+      }
+      
+      // Для массивов проверяем, что они не пустые (или явно переданы)
+      if (Array.isArray(value)) {
+        // Пустые массивы не добавляем, если это не tags или dependencies
+        if (value.length === 0 && key !== 'tags' && key !== 'dependencies') {
+          continue;
         }
         updateData[key] = value;
+        continue;
       }
-    });
+      
+      // Для всех остальных полей просто добавляем
+      updateData[key] = value;
+    }
 
     await updateDoc(taskRef, updateData);
   },
