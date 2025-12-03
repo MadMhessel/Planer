@@ -199,4 +199,3 @@ export class NotificationsService {
     return [...new Set(recipients)];
   }
 }
-}
