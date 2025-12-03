@@ -37,7 +37,7 @@ import { useMembers } from './hooks/useMembers';
 import { useInvites } from './hooks/useInvites';
 import { useNotifications } from './hooks/useNotifications';
 import { logger } from './utils/logger';
-import { membersToUsers } from './utils/userHelpers';
+import { useUsersFromMembers } from './hooks/useUsersFromMembers';
 import { MAX_CHAT_HISTORY_LENGTH } from './constants/ai';
 import toast from 'react-hot-toast';
 import { SUPER_ADMINS } from './constants/superAdmins';
@@ -671,32 +671,8 @@ const App: React.FC = () => {
     return member.role === 'OWNER' || member.role === 'ADMIN';
   }, [currentWorkspaceId, members]);
 
-  // Мемоизированное преобразование members в users
-  // Всегда включаем текущего пользователя в список, даже если его нет в members
-  const usersFromMembers = useMemo(() => {
-    const users = membersToUsers(members);
-    
-    // Если есть текущий пользователь и его нет в списке, добавляем его
-    if (currentUser && currentUser.id) {
-      const userExists = users.some(u => u.id === currentUser.id);
-      if (!userExists) {
-        return [
-          ...users,
-          {
-            id: currentUser.id,
-            email: currentUser.email || '',
-            displayName: currentUser.displayName || currentUser.email || '',
-            photoURL: currentUser.photoURL,
-            role: currentUser.role || 'MEMBER',
-            isActive: currentUser.isActive !== false,
-            createdAt: currentUser.createdAt
-          }
-        ];
-      }
-    }
-    
-    return users;
-  }, [members, currentUser]);
+  // Преобразование members в users с загрузкой displayName из Firestore
+  const usersFromMembers = useUsersFromMembers(members, currentUser);
 
   // Parse invite from URL
   useEffect(() => {
