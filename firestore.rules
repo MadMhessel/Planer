@@ -12,9 +12,10 @@ service cloud.firestore {
     function isSuperAdmin() {
       // Список супер-админов (должен совпадать с SUPER_ADMINS в коде)
       // Проверяем email пользователя (без учета регистра)
+      // request.auth.token.email содержит email пользователя из Firebase Auth
       return request.auth != null && 
              request.auth.token.email != null &&
-             (request.auth.token.email.toLowerCase() == 'crazymhessel@gmail.com');
+             request.auth.token.email.toLowerCase() == 'crazymhessel@gmail.com';
     }
 
     function isAdminOrOwner(workspaceId) {
@@ -92,14 +93,16 @@ service cloud.firestore {
       match /members/{memberId} {
         // List: супер-админы и члены workspace могут видеть список участников
         // Для collection group queries разрешаем, если userId совпадает с текущим пользователем
+        // Супер-админы могут видеть всех участников всех workspace
+        // Для collection group queries проверяем userId документа
         allow list: if request.auth != null && 
                        (isSuperAdmin() || 
                         isMember(workspaceId) ||
-                        resource.data.userId == request.auth.uid);
+                        (resource != null && resource.data.userId == request.auth.uid));
         
         // Get: члены workspace могут видеть конкретного участника
         // Для collection group queries разрешаем, если userId совпадает с текущим пользователем
-        // Супер-админы могут читать всех участников
+        // Супер-админы могут читать всех участников всех workspace
         allow get: if request.auth != null && 
                       (isSuperAdmin() ||
                        resource.data.userId == request.auth.uid || 
@@ -131,8 +134,9 @@ service cloud.firestore {
         
         // Удаление: только админы/владельцы могут удалять участников
         // Супер-админы могут удалять участников даже если не являются членами workspace
+        // Проверяем isSuperAdmin() первым, чтобы избежать проблем с isAdminOrOwner для не-членов
         allow delete: if request.auth != null && 
-                         (isAdminOrOwner(workspaceId) || isSuperAdmin());
+                         (isSuperAdmin() || isAdminOrOwner(workspaceId));
       }
 
       // ============================================
