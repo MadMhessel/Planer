@@ -211,70 +211,99 @@ export const FirestoreService = {
   },
 
   async acceptInvite(workspaceId: string, token: string, user: User): Promise<void> {
+    logger.info('[acceptInvite] Starting', { workspaceId, token, userId: user.id, userEmail: user.email });
+    
     const workspaceRef = doc(db, 'workspaces', workspaceId);
     const inviteRef = doc(db, 'workspaces', workspaceId, 'invites', token);
     const memberRef = doc(db, 'workspaces', workspaceId, 'members', user.id);
 
-    await runTransaction(db, async (transaction) => {
-      // ВСЕ ЧТЕНИЯ ДОЛЖНЫ БЫТЬ ВЫПОЛНЕНЫ ПЕРВЫМИ, ДО ВСЕХ ЗАПИСЕЙ
-      
-      // 1. Читаем приглашение
-      const inviteSnap = await transaction.get(inviteRef);
-      if (!inviteSnap.exists()) {
-        throw new Error('Приглашение не найдено');
-      }
+    try {
+      await runTransaction(db, async (transaction) => {
+        // ВСЕ ЧТЕНИЯ ДОЛЖНЫ БЫТЬ ВЫПОЛНЕНЫ ПЕРВЫМИ, ДО ВСЕХ ЗАПИСЕЙ
+        
+        // 1. Читаем приглашение
+        const inviteSnap = await transaction.get(inviteRef);
+        if (!inviteSnap.exists()) {
+          logger.error('[acceptInvite] Invite not found', { workspaceId, token });
+          throw new Error('Приглашение не найдено');
+        }
 
-      const invite = inviteSnap.data() as WorkspaceInvite;
-      if (invite.status !== 'PENDING') {
-        throw new Error('Приглашение уже использовано или отозвано');
-      }
+        const invite = inviteSnap.data() as WorkspaceInvite;
+        logger.info('[acceptInvite] Invite found', { 
+          status: invite.status, 
+          email: invite.email,
+          role: invite.role 
+        });
+        
+        if (invite.status !== 'PENDING') {
+          throw new Error('Приглашение уже использовано или отозвано');
+        }
 
-      const now = new Date();
-      if (new Date(invite.expiresAt) < now) {
-        throw new Error('Срок действия приглашения истёк');
-      }
+        const now = new Date();
+        if (new Date(invite.expiresAt) < now) {
+          throw new Error('Срок действия приглашения истёк');
+        }
 
-      if (invite.email.toLowerCase() !== user.email.toLowerCase()) {
-        throw new Error('Это приглашение предназначено для другого пользователя');
-      }
+        if (invite.email.toLowerCase() !== user.email.toLowerCase()) {
+          throw new Error('Это приглашение предназначено для другого пользователя');
+        }
 
-      // 2. Читаем member (если существует)
-      const memberSnap = await transaction.get(memberRef);
-      
-      // 3. Читаем workspace (проверяем существование)
-      const workspaceSnap = await transaction.get(workspaceRef);
-      if (!workspaceSnap.exists()) {
-        throw new Error('Рабочее пространство не найдено');
-      }
+        // 2. Читаем member (если существует)
+        const memberSnap = await transaction.get(memberRef);
+        logger.info('[acceptInvite] Member check', { exists: memberSnap.exists() });
+        
+        // 3. Читаем workspace (проверяем существование)
+        const workspaceSnap = await transaction.get(workspaceRef);
+        if (!workspaceSnap.exists()) {
+          logger.error('[acceptInvite] Workspace not found', { workspaceId });
+          throw new Error('Рабочее пространство не найдено');
+        }
 
-      // ТЕПЕРЬ ВЫПОЛНЯЕМ ВСЕ ЗАПИСИ (после всех чтений)
-      
-      // 4. Создаем или обновляем member
-      if (!memberSnap.exists()) {
-        const newMember: WorkspaceMember = {
-          id: user.id,
-          userId: user.id,
-          email: user.email,
-          role: invite.role,
-          joinedAt: now.toISOString(),
-          invitedBy: invite.invitedBy,
-          status: 'ACTIVE'
-        };
-        transaction.set(memberRef, newMember);
-      } else {
-        transaction.update(memberRef, {
-          role: invite.role,
-          status: 'ACTIVE',
-          joinedAt: now.toISOString()
+        // ТЕПЕРЬ ВЫПОЛНЯЕМ ВСЕ ЗАПИСИ (после всех чтений)
+        
+        // 4. Создаем или обновляем member
+        if (!memberSnap.exists()) {
+          const newMember: WorkspaceMember = {
+            id: user.id,
+            userId: user.id,
+            email: user.email,
+            role: invite.role,
+            joinedAt: now.toISOString(),
+            invitedBy: invite.invitedBy,
+            status: 'ACTIVE'
+          };
+          logger.info('[acceptInvite] Creating member', { 
+            workspaceId, 
+            memberId: user.id,
+            role: invite.role 
+          });
+          transaction.set(memberRef, newMember);
+        } else {
+          logger.info('[acceptInvite] Updating existing member', { workspaceId, memberId: user.id });
+          transaction.update(memberRef, {
+            role: invite.role,
+            status: 'ACTIVE',
+            joinedAt: now.toISOString()
+          } as any);
+        }
+
+        // 5. Обновляем статус приглашения
+        logger.info('[acceptInvite] Updating invite status', { workspaceId, token });
+        transaction.update(inviteRef, {
+          status: 'ACCEPTED',
+          acceptedAt: serverTimestamp()
         } as any);
-      }
-
-      // 5. Обновляем статус приглашения
-      transaction.update(inviteRef, {
-        status: 'ACCEPTED',
-        acceptedAt: serverTimestamp()
-      } as any);
-    });
+      });
+      
+      logger.info('[acceptInvite] Transaction completed successfully', { workspaceId, userId: user.id });
+    } catch (error) {
+      logger.error('[acceptInvite] Transaction failed', { 
+        workspaceId, 
+        userId: user.id,
+        error: error instanceof Error ? error.message : String(error)
+      });
+      throw error;
+    }
   },
 
   async removeMember(workspaceId: string, memberId: string, actingUser: WorkspaceMember) {

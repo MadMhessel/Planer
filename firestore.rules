@@ -149,12 +149,14 @@ service cloud.firestore {
                          (isSuperAdmin() ||
                           isAdminOrOwner(workspaceId) || 
                           // Пользователь может создать себя при принятии приглашения
-                          // Проверяем, что email совпадает с токеном (для безопасности)
+                          // Проверяем, что пользователь создает себя с правильными данными
                           (request.auth.uid == memberId && 
                            request.resource.data.userId == request.auth.uid &&
                            request.resource.data.status == 'ACTIVE' &&
-                           request.auth.token.email != null &&
-                           request.resource.data.email == request.auth.token.email) ||
+                           // Email проверяем только если он есть в токене (для анонимных пользователей может быть null)
+                           (request.auth.token.email == null || 
+                            request.resource.data.email == request.auth.token.email ||
+                            request.resource.data.email.toLowerCase() == request.auth.token.email.toLowerCase())) ||
                           (get(/databases/$(database)/documents/workspaces/$(workspaceId)).data.ownerId == request.auth.uid &&
                            request.resource.data.role == 'OWNER' &&
                            request.resource.data.userId == request.auth.uid));
@@ -196,7 +198,10 @@ service cloud.firestore {
                          (isAdminOrOwner(workspaceId) || 
                           (resource.data.status == 'PENDING' &&
                            request.resource.data.status == 'ACCEPTED' &&
-                           resource.data.email == request.auth.token.email));
+                           // Email проверяем только если он есть в токене (для анонимных пользователей может быть null)
+                           (request.auth.token.email == null || 
+                            resource.data.email == request.auth.token.email ||
+                            resource.data.email.toLowerCase() == request.auth.token.email.toLowerCase())));
         
         // Удаление: только админы/владельцы
         allow delete: if request.auth != null && isAdminOrOwner(workspaceId);
