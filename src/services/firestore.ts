@@ -278,11 +278,29 @@ export const FirestoreService = {
   },
 
   async removeMember(workspaceId: string, memberId: string, actingUser: WorkspaceMember) {
+    logger.info('[FirestoreService] removeMember called', {
+      workspaceId,
+      memberId,
+      actingUser: {
+        userId: actingUser.userId,
+        email: actingUser.email,
+        role: actingUser.role
+      }
+    });
+
     const memberRef = doc(db, 'workspaces', workspaceId, 'members', memberId);
     const memberSnap = await getDoc(memberRef);
-    if (!memberSnap.exists()) return;
+    if (!memberSnap.exists()) {
+      logger.warn('[FirestoreService] Member not found', { workspaceId, memberId });
+      return;
+    }
 
     const member = memberSnap.data() as WorkspaceMember;
+    logger.info('[FirestoreService] Member to delete:', {
+      userId: member.userId,
+      email: member.email,
+      role: member.role
+    });
 
     if (member.role === 'OWNER') {
       throw new Error('Нельзя удалить владельца рабочей области');
@@ -292,7 +310,21 @@ export const FirestoreService = {
       throw new Error('Недостаточно прав для удаления участника');
     }
 
-    await deleteDoc(memberRef);
+    logger.info('[FirestoreService] Attempting deleteDoc', {
+      path: `workspaces/${workspaceId}/members/${memberId}`
+    });
+
+    try {
+      await deleteDoc(memberRef);
+      logger.info('[FirestoreService] Member deleted successfully');
+    } catch (error: any) {
+      logger.error('[FirestoreService] Error deleting member', error);
+      // Добавляем дополнительную информацию об ошибке
+      if (error?.code === 'permission-denied') {
+        throw new Error(`Ошибка прав доступа: ${error.message}. Проверьте правила Firestore и наличие поля isSuperAdmin в документе пользователя.`);
+      }
+      throw error;
+    }
   },
 
   subscribeToInvites(workspaceId: string, callback: (invites: WorkspaceInvite[]) => void) {

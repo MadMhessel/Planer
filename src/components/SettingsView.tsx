@@ -173,6 +173,12 @@ export const SettingsView: React.FC<Props> = ({
       if (!actingMember && canManage) {
         // Проверяем, является ли пользователь супер-админом
         const isSuperAdmin = currentUser.email && SUPER_ADMINS.map(e => e.toLowerCase()).includes(currentUser.email.toLowerCase());
+        console.log('[SettingsView] Super admin check:', {
+          currentUserEmail: currentUser.email,
+          isSuperAdmin,
+          canManage,
+          currentMember
+        });
         if (isSuperAdmin) {
           // Создаем временный объект с ролью OWNER для супер-админа
           actingMember = {
@@ -184,6 +190,7 @@ export const SettingsView: React.FC<Props> = ({
             invitedBy: currentUser.id,
             status: 'ACTIVE'
           };
+          console.log('[SettingsView] Created actingMember for super admin:', actingMember);
         } else {
           setError('Не удалось определить вашу роль');
           setLoading(false);
@@ -196,6 +203,22 @@ export const SettingsView: React.FC<Props> = ({
         setLoading(false);
         return;
       }
+
+      console.log('[SettingsView] Attempting to remove member:', {
+        workspaceId: workspace.id,
+        memberId: member.id,
+        memberEmail: member.email,
+        memberRole: member.role,
+        actingUser: {
+          id: actingMember.userId,
+          email: actingMember.email,
+          role: actingMember.role
+        },
+        currentUser: {
+          id: currentUser.id,
+          email: currentUser.email
+        }
+      });
 
       await FirestoreService.removeMember(workspace.id, member.id, actingMember);
       
