@@ -37,14 +37,16 @@ service cloud.firestore {
       return request.auth != null && (
         // Способ 1: Проверка через токен
         (request.auth.token.email != null &&
-         request.auth.token.email.toLowerCase() == 'crazymhessel@gmail.com') ||
+         (request.auth.token.email.toLowerCase() == 'crazymhessel@gmail.com' ||
+          request.auth.token.email.toLowerCase() == 'terehin.alv@yandex.ru')) ||
         // Способ 2: Проверка через документ пользователя (если есть поле isSuperAdmin)
         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isSuperAdmin == true) ||
         // Способ 3: Проверка через email в документе пользователя
         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.email != null &&
-         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.email.toLowerCase() == 'crazymhessel@gmail.com')
+         (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.email.toLowerCase() == 'crazymhessel@gmail.com' ||
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.email.toLowerCase() == 'terehin.alv@yandex.ru'))
       );
     }
 
