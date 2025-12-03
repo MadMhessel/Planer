@@ -203,8 +203,11 @@ service cloud.firestore {
       // Invites Subcollection
       // ============================================
       match /invites/{token} {
-        // List: только админы/владельцы или супер-админы могут видеть список приглашений
-        allow list: if request.auth != null && (isSuperAdmin() || isAdminOrOwner(workspaceId));
+        // List: члены workspace могут видеть список приглашений
+        // Это нужно для отображения списка приглашений в настройках
+        allow list: if request.auth != null && 
+                      (isSuperAdmin() || 
+                       isMember(workspaceId));
         
         // Get: любой авторизованный может получить конкретное приглашение по token
         // (для проверки при принятии приглашения)
