@@ -39,7 +39,9 @@ export const TaskModal: React.FC<TaskModalProps> = ({
     if (task) {
       // Ensure optional fields are not undefined to prevent uncontrolled input warning
       // Поддержка обратной совместимости: если есть assigneeId, но нет assigneeIds, создаем массив
-      const assigneeIds = task.assigneeIds || (task.assigneeId ? [task.assigneeId] : []);
+      const rawAssigneeIds = task.assigneeIds || (task.assigneeId ? [task.assigneeId] : []);
+      // Фильтруем валидные ID
+      const assigneeIds = rawAssigneeIds.filter(id => id && id !== undefined && id !== null && id !== '');
       setFormData({ 
           ...task,
           description: task.description || '',
@@ -205,7 +207,10 @@ export const TaskModal: React.FC<TaskModalProps> = ({
                     <p className="text-sm text-gray-500 dark:text-slate-400 text-center py-2">Нет доступных пользователей</p>
                   ) : (
                     users.map(user => {
-                      const isSelected = formData.assigneeIds?.includes(user.id) || false;
+                      // Фильтруем валидные ID для проверки
+                      const validAssigneeIds = (formData.assigneeIds || []).filter(id => id && id !== undefined && id !== null && id !== '');
+                      const isSelected = user.id ? validAssigneeIds.includes(user.id) : false;
+                      
                       return (
                         <label
                           key={user.id}
@@ -215,18 +220,22 @@ export const TaskModal: React.FC<TaskModalProps> = ({
                             type="checkbox"
                             checked={isSelected}
                             onChange={(e) => {
-                              const currentIds = (formData.assigneeIds || []).filter(id => id !== undefined && id !== null && id !== '');
+                              // Получаем текущие валидные ID
+                              const currentIds = (formData.assigneeIds || []).filter(id => id && id !== undefined && id !== null && id !== '');
+                              
                               if (e.target.checked) {
                                 // Проверяем, что user.id валидный и его еще нет в массиве
-                                if (user.id && !currentIds.includes(user.id)) {
+                                if (user.id && user.id.trim() !== '' && !currentIds.includes(user.id)) {
+                                  const newAssigneeIds = [...currentIds, user.id];
                                   setFormData({
                                     ...formData,
-                                    assigneeIds: [...currentIds, user.id].filter(id => id !== undefined && id !== null && id !== ''),
+                                    assigneeIds: newAssigneeIds,
                                     assigneeId: currentIds.length === 0 ? user.id : formData.assigneeId // Обратная совместимость
                                   });
                                 }
                               } else {
-                                const newIds = currentIds.filter(id => id !== user.id && id !== undefined && id !== null && id !== '');
+                                // Удаляем user.id из массива
+                                const newIds = currentIds.filter(id => id !== user.id);
                                 setFormData({
                                   ...formData,
                                   assigneeIds: newIds,
