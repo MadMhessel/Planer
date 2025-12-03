@@ -167,9 +167,11 @@ service cloud.firestore {
         allow update: if request.auth != null && 
                          (isSuperAdmin() ||
                           isAdminOrOwner(workspaceId) || 
+                          // Пользователь может обновить себя при принятии приглашения
+                          // Разрешаем если: пользователь обновляет себя, устанавливает статус ACTIVE
                           (request.auth.uid == memberId && 
-                           request.resource.data.status == 'ACTIVE' &&
-                           resource.data.status != 'ACTIVE'));
+                           request.resource.data.userId == request.auth.uid &&
+                           request.resource.data.status == 'ACTIVE'));
         
         // Удаление: только админы/владельцы могут удалять участников
         // Супер-админы могут удалять участников даже если не являются членами workspace
