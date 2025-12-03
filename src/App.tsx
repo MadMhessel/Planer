@@ -672,7 +672,31 @@ const App: React.FC = () => {
   }, [currentWorkspaceId, members]);
 
   // Мемоизированное преобразование members в users
-  const usersFromMembers = useMemo(() => membersToUsers(members), [members]);
+  // Всегда включаем текущего пользователя в список, даже если его нет в members
+  const usersFromMembers = useMemo(() => {
+    const users = membersToUsers(members);
+    
+    // Если есть текущий пользователь и его нет в списке, добавляем его
+    if (currentUser && currentUser.id) {
+      const userExists = users.some(u => u.id === currentUser.id);
+      if (!userExists) {
+        return [
+          ...users,
+          {
+            id: currentUser.id,
+            email: currentUser.email || '',
+            displayName: currentUser.displayName || currentUser.email || '',
+            photoURL: currentUser.photoURL,
+            role: currentUser.role || 'MEMBER',
+            isActive: currentUser.isActive !== false,
+            createdAt: currentUser.createdAt
+          }
+        ];
+      }
+    }
+    
+    return users;
+  }, [members, currentUser]);
 
   // Parse invite from URL
   useEffect(() => {
