@@ -206,44 +206,67 @@ export const TaskModal: React.FC<TaskModalProps> = ({
                   {users.length === 0 ? (
                     <p className="text-sm text-gray-500 dark:text-slate-400 text-center py-2">Нет доступных пользователей</p>
                   ) : (
-                    users.map(user => {
+                    users.filter(user => user && user.id && typeof user.id === 'string' && user.id.trim() !== '').map(user => {
                       // Фильтруем валидные ID для проверки
-                      const validAssigneeIds = (formData.assigneeIds || []).filter(id => id && id !== undefined && id !== null && id !== '');
-                      const isSelected = user.id ? validAssigneeIds.includes(user.id) : false;
+                      const validAssigneeIds = (formData.assigneeIds || []).filter(id => id && typeof id === 'string' && id.trim() !== '');
+                      const isSelected = validAssigneeIds.includes(user.id);
                       
                       return (
                         <label
                           key={user.id}
+                          htmlFor={`assignee-${user.id}`}
                           className="flex items-center gap-2 p-2 rounded hover:bg-gray-50 dark:hover:bg-slate-700 cursor-pointer transition-colors"
                         >
                           <input
+                            id={`assignee-${user.id}`}
                             type="checkbox"
                             checked={isSelected}
                             onChange={(e) => {
+                              e.stopPropagation();
+                              console.log('[TaskModal] Checkbox changed', {
+                                userId: user.id,
+                                checked: e.target.checked,
+                                currentAssigneeIds: formData.assigneeIds,
+                                userObject: user
+                              });
+                              
                               // Получаем текущие валидные ID
-                              const currentIds = (formData.assigneeIds || []).filter(id => id && id !== undefined && id !== null && id !== '');
+                              const currentIds = (formData.assigneeIds || []).filter(id => id && typeof id === 'string' && id.trim() !== '');
                               
                               if (e.target.checked) {
                                 // Проверяем, что user.id валидный и его еще нет в массиве
-                                if (user.id && user.id.trim() !== '' && !currentIds.includes(user.id)) {
+                                if (user.id && typeof user.id === 'string' && user.id.trim() !== '' && !currentIds.includes(user.id)) {
                                   const newAssigneeIds = [...currentIds, user.id];
-                                  setFormData({
-                                    ...formData,
+                                  console.log('[TaskModal] Adding assignee', { userId: user.id, newAssigneeIds });
+                                  setFormData(prev => ({
+                                    ...prev,
                                     assigneeIds: newAssigneeIds,
-                                    assigneeId: currentIds.length === 0 ? user.id : formData.assigneeId // Обратная совместимость
+                                    assigneeId: currentIds.length === 0 ? user.id : prev.assigneeId // Обратная совместимость
+                                  }));
+                                } else {
+                                  console.warn('[TaskModal] Cannot add assignee', {
+                                    userId: user.id,
+                                    userIdType: typeof user.id,
+                                    alreadyIncluded: currentIds.includes(user.id || ''),
+                                    currentIds
                                   });
                                 }
                               } else {
                                 // Удаляем user.id из массива
                                 const newIds = currentIds.filter(id => id !== user.id);
-                                setFormData({
-                                  ...formData,
+                                console.log('[TaskModal] Removing assignee', { userId: user.id, newIds });
+                                setFormData(prev => ({
+                                  ...prev,
                                   assigneeIds: newIds,
                                   assigneeId: newIds.length > 0 ? newIds[0] : undefined // Обратная совместимость
-                                });
+                                }));
                               }
                             }}
-                            className="w-4 h-4 text-sky-600 rounded focus:ring-sky-500"
+                            onClick={(e) => {
+                              // Останавливаем всплытие, чтобы не закрывать модальное окно
+                              e.stopPropagation();
+                            }}
+                            className="w-4 h-4 text-sky-600 rounded focus:ring-sky-500 cursor-pointer"
                           />
                           <div className="flex items-center gap-2 flex-1 min-w-0">
                             {user.photoURL ? (
