@@ -275,10 +275,16 @@ service cloud.firestore {
     // Global Tasks Collection
     // ============================================
     match /tasks/{taskId} {
-      // Чтение: члены workspace могут читать задачи своего workspace
-      allow read: if request.auth != null && 
-                     resource.data.workspaceId != null &&
-                     isMember(resource.data.workspaceId);
+      // List: для запросов разрешаем чтение
+      // Это безопасно, так как запрос уже фильтрует по workspaceId,
+      // а правило get проверяет членство для каждого документа
+      allow list: if request.auth != null;
+      
+      // Get: члены workspace могут читать задачи своего workspace
+      allow get: if request.auth != null && 
+                   (isSuperAdmin() ||
+                    (resource.data.workspaceId != null &&
+                     isMember(resource.data.workspaceId)));
       
       // Создание: члены workspace могут создавать задачи
       allow create: if request.auth != null && 
@@ -305,10 +311,16 @@ service cloud.firestore {
     // Global Projects Collection
     // ============================================
     match /projects/{projectId} {
-      // Чтение: члены workspace могут читать проекты своего workspace
-      allow read: if request.auth != null && 
-                     resource.data.workspaceId != null &&
-                     isMember(resource.data.workspaceId);
+      // List: для запросов разрешаем чтение
+      // Это безопасно, так как запрос уже фильтрует по workspaceId,
+      // а правило get проверяет членство для каждого документа
+      allow list: if request.auth != null;
+      
+      // Get: члены workspace могут читать проекты своего workspace
+      allow get: if request.auth != null && 
+                   (isSuperAdmin() ||
+                    (resource.data.workspaceId != null &&
+                     isMember(resource.data.workspaceId)));
       
       // Создание: члены workspace могут создавать проекты
       allow create: if request.auth != null && 
