@@ -183,12 +183,30 @@ export const FirestoreService = {
         workspaceIds: Array.from(workspaceMap.keys())
       });
       updateCallback();
-    }, (error) => {
-      logger.error('[subscribeToWorkspaces] Member query error', { 
-        error: error instanceof Error ? error.message : String(error),
-        code: (error as any)?.code,
-        userId: user.id
-      });
+    }, (error: any) => {
+      // Улучшенное логирование ошибки
+      const errorInfo: any = {
+        userId: user.id,
+        errorMessage: error?.message || String(error),
+        errorCode: error?.code,
+        errorName: error?.name,
+        errorStack: error?.stack
+      };
+      
+      // Если это FirebaseError, добавляем дополнительную информацию
+      if (error?.code) {
+        errorInfo.firebaseErrorCode = error.code;
+      }
+      
+      logger.error('[subscribeToWorkspaces] Member query error', errorInfo);
+      
+      // Если это ошибка прав доступа, выводим более понятное сообщение
+      if (error?.code === 'permission-denied') {
+        logger.error('[subscribeToWorkspaces] Permission denied - check Firestore rules for collection group queries on members', {
+          userId: user.id,
+          suggestion: 'Ensure rule allows: resource.data.userId == request.auth.uid for collection group queries'
+        });
+      }
     });
 
     return () => {

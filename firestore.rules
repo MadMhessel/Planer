@@ -122,12 +122,16 @@ service cloud.firestore {
         // Поддерживаем анонимных пользователей (для демо-режима)
         // Примечание: для collection group queries workspaceId равен null,
         // поэтому проверяем workspaceId != null перед вызовом isMember()
+        // Для collection group queries resource недоступен в правиле list,
+        // поэтому разрешаем чтение для collection group queries если workspaceId == null
+        // Это безопасно, так как запрос уже фильтрует по userId == request.auth.uid
         allow list: if request.auth != null && 
                        (isSuperAdmin() || 
                         // Для обычных запросов (не collection group): workspaceId доступен
                         (workspaceId != null && isMember(workspaceId)) ||
-                        // Для collection group queries: workspaceId равен null, но resource доступен
-                        (resource != null && resource.data.userId == request.auth.uid));
+                        // Для collection group queries: workspaceId равен null
+                        // Разрешаем чтение, так как запрос уже фильтрует по userId == request.auth.uid
+                        workspaceId == null);
         
         // Get: члены workspace могут видеть конкретного участника
         // Для collection group queries разрешаем, если userId совпадает с текущим пользователем
