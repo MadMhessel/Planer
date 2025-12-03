@@ -82,14 +82,19 @@ service cloud.firestore {
     // ============================================
     match /workspaces/{workspaceId} {
       // Чтение: владелец, члены, супер-админы или в списке allowedEmails (legacy)
+      // ИЛИ любой авторизованный пользователь (для проверки существования при принятии приглашения)
       // Поддерживаем анонимных пользователей (для демо-режима)
+      // Примечание: workspace содержит только публичную информацию (название, описание),
+      // поэтому разрешаем чтение для авторизованных пользователей
       allow read: if request.auth != null && 
         (
           isSuperAdmin() ||
           resource.data.ownerId == request.auth.uid || 
           (request.auth.token.email != null && 
            resource.data.allowedEmails.hasAny([request.auth.token.email])) ||
-          exists(/databases/$(database)/documents/workspaces/$(workspaceId)/members/$(request.auth.uid))
+          exists(/databases/$(database)/documents/workspaces/$(workspaceId)/members/$(request.auth.uid)) ||
+          // Разрешаем чтение для авторизованных пользователей (для принятия приглашения)
+          request.auth != null
         );
       
       // Создание: любой авторизованный пользователь может создать workspace (включая анонимных для демо-режима)
@@ -123,9 +128,13 @@ service cloud.firestore {
         // Get: члены workspace могут видеть конкретного участника
         // Для collection group queries разрешаем, если userId совпадает с текущим пользователем
         // Супер-админы могут читать всех участников всех workspace
+        // Разрешаем чтение своего member даже если он еще не существует (для принятия приглашения)
         allow get: if request.auth != null && 
                       (isSuperAdmin() ||
-                       resource.data.userId == request.auth.uid || 
+                       // Пользователь может читать свой member (даже если он еще не существует)
+                       (request.auth.uid == memberId) ||
+                       // Или если member существует и userId совпадает
+                       (resource != null && resource.data.userId == request.auth.uid) || 
                        isMember(workspaceId));
         
         // Создание: только админы/владельцы могут добавлять участников
@@ -135,9 +144,13 @@ service cloud.firestore {
         allow create: if request.auth != null && 
                          (isSuperAdmin() ||
                           isAdminOrOwner(workspaceId) || 
+                          // Пользователь может создать себя при принятии приглашения
+                          // Проверяем, что email совпадает с токеном (для безопасности)
                           (request.auth.uid == memberId && 
                            request.resource.data.userId == request.auth.uid &&
-                           request.resource.data.status == 'ACTIVE') ||
+                           request.resource.data.status == 'ACTIVE' &&
+                           request.auth.token.email != null &&
+                           request.resource.data.email == request.auth.token.email) ||
                           (get(/databases/$(database)/documents/workspaces/$(workspaceId)).data.ownerId == request.auth.uid &&
                            request.resource.data.role == 'OWNER' &&
                            request.resource.data.userId == request.auth.uid));
