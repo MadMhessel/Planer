@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { Task, Project, User, TaskStatus, TaskPriority } from '../types';
 import { Clock, User as UserIcon, Calendar, Hash, ArrowUpDown, ArrowUp, ArrowDown, Plus } from 'lucide-react';
 import { getPriorityLabel, getPriorityColor, getStatusLabel, getStatusColor } from '../utils/taskHelpers';
+import { getMoscowISOString, formatMoscowDate } from '../utils/dateUtils';
 
 interface TaskListProps {
   tasks: Task[];
@@ -78,7 +79,7 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, projects, users, onTaskClick 
               {task.dueDate && (
                 <>
                   <Calendar size={10} className="sm:w-3 sm:h-3 mr-0.5 sm:mr-1" />
-                  <span className="whitespace-nowrap">{new Date(task.dueDate).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}</span>
+                  <span className="whitespace-nowrap">{formatMoscowDate(task.dueDate, { day: 'numeric', month: 'short' })}</span>
                 </>
               )}
           </div>
@@ -167,8 +168,8 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks, projects, users, onTa
                id: '',
                title: '',
                status: TaskStatus.TODO,
-               createdAt: new Date().toISOString(),
-               updatedAt: new Date().toISOString(),
+               createdAt: getMoscowISOString(),
+               updatedAt: getMoscowISOString(),
                workspaceId: '',
                priority: TaskPriority.NORMAL
              } as Task)}
@@ -257,7 +258,7 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks, projects, users, onTa
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                             <div className="flex items-center text-sm font-medium text-gray-600 dark:text-slate-300">
-                                {task.dueDate ? new Date(task.dueDate).toLocaleDateString('ru-RU') : '—'}
+                                {task.dueDate ? formatMoscowDate(task.dueDate) : '—'}
                             </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">

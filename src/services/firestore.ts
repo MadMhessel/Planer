@@ -19,13 +19,14 @@ import {
 import { db } from '../firebase';
 import { InviteStatus, Project, Task, TaskPriority, TaskStatus, User, UserRole, Workspace, WorkspaceInvite, WorkspaceMember } from '../types';
 import { logger } from '../utils/logger';
+import { getMoscowISOString } from '../utils/dateUtils';
 
 export const FirestoreService = {
   // --- Workspaces ---
 
   async createWorkspace(name: string, owner: User): Promise<Workspace> {
     const workspaceRef = doc(collection(db, 'workspaces'));
-    const now = new Date().toISOString();
+    const now = getMoscowISOString();
 
     const workspace: Workspace = {
       id: workspaceRef.id,
@@ -248,7 +249,7 @@ export const FirestoreService = {
     const inviteRef = doc(collection(db, 'workspaces', workspaceId, 'invites'));
     const token = inviteRef.id;
 
-    const now = new Date();
+    const now = getMoscowDate();
     const expiresAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000); // 7 дней
 
     const invite: WorkspaceInvite = {
@@ -259,7 +260,7 @@ export const FirestoreService = {
       workspaceId,
       invitedBy,
       status: 'PENDING',
-      createdAt: now.toISOString(),
+      createdAt: getMoscowISOString(),
       expiresAt: expiresAt.toISOString()
     };
 
@@ -319,7 +320,7 @@ export const FirestoreService = {
           throw new Error('Приглашение уже использовано или отозвано');
         }
 
-        const now = new Date();
+        const now = getMoscowDate();
         if (new Date(invite.expiresAt) < now) {
           throw new Error('Срок действия приглашения истёк');
         }
@@ -348,7 +349,7 @@ export const FirestoreService = {
             userId: user.id,
             email: user.email,
             role: invite.role,
-            joinedAt: now.toISOString(),
+            joinedAt: getMoscowISOString(),
             invitedBy: invite.invitedBy,
             status: 'ACTIVE'
           };
@@ -474,8 +475,8 @@ export const FirestoreService = {
   async createTask(task: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>): Promise<Task> {
     // Фильтруем undefined значения, так как Firestore их не принимает
     const taskData: any = {
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
+      createdAt: getMoscowISOString(),
+      updatedAt: getMoscowISOString()
     };
     
     // Копируем только определенные поля
@@ -500,7 +501,7 @@ export const FirestoreService = {
     
     // Фильтруем undefined значения, так как Firestore их не принимает
     const updateData: any = {
-      updatedAt: new Date().toISOString()
+      updatedAt: getMoscowISOString()
     };
 
     // Копируем только определенные поля
@@ -545,8 +546,8 @@ export const FirestoreService = {
   async createProject(project: Omit<Project, 'id' | 'createdAt' | 'updatedAt'>): Promise<Project> {
     // Фильтруем undefined значения, так как Firestore их не принимает
     const projectData: any = {
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
+      createdAt: getMoscowISOString(),
+      updatedAt: getMoscowISOString()
     };
 
     // Копируем только определенные поля
@@ -594,7 +595,7 @@ export const FirestoreService = {
     
     // Фильтруем undefined значения, так как Firestore их не принимает
     const updateData: any = {
-      updatedAt: new Date().toISOString()
+      updatedAt: getMoscowISOString()
     };
 
     // Копируем только определенные поля
@@ -629,7 +630,7 @@ export const FirestoreService = {
     const userRef = doc(db, 'users', userId);
     await updateDoc(userRef, {
       ...updates,
-      updatedAt: new Date().toISOString()
+      updatedAt: getMoscowISOString()
     });
   }
 };

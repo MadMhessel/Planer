@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect } from "react";
 import { Sparkles, Send, X, ChevronUp, ChevronDown } from "lucide-react";
+import { formatMoscowDate } from '../utils/dateUtils';
 
 interface Message {
   id: string;
@@ -188,7 +189,7 @@ export const AICommandBar: React.FC<AICommandBarProps> = ({
                     <p className={`text-xs mt-1 ${
                       message.role === 'user' ? 'text-indigo-100' : 'text-gray-500 dark:text-slate-400'
                     }`}>
-                      {message.timestamp.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}
+                      {formatMoscowDate(message.timestamp, { hour: '2-digit', minute: '2-digit' })}
                     </p>
                   </div>
                 </div>
@@ -330,7 +331,7 @@ export const AICommandBar: React.FC<AICommandBarProps> = ({
                     <p className={`text-xs mt-1 ${
                       message.role === 'user' ? 'text-indigo-100' : 'text-gray-500 dark:text-slate-400'
                     }`}>
-                      {message.timestamp.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}
+                      {formatMoscowDate(message.timestamp, { hour: '2-digit', minute: '2-digit' })}
                     </p>
                   </div>
                 </div>

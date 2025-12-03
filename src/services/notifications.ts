@@ -12,6 +12,7 @@ import {
   deleteDoc
 } from 'firebase/firestore';
 import { db } from '../firebase';
+import { getMoscowISOString } from '../utils/dateUtils';
 import { Notification, WorkspaceMember } from '../types';
 import { logger } from '../utils/logger';
 
@@ -32,7 +33,7 @@ export class NotificationsService {
         message: notification.message,
         type: notification.type,
         readBy: notification.readBy || [],
-        createdAt: notification.createdAt || new Date().toISOString()
+        createdAt: notification.createdAt || getMoscowISOString()
       };
 
       // Добавляем recipients только если они определены

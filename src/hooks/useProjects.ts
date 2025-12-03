@@ -6,6 +6,7 @@ import { NotificationsService } from '../services/notifications';
 import { validateProject } from '../utils/validators';
 import { createTelegramMessage, getAllTelegramRecipients } from '../utils/notificationHelpers';
 import { logger } from '../utils/logger';
+import { getMoscowISOString } from '../utils/dateUtils';
 
 export const useProjects = (
   workspaceId: string | null,
@@ -52,7 +53,7 @@ export const useProjects = (
     setError(null);
 
     try {
-      const now = new Date().toISOString();
+      const now = getMoscowISOString();
       // Создаем объект проекта, исключая undefined значения
       // НЕ включаем createdAt и updatedAt - они будут добавлены в FirestoreService.createProject
       const projectData: any = {
@@ -83,7 +84,7 @@ export const useProjects = (
           message: `Проект "${created.name}" был создан`,
           type: 'PROJECT_UPDATED',
           readBy: [],
-          createdAt: new Date().toISOString()
+          createdAt: getMoscowISOString()
         };
         
         // Добавляем recipients только если есть получатели
@@ -139,7 +140,7 @@ export const useProjects = (
         type: 'PROJECT_UPDATED',
         title: 'Проект обновлен',
         message: `Проект "${oldProject.name}" был обновлен`,
-        createdAt: new Date().toISOString(),
+        createdAt: getMoscowISOString(),
         read: false
       });
 
@@ -181,7 +182,7 @@ export const useProjects = (
         type: 'PROJECT_UPDATED',
         title: 'Проект удален',
         message: `Проект "${projectToDelete.name}" был удален`,
-        createdAt: new Date().toISOString(),
+        createdAt: getMoscowISOString(),
         read: false
       });
 

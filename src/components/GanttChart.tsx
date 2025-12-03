@@ -2,6 +2,7 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { Task, Project } from '../types';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { formatMoscowDate } from '../utils/dateUtils';
 
 interface GanttChartProps {
   tasks: Task[];
@@ -207,7 +208,7 @@ export const GanttChart: React.FC<GanttChartProps> = ({ tasks, projects, onTaskC
     // Используем дату в центре видимой области для отображения месяца
     const centerDate = new Date(startDate);
     centerDate.setDate(centerDate.getDate() + Math.floor(daysToShow / 2));
-    return centerDate.toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' });
+    return formatMoscowDate(centerDate, { month: 'long', year: 'numeric' });
   }, [startDate, daysToShow]);
 
   return (
@@ -271,7 +272,7 @@ export const GanttChart: React.FC<GanttChartProps> = ({ tasks, projects, onTaskC
                             <span className={`font-bold ${d.toDateString() === new Date().toDateString() ? 'text-indigo-600' : 'text-gray-700'}`}>
                                 {d.getDate()}
                             </span>
-                            <span className="text-gray-400">{d.toLocaleDateString('ru-RU', { weekday: 'short'})}</span>
+                            <span className="text-gray-400">{formatMoscowDate(d, { weekday: 'short'})}</span>
                         </div>
                     ))}
                 </div>
@@ -330,7 +331,7 @@ export const GanttChart: React.FC<GanttChartProps> = ({ tasks, projects, onTaskC
                                       onClick={() => onEditTask(task)}
                                       className="absolute h-6 rounded-md shadow-sm text-[10px] text-white flex items-center px-2 whitespace-nowrap overflow-hidden cursor-pointer hover:brightness-110 hover:shadow-md transition-all z-10"
                                       style={style}
-                                      title={`${task.title}${task.startDate ? ` (${new Date(task.startDate).toLocaleDateString('ru-RU')}` : ''}${task.dueDate ? ` - ${new Date(task.dueDate).toLocaleDateString('ru-RU')})` : ''}`}
+                                      title={`${task.title}${task.startDate ? ` (${formatMoscowDate(task.startDate)}` : ''}${task.dueDate ? ` - ${formatMoscowDate(task.dueDate)})` : ''}`}
                                   >
                                       {!isMobile && <span className="truncate font-medium">{task.title}</span>}
                                       {isMobile && style.width && parseFloat(style.width as string) > 40 && (

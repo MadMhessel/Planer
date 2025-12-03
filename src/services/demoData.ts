@@ -3,6 +3,7 @@ import { FirestoreService } from './firestore';
 import { User, Workspace, Task, Project, TaskStatus, TaskPriority, WorkspaceMember, UserRole } from '../types';
 import { logger } from '../utils/logger';
 import { db } from '../firebase';
+import { getMoscowISOString } from '../utils/dateUtils';
 import { collection, doc, setDoc, getDocs, getDoc, query, where } from 'firebase/firestore';
 
 /**
@@ -16,8 +17,8 @@ async function createDemoUser(userId: string, email: string, displayName: string
     displayName,
     role: 'MEMBER',
     isActive: true,
-    createdAt: new Date().toISOString(),
-    lastLoginAt: new Date().toISOString()
+    createdAt: getMoscowISOString(),
+    lastLoginAt: getMoscowISOString()
   });
 }
 
@@ -37,7 +38,7 @@ async function createDemoMember(
     userId,
     email,
     role,
-    joinedAt: new Date().toISOString(),
+    joinedAt: getMoscowISOString(),
     invitedBy,
     status: 'ACTIVE'
   });

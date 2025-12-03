@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Task, Project, User, TaskStatus, TaskPriority } from '../types';
 import { X, Save, Trash2, Calendar, User as UserIcon, Tag } from 'lucide-react';
+import { getMoscowDateString, getMoscowDatePlusDays, getMoscowISOString } from '../utils/dateUtils';
 
 interface TaskModalProps {
   isOpen: boolean;
@@ -29,8 +30,8 @@ export const TaskModal: React.FC<TaskModalProps> = ({
     projectId: '',
     assigneeId: '',
     assigneeIds: [],
-    startDate: new Date().toISOString().split('T')[0],
-    dueDate: new Date(Date.now() + 86400000).toISOString().split('T')[0],
+    startDate: getMoscowDateString(),
+    dueDate: getMoscowDatePlusDays(1),
     tags: []
   });
 
@@ -56,8 +57,8 @@ export const TaskModal: React.FC<TaskModalProps> = ({
         projectId: projects[0]?.id || '',
         assigneeId: '',
         assigneeIds: [],
-        startDate: new Date().toISOString().split('T')[0],
-        dueDate: new Date(Date.now() + 86400000).toISOString().split('T')[0],
+        startDate: getMoscowDateString(),
+        dueDate: getMoscowDatePlusDays(1),
         tags: []
       });
     }
@@ -81,8 +82,8 @@ export const TaskModal: React.FC<TaskModalProps> = ({
       assigneeId: assigneeIds.length > 0 ? assigneeIds[0] : undefined, // Обратная совместимость
       assigneeIds: assigneeIds.length > 0 ? assigneeIds : undefined,
       id: task?.id || '', // Пустая строка для новой задачи
-      createdAt: task?.createdAt || new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
+      createdAt: task?.createdAt || getMoscowISOString(),
+      updatedAt: getMoscowISOString(),
       dependencies: task?.dependencies || [],
       tags: formData.tags || [],
       workspaceId: task?.workspaceId || '', // Будет установлено в App.tsx

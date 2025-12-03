@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { Workspace, WorkspaceInvite, WorkspaceMember, User, UserRole, Project } from '../types';
 import { FirestoreService } from '../services/firestore';
 import { SUPER_ADMINS } from '../constants/superAdmins';
+import { getMoscowISOString } from '../utils/dateUtils';
 import { Plus, Edit2, Trash2, Folder } from 'lucide-react';
 
 type Props = {
@@ -186,7 +187,7 @@ export const SettingsView: React.FC<Props> = ({
             userId: currentUser.id,
             email: currentUser.email || '',
             role: 'OWNER',
-            joinedAt: new Date().toISOString(),
+            joinedAt: getMoscowISOString(),
             invitedBy: currentUser.id,
             status: 'ACTIVE'
           };

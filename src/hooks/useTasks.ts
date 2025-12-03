@@ -6,6 +6,7 @@ import { NotificationsService } from '../services/notifications';
 import { validateTask } from '../utils/validators';
 import { createTaskNotification, createTelegramMessage, getRecipientsForTask } from '../utils/notificationHelpers';
 import { logger } from '../utils/logger';
+import { getMoscowISOString } from '../utils/dateUtils';
 
 export const useTasks = (
   workspaceId: string | null,
@@ -59,7 +60,7 @@ export const useTasks = (
     setError(null);
 
     try {
-      const now = new Date().toISOString();
+      const now = getMoscowISOString();
       
       // Создаем объект задачи, исключая undefined значения и поля createdAt/updatedAt (они будут добавлены в FirestoreService)
       const taskData: any = {
@@ -150,12 +151,12 @@ export const useTasks = (
     try {
       // Оптимистичное обновление
       setTasks(prev => prev.map(t => 
-        t.id === taskId ? { ...t, ...updates, updatedAt: new Date().toISOString() } : t
+        t.id === taskId ? { ...t, ...updates, updatedAt: getMoscowISOString() } : t
       ));
 
       await FirestoreService.updateTask(taskId, {
         ...updates,
-        updatedAt: new Date().toISOString()
+        updatedAt: getMoscowISOString()
       });
 
       // Уведомления
@@ -173,7 +174,7 @@ export const useTasks = (
         telegramMessage = createTelegramMessage('TASK_UPDATED', newTaskState, updates, oldTask);
       } else if (updates.dueDate && updates.dueDate !== oldTask.dueDate) {
         notificationTitle = 'Срок задачи изменен';
-        const newDueDate = new Date(updates.dueDate).toLocaleDateString('ru-RU');
+        const newDueDate = formatMoscowDate(updates.dueDate);
         notificationMessage = `Задача "${oldTask.title}" - новый срок: ${newDueDate}`;
         telegramMessage = createTelegramMessage('TASK_UPDATED', newTaskState, updates, oldTask);
       } else if (updates.assigneeId && updates.assigneeId !== oldTask.assigneeId) {
@@ -254,7 +255,7 @@ export const useTasks = (
         type: 'TASK_UPDATED',
         title: 'Задача удалена',
         message: `Задача "${taskToDelete.title}" была удалена`,
-        createdAt: new Date().toISOString(),
+        createdAt: getMoscowISOString(),
         readBy: []
       };
       

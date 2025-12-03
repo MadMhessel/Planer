@@ -41,6 +41,7 @@ import { membersToUsers } from './utils/userHelpers';
 import { MAX_CHAT_HISTORY_LENGTH } from './constants/ai';
 import toast from 'react-hot-toast';
 import { SUPER_ADMINS } from './constants/superAdmins';
+import { getMoscowISOString } from './utils/dateUtils';
 
 type AppView =
   | 'BOARD'
@@ -266,7 +267,7 @@ const App: React.FC = () => {
         type: 'SYSTEM',
         title: 'Ошибка создания задачи',
         message: errorMessage,
-        createdAt: new Date().toISOString(),
+        createdAt: getMoscowISOString(),
         readBy: []
       }, ...prev]);
     }
@@ -286,7 +287,7 @@ const App: React.FC = () => {
         type: 'SYSTEM',
         title: 'Ошибка обновления задачи',
         message: errorMessage,
-        createdAt: new Date().toISOString(),
+        createdAt: getMoscowISOString(),
         readBy: []
       }, ...prev]);
     }
@@ -447,7 +448,7 @@ const App: React.FC = () => {
         type: 'SYSTEM',
         title: 'Ошибка удаления задачи',
         message: errorMessage,
-        createdAt: new Date().toISOString(),
+        createdAt: getMoscowISOString(),
         readBy: []
       }, ...prev]);
     }
@@ -468,7 +469,7 @@ const App: React.FC = () => {
         type: 'SYSTEM',
         title: 'Ошибка создания проекта',
         message: errorMessage,
-        createdAt: new Date().toISOString(),
+        createdAt: getMoscowISOString(),
         readBy: []
       }, ...prev]);
       throw error;
@@ -486,7 +487,7 @@ const App: React.FC = () => {
         type: 'SYSTEM',
         title: 'Ошибка обновления проекта',
         message: error instanceof Error ? error.message : 'Не удалось обновить проект',
-        createdAt: new Date().toISOString(),
+        createdAt: getMoscowISOString(),
         readBy: []
       }, ...prev]);
     }
@@ -503,7 +504,7 @@ const App: React.FC = () => {
         type: 'SYSTEM',
         title: 'Ошибка удаления проекта',
         message: error instanceof Error ? error.message : 'Не удалось удалить проект',
-        createdAt: new Date().toISOString(),
+        createdAt: getMoscowISOString(),
         readBy: []
       }, ...prev]);
     }
@@ -772,8 +773,8 @@ const App: React.FC = () => {
                     id: '',
                     title: '',
                     status: TaskStatus.TODO,
-                    createdAt: new Date().toISOString(),
-                    updatedAt: new Date().toISOString(),
+                    createdAt: getMoscowISOString(),
+                    updatedAt: getMoscowISOString(),
                     workspaceId: currentWorkspaceId,
                     dueDate: date,
                     priority: TaskPriority.NORMAL
@@ -872,7 +873,7 @@ const App: React.FC = () => {
                     type,
                     title,
                     message,
-                    createdAt: new Date().toISOString(),
+                    createdAt: getMoscowISOString(),
                     readBy: []
                   },
                   ...prev

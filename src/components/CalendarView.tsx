@@ -1,6 +1,7 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { Task } from '../types';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { getMoscowDateString, formatMoscowDate } from '../utils/dateUtils';
 
 type Props = {
   tasks: Task[];
@@ -42,7 +43,7 @@ export const CalendarView: React.FC<Props> = ({
   const month = currentDate.getMonth(); // 0–11
   const daysInMonth = new Date(year, month + 1, 0).getDate();
 
-  const monthLabel = currentDate.toLocaleDateString(undefined, {
+  const monthLabel = formatMoscowDate(currentDate, {
     month: 'long',
     year: 'numeric'
   });
@@ -111,7 +112,7 @@ export const CalendarView: React.FC<Props> = ({
           const iso = buildIso(day);
           const dayTasks = getTasksForDate(iso);
           const hasTasks = dayTasks.length > 0;
-          const isToday = iso === new Date().toISOString().slice(0, 10);
+          const isToday = iso === getMoscowDateString();
 
           return (
             <button

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Bell, X } from 'lucide-react';
 import { Notification } from '../types';
+import { formatMoscowDate } from '../utils/dateUtils';
 
 type Props = {
   notifications: Notification[];
@@ -118,7 +119,7 @@ export const NotificationCenter: React.FC<Props> = ({
                       </p>
                     </div>
                     <span className="text-[10px] text-gray-500 dark:text-slate-500 whitespace-nowrap flex-shrink-0">
-                      {new Date(n.createdAt).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}
+                      {formatMoscowDate(n.createdAt, { day: 'numeric', month: 'short' })}
                     </span>
                   </div>
                 </div>

@@ -1,6 +1,7 @@
 import { Task, Project, Notification, WorkspaceMember } from '../types';
 import { NOTIFICATION_TYPES } from '../constants/notifications';
 import { getStatusLabel, getPriorityLabel } from './taskHelpers';
+import { getMoscowISOString } from './dateUtils';
 
 export const createTaskNotification = (
   workspaceId: string,
@@ -20,7 +21,7 @@ export const createTaskNotification = (
     type,
     title: type === 'TASK_ASSIGNED' ? 'Новая задача создана' : 'Задача обновлена',
     message: `Задача "${task.title}" ${assigneeName}`,
-    createdAt: new Date().toISOString(),
+    createdAt: getMoscowISOString(),
     readBy: []
   };
 
@@ -43,7 +44,7 @@ export const createTelegramMessage = (
     const task = taskOrProject as Task;
     const projectText = projectName ? `\n📁 Проект: ${projectName}` : '';
     const dueDate = task.dueDate 
-      ? `\n📅 Срок: ${new Date(task.dueDate).toLocaleDateString('ru-RU')}` 
+      ? `\n📅 Срок: ${formatMoscowDate(task.dueDate)}` 
       : '';
     const priorityText = getPriorityLabel(task.priority);
     
@@ -74,7 +75,7 @@ export const createTelegramMessage = (
 
     // Смена дедлайна
     if (changesTyped.dueDate && changesTyped.dueDate !== oldTask.dueDate) {
-      const newDueDate = new Date(changesTyped.dueDate).toLocaleDateString('ru-RU');
+      const newDueDate = formatMoscowDate(changesTyped.dueDate);
       return `📅 <b>Обновление сроков</b>\n\n📝 <b>${oldTask.title}</b>\n\nНовый дедлайн: <b>${newDueDate}</b>`;
     }
 

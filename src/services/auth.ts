@@ -12,6 +12,7 @@ import { User, UserRole } from '../types';
 import { NewUserData } from '../types/auth';
 import { doc, getDoc, serverTimestamp, setDoc, updateDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { logger } from '../utils/logger';
+import { getMoscowISOString } from '../utils/dateUtils';
 
 const provider = new GoogleAuthProvider();
 
@@ -36,8 +37,8 @@ export const AuthService = {
             displayName: firebaseUser.displayName || firebaseUser.email || '',
             role: 'MEMBER',
             isActive: true,
-            createdAt: new Date().toISOString(),
-            lastLoginAt: new Date().toISOString()
+            createdAt: getMoscowISOString(),
+            lastLoginAt: getMoscowISOString()
           };
           // Добавляем photoURL только если оно есть
           if (firebaseUser.photoURL) {
@@ -80,8 +81,8 @@ export const AuthService = {
         displayName: firebaseUser.displayName || firebaseUser.email || '',
         role: 'MEMBER',
         isActive: true,
-        createdAt: new Date().toISOString(),
-        lastLoginAt: new Date().toISOString()
+        createdAt: getMoscowISOString(),
+        lastLoginAt: getMoscowISOString()
       };
       // Добавляем photoURL только если оно есть
       if (firebaseUser.photoURL) {
@@ -118,8 +119,8 @@ export const AuthService = {
         displayName: firebaseUser.displayName || firebaseUser.email || '',
         role: 'MEMBER',
         isActive: true,
-        createdAt: new Date().toISOString(),
-        lastLoginAt: new Date().toISOString()
+        createdAt: getMoscowISOString(),
+        lastLoginAt: getMoscowISOString()
       };
       // Добавляем photoURL только если оно есть
       if (firebaseUser.photoURL) {
@@ -170,8 +171,8 @@ export const AuthService = {
         displayName: displayName || firebaseUser.email || '',
         role: 'MEMBER',
         isActive: true,
-        createdAt: new Date().toISOString(),
-        lastLoginAt: new Date().toISOString()
+        createdAt: getMoscowISOString(),
+        lastLoginAt: getMoscowISOString()
       };
       // Добавляем photoURL только если оно есть
       if (firebaseUser.photoURL) {
@@ -215,8 +216,8 @@ export const AuthService = {
           displayName: 'Демо пользователь',
           role: 'MEMBER',
           isActive: true,
-          createdAt: new Date().toISOString(),
-          lastLoginAt: new Date().toISOString()
+          createdAt: getMoscowISOString(),
+          lastLoginAt: getMoscowISOString()
         };
         // Добавляем photoURL только если оно есть (для анонимных пользователей его нет)
         if (firebaseUser.photoURL) {
