@@ -521,12 +521,17 @@ export const FirestoreService = {
       if (Array.isArray(cleanUpdates.assigneeIds) && cleanUpdates.assigneeIds.length > 0) {
         updateData.assigneeIds = cleanUpdates.assigneeIds;
         // Устанавливаем assigneeId из первого элемента для обратной совместимости
-        updateData.assigneeId = cleanUpdates.assigneeIds[0];
+        if (cleanUpdates.assigneeIds[0] !== undefined) {
+          updateData.assigneeId = cleanUpdates.assigneeIds[0];
+        }
         hasAssigneeIds = true;
       } else if (Array.isArray(cleanUpdates.assigneeIds) && cleanUpdates.assigneeIds.length === 0) {
-        // Если массив пустой, устанавливаем пустой массив и удаляем assigneeId
+        // Если массив пустой, устанавливаем пустой массив
         updateData.assigneeIds = [];
-        updateData.assigneeId = deleteField(); // Удаляем поле assigneeId
+        // Удаляем поле assigneeId только если оно было явно указано в updates
+        if (cleanUpdates.assigneeId === undefined) {
+          updateData.assigneeId = deleteField(); // Удаляем поле assigneeId
+        }
         hasAssigneeIds = true;
       }
     }
@@ -563,7 +568,107 @@ export const FirestoreService = {
       updateData[key] = value;
     }
 
-    await updateDoc(taskRef, updateData);
+    // Финальная проверка: удаляем все undefined значения из updateData перед отправкой
+    const finalUpdateData: any = {};
+    for (const [key, value] of Object.entries(updateData)) {
+      // Пропускаем undefined значения
+      if (value === undefined) {
+        logger.warn('[updateTask] Skipping undefined value', { key, taskId });
+        continue;
+      }
+      
+      // deleteField() возвращает специальный объект FieldValue, его нужно сохранить
+      // Проверяем, является ли это FieldValue.delete
+      if (value && typeof value === 'object' && '_methodName' in value) {
+        const fieldValue = value as any;
+        if (fieldValue._methodName === 'FieldValue.delete' || fieldValue._delegate?.methodName === 'delete') {
+          finalUpdateData[key] = value;
+          continue;
+        }
+      }
+      
+      // Проверяем вложенные объекты и массивы на наличие undefined
+      if (typeof value === 'object' && value !== null && !Array.isArray(value) && !(value instanceof Date)) {
+        // Если это объект, проверяем его поля
+        const cleanObject: any = {};
+        let hasValidFields = false;
+        for (const [objKey, objValue] of Object.entries(value)) {
+          if (objValue !== undefined) {
+            cleanObject[objKey] = objValue;
+            hasValidFields = true;
+          }
+        }
+        if (hasValidFields) {
+          finalUpdateData[key] = cleanObject;
+        }
+      } else if (Array.isArray(value)) {
+        // Проверяем массив на наличие undefined элементов
+        const cleanArray = value.filter(item => item !== undefined && item !== null);
+        if (cleanArray.length > 0 || key === 'tags' || key === 'dependencies' || key === 'assigneeIds') {
+          finalUpdateData[key] = cleanArray;
+        }
+      } else {
+        finalUpdateData[key] = value;
+      }
+    }
+
+    // Дополнительная проверка: убеждаемся, что нет undefined в финальном объекте
+    const hasUndefined = Object.values(finalUpdateData).some(v => v === undefined);
+    if (hasUndefined) {
+      logger.error('[updateTask] Found undefined in finalUpdateData', { 
+        taskId, 
+        keys: Object.keys(finalUpdateData),
+        values: Object.entries(finalUpdateData).map(([k, v]) => ({ key: k, value: v, type: typeof v }))
+      });
+      // Удаляем все undefined значения еще раз
+      for (const key in finalUpdateData) {
+        if (finalUpdateData[key] === undefined) {
+          delete finalUpdateData[key];
+        }
+      }
+    }
+
+    // Последняя проверка: рекурсивно удаляем все undefined из всех уровней
+    const deepClean = (obj: any): any => {
+      if (obj === undefined || obj === null) {
+        return undefined;
+      }
+      if (Array.isArray(obj)) {
+        return obj.map(deepClean).filter(item => item !== undefined);
+      }
+      if (typeof obj === 'object' && !(obj instanceof Date)) {
+        // Проверяем, является ли это FieldValue
+        if ('_methodName' in obj || '_delegate' in obj) {
+          return obj;
+        }
+        const cleaned: any = {};
+        for (const [k, v] of Object.entries(obj)) {
+          const cleanedValue = deepClean(v);
+          if (cleanedValue !== undefined) {
+            cleaned[k] = cleanedValue;
+          }
+        }
+        return Object.keys(cleaned).length > 0 ? cleaned : undefined;
+      }
+      return obj;
+    };
+
+    const deeplyCleaned = deepClean(finalUpdateData);
+    
+    // Удаляем все ключи с undefined значениями
+    for (const key in deeplyCleaned) {
+      if (deeplyCleaned[key] === undefined) {
+        delete deeplyCleaned[key];
+      }
+    }
+
+    logger.info('[updateTask] Sending update to Firestore', {
+      taskId,
+      keys: Object.keys(deeplyCleaned),
+      hasUndefined: Object.values(deeplyCleaned).some(v => v === undefined)
+    });
+
+    await updateDoc(taskRef, deeplyCleaned);
   },
 
   async deleteTask(taskId: string) {
