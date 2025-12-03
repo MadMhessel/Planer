@@ -520,7 +520,17 @@ export const FirestoreService = {
     // Дополнительная проверка: удаляем все undefined значения из updates перед обработкой
     const cleanUpdates: Partial<Task> = {};
     for (const [key, value] of Object.entries(updates)) {
-      if (value !== undefined) {
+      if (value === undefined) {
+        continue;
+      }
+      
+      // Специальная обработка для массивов: фильтруем undefined элементы
+      if (Array.isArray(value)) {
+        const cleanArray = value.filter(item => item !== undefined && item !== null && item !== '');
+        if (cleanArray.length > 0 || key === 'tags' || key === 'dependencies' || key === 'assigneeIds') {
+          cleanUpdates[key as keyof Task] = cleanArray as any;
+        }
+      } else {
         cleanUpdates[key as keyof Task] = value as any;
       }
     }

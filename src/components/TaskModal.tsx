@@ -72,9 +72,11 @@ export const TaskModal: React.FC<TaskModalProps> = ({
     if (!formData.title) return;
     
     // Для новой задачи не передаем id, чтобы App.tsx мог определить, что это новая задача
-    const assigneeIds = formData.assigneeIds && formData.assigneeIds.length > 0 
+    // Фильтруем undefined, null и пустые строки из массива
+    const rawAssigneeIds = formData.assigneeIds && formData.assigneeIds.length > 0 
       ? formData.assigneeIds 
       : (formData.assigneeId ? [formData.assigneeId] : []);
+    const assigneeIds = rawAssigneeIds.filter(id => id !== undefined && id !== null && id !== '');
     
     // Создаем объект задачи, исключая undefined значения
     const taskData: any = {
@@ -213,15 +215,18 @@ export const TaskModal: React.FC<TaskModalProps> = ({
                             type="checkbox"
                             checked={isSelected}
                             onChange={(e) => {
-                              const currentIds = formData.assigneeIds || [];
+                              const currentIds = (formData.assigneeIds || []).filter(id => id !== undefined && id !== null && id !== '');
                               if (e.target.checked) {
-                                setFormData({
-                                  ...formData,
-                                  assigneeIds: [...currentIds, user.id],
-                                  assigneeId: currentIds.length === 0 ? user.id : formData.assigneeId // Обратная совместимость
-                                });
+                                // Проверяем, что user.id валидный и его еще нет в массиве
+                                if (user.id && !currentIds.includes(user.id)) {
+                                  setFormData({
+                                    ...formData,
+                                    assigneeIds: [...currentIds, user.id].filter(id => id !== undefined && id !== null && id !== ''),
+                                    assigneeId: currentIds.length === 0 ? user.id : formData.assigneeId // Обратная совместимость
+                                  });
+                                }
                               } else {
-                                const newIds = currentIds.filter(id => id !== user.id);
+                                const newIds = currentIds.filter(id => id !== user.id && id !== undefined && id !== null && id !== '');
                                 setFormData({
                                   ...formData,
                                   assigneeIds: newIds,
