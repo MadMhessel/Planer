@@ -502,6 +502,14 @@ export const FirestoreService = {
   async updateTask(taskId: string, updates: Partial<Task>) {
     const taskRef = doc(db, 'tasks', taskId);
     
+    // Дополнительная проверка: удаляем все undefined значения из updates перед обработкой
+    const cleanUpdates: Partial<Task> = {};
+    for (const [key, value] of Object.entries(updates)) {
+      if (value !== undefined) {
+        cleanUpdates[key as keyof Task] = value as any;
+      }
+    }
+    
     // Фильтруем undefined, null и пустые строки, так как Firestore их не принимает
     const updateData: any = {
       updatedAt: getMoscowISOString()
@@ -509,13 +517,13 @@ export const FirestoreService = {
 
     // Обрабатываем assigneeIds отдельно, чтобы правильно синхронизировать с assigneeId
     let hasAssigneeIds = false;
-    if (updates.assigneeIds !== undefined) {
-      if (Array.isArray(updates.assigneeIds) && updates.assigneeIds.length > 0) {
-        updateData.assigneeIds = updates.assigneeIds;
+    if (cleanUpdates.assigneeIds !== undefined) {
+      if (Array.isArray(cleanUpdates.assigneeIds) && cleanUpdates.assigneeIds.length > 0) {
+        updateData.assigneeIds = cleanUpdates.assigneeIds;
         // Устанавливаем assigneeId из первого элемента для обратной совместимости
-        updateData.assigneeId = updates.assigneeIds[0];
+        updateData.assigneeId = cleanUpdates.assigneeIds[0];
         hasAssigneeIds = true;
-      } else if (Array.isArray(updates.assigneeIds) && updates.assigneeIds.length === 0) {
+      } else if (Array.isArray(cleanUpdates.assigneeIds) && cleanUpdates.assigneeIds.length === 0) {
         // Если массив пустой, устанавливаем пустой массив и удаляем assigneeId
         updateData.assigneeIds = [];
         updateData.assigneeId = deleteField(); // Удаляем поле assigneeId
@@ -525,7 +533,7 @@ export const FirestoreService = {
 
     // Копируем только определенные поля (исключая assigneeIds и assigneeId, которые обработаны выше)
     // Используем Object.entries для более надежной обработки
-    for (const [key, value] of Object.entries(updates)) {
+    for (const [key, value] of Object.entries(cleanUpdates)) {
       // Пропускаем assigneeIds и assigneeId, так как они обработаны выше
       if (key === 'assigneeIds' || (key === 'assigneeId' && hasAssigneeIds)) {
         continue;

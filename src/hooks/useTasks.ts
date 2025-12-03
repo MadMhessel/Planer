@@ -154,10 +154,18 @@ export const useTasks = (
         t.id === taskId ? { ...t, ...updates, updatedAt: getMoscowISOString() } : t
       ));
 
-      await FirestoreService.updateTask(taskId, {
-        ...updates,
+      // Фильтруем undefined значения перед передачей в FirestoreService
+      const filteredUpdates: Partial<Task> = {
         updatedAt: getMoscowISOString()
-      });
+      };
+      
+      for (const [key, value] of Object.entries(updates)) {
+        if (value !== undefined) {
+          filteredUpdates[key as keyof Task] = value as any;
+        }
+      }
+      
+      await FirestoreService.updateTask(taskId, filteredUpdates);
 
       // Уведомления
       const newTaskState = { ...oldTask, ...updates } as Task;

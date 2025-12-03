@@ -275,7 +275,14 @@ const App: React.FC = () => {
 
   const handleUpdateTask = useCallback(async (taskId: string, updates: Partial<Task>) => {
     try {
-      await updateTask(taskId, updates);
+      // Фильтруем undefined значения перед передачей
+      const filteredUpdates: Partial<Task> = {};
+      for (const [key, value] of Object.entries(updates)) {
+        if (value !== undefined) {
+          filteredUpdates[key as keyof Task] = value as any;
+        }
+      }
+      await updateTask(taskId, filteredUpdates);
       toast.success('Задача обновлена');
     } catch (error) {
       logger.error('Failed to update task', error instanceof Error ? error : undefined);
@@ -942,10 +949,19 @@ const App: React.FC = () => {
               const isExistingTask = editingTask && editingTask.id && editingTask.id.trim() !== '';
               
               if (isExistingTask && editingTask.id) {
-                await handleUpdateTask(editingTask.id, {
-                  ...t,
+                // Фильтруем undefined значения перед передачей
+                const updateData: Partial<Task> = {
                   workspaceId: currentWorkspaceId
-                });
+                };
+                
+                // Копируем только определенные поля из задачи
+                for (const [key, value] of Object.entries(t)) {
+                  if (value !== undefined && key !== 'id' && key !== 'workspaceId') {
+                    updateData[key as keyof Task] = value as any;
+                  }
+                }
+                
+                await handleUpdateTask(editingTask.id, updateData);
               } else {
                 // Для новой задачи добавляем workspaceId и убираем id
                 const { id, ...taskData } = t;
