@@ -95,11 +95,14 @@ export const AcceptInviteView: React.FC<Props> = ({
       window.history.replaceState({}, '', url.toString());
 
       // Даем время для обновления подписок Firestore
+      // Увеличиваем время ожидания, чтобы подписки успели обновиться
+      // и collection group query успел найти новый member
       setTimeout(() => {
         onClose();
         // Принудительно обновляем страницу, чтобы workspace появился в списке
+        // и подписки Firestore успели загрузить новый workspace
         window.location.reload();
-      }, 2000);
+      }, 3000);
     } catch (e: any) {
       setState({
         status: 'error',

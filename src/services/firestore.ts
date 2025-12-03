@@ -70,19 +70,35 @@ export const FirestoreService = {
     const updateCallback = async () => {
       // Собираем все workspaceId из map
       const allWorkspaceIds = Array.from(workspaceMap.keys());
+      logger.info('[subscribeToWorkspaces] updateCallback', { 
+        workspaceIds: allWorkspaceIds,
+        mapSize: workspaceMap.size
+      });
       
       // Загружаем данные workspace для тех, которых еще нет
       for (const workspaceId of allWorkspaceIds) {
         if (!workspaceMap.has(workspaceId)) {
-          const workspaceDoc = await getDoc(doc(db, 'workspaces', workspaceId));
-          if (workspaceDoc.exists()) {
-            const w = workspaceDoc.data() as Workspace;
-            workspaceMap.set(workspaceId, { ...w, id: workspaceId });
+          try {
+            const workspaceDoc = await getDoc(doc(db, 'workspaces', workspaceId));
+            if (workspaceDoc.exists()) {
+              const w = workspaceDoc.data() as Workspace;
+              workspaceMap.set(workspaceId, { ...w, id: workspaceId });
+              logger.info('[subscribeToWorkspaces] Loaded workspace in updateCallback', { workspaceId, name: w.name });
+            }
+          } catch (error) {
+            logger.error('[subscribeToWorkspaces] Error in updateCallback', { 
+              workspaceId, 
+              error: error instanceof Error ? error.message : String(error)
+            });
           }
         }
       }
       
       const workspaces: Workspace[] = Array.from(workspaceMap.values());
+      logger.info('[subscribeToWorkspaces] Calling callback with workspaces', { 
+        count: workspaces.length,
+        workspaceIds: workspaces.map(w => w.id)
+      });
       callback(workspaces);
     };
 
@@ -109,6 +125,12 @@ export const FirestoreService = {
     );
 
     memberUnsubscribe = onSnapshot(memberQuery, async (snapshot) => {
+      logger.info('[subscribeToWorkspaces] Member query snapshot', { 
+        count: snapshot.docs.length,
+        userId: user.id,
+        hasError: snapshot.metadata.hasPendingWrites
+      });
+      
       const workspaceIds = new Set<string>();
       
       snapshot.docs.forEach(memberDoc => {
@@ -118,21 +140,55 @@ export const FirestoreService = {
         if (workspaceIdIndex !== -1 && workspaceIdIndex + 1 < pathParts.length) {
           const workspaceId = pathParts[workspaceIdIndex + 1];
           workspaceIds.add(workspaceId);
+          logger.info('[subscribeToWorkspaces] Found member', { 
+            workspaceId, 
+            memberId: memberDoc.id,
+            memberData: memberDoc.data()
+          });
+        } else {
+          logger.warn('[subscribeToWorkspaces] Invalid member path', { path: memberDoc.ref.path });
         }
+      });
+
+      logger.info('[subscribeToWorkspaces] Workspace IDs from members', { 
+        workspaceIds: Array.from(workspaceIds),
+        currentMapSize: workspaceMap.size
       });
 
       // Загружаем workspace для каждого найденного workspaceId
       for (const workspaceId of workspaceIds) {
         if (!workspaceMap.has(workspaceId)) {
-          const workspaceDoc = await getDoc(doc(db, 'workspaces', workspaceId));
-          if (workspaceDoc.exists()) {
-            const w = workspaceDoc.data() as Workspace;
-            workspaceMap.set(workspaceId, { ...w, id: workspaceId });
+          try {
+            const workspaceDoc = await getDoc(doc(db, 'workspaces', workspaceId));
+            if (workspaceDoc.exists()) {
+              const w = workspaceDoc.data() as Workspace;
+              workspaceMap.set(workspaceId, { ...w, id: workspaceId });
+              logger.info('[subscribeToWorkspaces] Loaded workspace', { workspaceId, name: w.name });
+            } else {
+              logger.warn('[subscribeToWorkspaces] Workspace not found', { workspaceId });
+            }
+          } catch (error) {
+            logger.error('[subscribeToWorkspaces] Error loading workspace', { 
+              workspaceId, 
+              error: error instanceof Error ? error.message : String(error)
+            });
           }
+        } else {
+          logger.info('[subscribeToWorkspaces] Workspace already in map', { workspaceId });
         }
       }
       
+      logger.info('[subscribeToWorkspaces] Calling updateCallback', { 
+        finalMapSize: workspaceMap.size,
+        workspaceIds: Array.from(workspaceMap.keys())
+      });
       updateCallback();
+    }, (error) => {
+      logger.error('[subscribeToWorkspaces] Member query error', { 
+        error: error instanceof Error ? error.message : String(error),
+        code: (error as any)?.code,
+        userId: user.id
+      });
     });
 
     return () => {
