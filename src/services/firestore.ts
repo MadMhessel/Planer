@@ -502,6 +502,13 @@ export const FirestoreService = {
   async updateTask(taskId: string, updates: Partial<Task>) {
     const taskRef = doc(db, 'tasks', taskId);
     
+    logger.info('[updateTask] Received updates', { 
+      taskId, 
+      updatesKeys: Object.keys(updates),
+      assigneeIds: updates.assigneeIds,
+      assigneeId: updates.assigneeId
+    });
+    
     // Дополнительная проверка: удаляем все undefined значения из updates перед обработкой
     const cleanUpdates: Partial<Task> = {};
     for (const [key, value] of Object.entries(updates)) {
@@ -509,6 +516,13 @@ export const FirestoreService = {
         cleanUpdates[key as keyof Task] = value as any;
       }
     }
+    
+    logger.info('[updateTask] Clean updates', { 
+      taskId, 
+      cleanUpdatesKeys: Object.keys(cleanUpdates),
+      assigneeIds: cleanUpdates.assigneeIds,
+      assigneeId: cleanUpdates.assigneeId
+    });
     
     // Фильтруем undefined, null и пустые строки, так как Firestore их не принимает
     const updateData: any = {
@@ -518,19 +532,30 @@ export const FirestoreService = {
     // Обрабатываем assigneeIds отдельно, чтобы правильно синхронизировать с assigneeId
     let hasAssigneeIds = false;
     if (cleanUpdates.assigneeIds !== undefined) {
-      if (Array.isArray(cleanUpdates.assigneeIds) && cleanUpdates.assigneeIds.length > 0) {
-        updateData.assigneeIds = cleanUpdates.assigneeIds;
-        // Устанавливаем assigneeId из первого элемента для обратной совместимости
-        if (cleanUpdates.assigneeIds[0] !== undefined) {
-          updateData.assigneeId = cleanUpdates.assigneeIds[0];
-        }
-        hasAssigneeIds = true;
-      } else if (Array.isArray(cleanUpdates.assigneeIds) && cleanUpdates.assigneeIds.length === 0) {
-        // Если массив пустой, устанавливаем пустой массив
-        updateData.assigneeIds = [];
-        // Удаляем поле assigneeId только если оно было явно указано в updates
-        if (cleanUpdates.assigneeId === undefined) {
-          updateData.assigneeId = deleteField(); // Удаляем поле assigneeId
+      if (Array.isArray(cleanUpdates.assigneeIds)) {
+        if (cleanUpdates.assigneeIds.length > 0) {
+          // Фильтруем undefined и null из массива
+          const validAssigneeIds = cleanUpdates.assigneeIds.filter(id => id !== undefined && id !== null && id !== '');
+          if (validAssigneeIds.length > 0) {
+            updateData.assigneeIds = validAssigneeIds;
+            // Устанавливаем assigneeId из первого элемента для обратной совместимости
+            updateData.assigneeId = validAssigneeIds[0];
+            logger.info('[updateTask] Setting assigneeIds', { 
+              taskId, 
+              assigneeIds: validAssigneeIds,
+              assigneeId: validAssigneeIds[0]
+            });
+          } else {
+            // Если все элементы были невалидными, устанавливаем пустой массив
+            updateData.assigneeIds = [];
+            updateData.assigneeId = deleteField();
+            logger.info('[updateTask] All assigneeIds were invalid, clearing', { taskId });
+          }
+        } else {
+          // Если массив пустой, устанавливаем пустой массив и удаляем assigneeId
+          updateData.assigneeIds = [];
+          updateData.assigneeId = deleteField();
+          logger.info('[updateTask] Clearing assigneeIds (empty array)', { taskId });
         }
         hasAssigneeIds = true;
       }
@@ -603,8 +628,11 @@ export const FirestoreService = {
         }
       } else if (Array.isArray(value)) {
         // Проверяем массив на наличие undefined элементов
-        const cleanArray = value.filter(item => item !== undefined && item !== null);
-        if (cleanArray.length > 0 || key === 'tags' || key === 'dependencies' || key === 'assigneeIds') {
+        const cleanArray = value.filter(item => item !== undefined && item !== null && item !== '');
+        // Для assigneeIds всегда сохраняем массив (даже если пустой)
+        if (key === 'assigneeIds') {
+          finalUpdateData[key] = cleanArray;
+        } else if (cleanArray.length > 0 || key === 'tags' || key === 'dependencies') {
           finalUpdateData[key] = cleanArray;
         }
       } else {
@@ -634,10 +662,12 @@ export const FirestoreService = {
         return undefined;
       }
       if (Array.isArray(obj)) {
-        return obj.map(deepClean).filter(item => item !== undefined);
+        // Для массивов фильтруем undefined/null/пустые строки, но сохраняем сам массив
+        const cleaned = obj.map(deepClean).filter(item => item !== undefined && item !== null && item !== '');
+        return cleaned;
       }
       if (typeof obj === 'object' && !(obj instanceof Date)) {
-        // Проверяем, является ли это FieldValue
+        // Проверяем, является ли это FieldValue (deleteField)
         if ('_methodName' in obj || '_delegate' in obj) {
           return obj;
         }
@@ -665,7 +695,18 @@ export const FirestoreService = {
     logger.info('[updateTask] Sending update to Firestore', {
       taskId,
       keys: Object.keys(deeplyCleaned),
-      hasUndefined: Object.values(deeplyCleaned).some(v => v === undefined)
+      hasUndefined: Object.values(deeplyCleaned).some(v => v === undefined),
+      assigneeIds: deeplyCleaned.assigneeIds,
+      assigneeId: deeplyCleaned.assigneeId,
+      assigneeIdsType: typeof deeplyCleaned.assigneeIds,
+      assigneeIdsIsArray: Array.isArray(deeplyCleaned.assigneeIds),
+      updateData: JSON.stringify(deeplyCleaned, (key, value) => {
+        // Заменяем deleteField() на строку для логирования
+        if (value && typeof value === 'object' && '_methodName' in value) {
+          return '[FieldValue.delete]';
+        }
+        return value;
+      })
     });
 
     await updateDoc(taskRef, deeplyCleaned);
