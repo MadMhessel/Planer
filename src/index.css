@@ -5,12 +5,16 @@
 @layer base {
   * {
     @apply border-slate-200 dark:border-slate-700;
+    /* Улучшаем производительность touch событий */
+    touch-action: manipulation;
   }
   
   body {
     @apply bg-white text-gray-900 antialiased;
     font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
     background: #ffffff;
+    /* Улучшаем производительность прокрутки на touch устройствах */
+    -webkit-overflow-scrolling: touch;
   }
   
   .dark body {
