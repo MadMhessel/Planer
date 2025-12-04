@@ -17,42 +17,8 @@ import { logger } from './utils/logger';
 // 2. Проверяем, что компонент существует в модуле
 // 3. Проверяем, что компонент является функцией
 // 4. Возвращаем fallback компонент вместо undefined при любой ошибке
-// Упрощённая функция для lazy loading - используем стандартный React.lazy
-// с простой обработкой ошибок
-const createSafeLazyComponent = <T extends React.ComponentType<any>>(
-  importFn: () => Promise<{ [key: string]: T }>,
-  componentName: string
-): React.LazyExoticComponent<T> => {
-  return lazy(async () => {
-    try {
-      const module = await importFn();
-      const Component = module[componentName];
-      if (!Component) {
-        throw new Error(`Component ${componentName} not found`);
-      }
-      return { default: Component };
-    } catch (error) {
-      console.error(`[createSafeLazyComponent] Failed to load ${componentName}:`, error);
-      // Возвращаем простой fallback компонент
-      const FallbackComponent: React.FC = () => (
-        <div className="min-h-screen flex items-center justify-center bg-white dark:bg-slate-900">
-          <div className="text-center p-6">
-            <p className="text-red-600 dark:text-red-400 mb-4">
-              Ошибка загрузки {componentName}
-            </p>
-            <button
-              onClick={() => window.location.reload()}
-              className="px-4 py-2 bg-sky-500 hover:bg-sky-400 text-white rounded-lg"
-            >
-              Обновить страницу
-            </button>
-          </div>
-        </div>
-      );
-      return { default: FallbackComponent as T };
-    }
-  });
-};
+// Убрали createSafeLazyComponent - используем стандартный React.lazy напрямую
+// для избежания проблем с инициализацией модулей
 
 // КРИТИЧЕСКИ ВАЖНО: Не создаём lazy компоненты на верхнем уровне модуля,
 // чтобы избежать ошибки "Cannot access 'It' before initialization" в production сборке.
@@ -110,25 +76,23 @@ const App: React.FC = () => {
   console.log('[App] Компонент App начинает рендеринг');
   logger.info('App component rendering');
   
-  // КРИТИЧЕСКИ ВАЖНО: Создаём lazy компоненты внутри компонента App,
-  // а не на верхнем уровне модуля, чтобы избежать ошибки
-  // "Cannot access 'It' before initialization" в production сборке.
-  // Это гарантирует правильный порядок инициализации модулей.
-  const CalendarView = useMemo(() => createSafeLazyComponent(() => import('./components/CalendarView'), 'CalendarView'), []);
-  const GanttChart = useMemo(() => createSafeLazyComponent(() => import('./components/GanttChart'), 'GanttChart'), []);
-  const Dashboard = useMemo(() => createSafeLazyComponent(() => import('./components/Dashboard'), 'Dashboard'), []);
-  const TaskList = useMemo(() => createSafeLazyComponent(() => import('./components/TaskList'), 'TaskList'), []);
-  const KanbanBoard = useMemo(() => createSafeLazyComponent(() => import('./components/KanbanBoard'), 'KanbanBoard'), []);
-  const SettingsView = useMemo(() => createSafeLazyComponent(() => import('./components/SettingsView'), 'SettingsView'), []);
-  const NotificationHistory = useMemo(() => createSafeLazyComponent(() => import('./components/NotificationHistory'), 'NotificationHistory'), []);
-  const TaskModal = useMemo(() => createSafeLazyComponent(() => import('./components/TaskModal'), 'TaskModal'), []);
-  const TaskProfile = useMemo(() => createSafeLazyComponent(() => import('./components/TaskProfile'), 'TaskProfile'), []);
-  const ProjectModal = useMemo(() => createSafeLazyComponent(() => import('./components/ProjectModal'), 'ProjectModal'), []);
-  const UserModal = useMemo(() => createSafeLazyComponent(() => import('./components/UserModal'), 'UserModal'), []);
-  const ProfileModal = useMemo(() => createSafeLazyComponent(() => import('./components/ProfileModal'), 'ProfileModal'), []);
-  const AuthView = useMemo(() => createSafeLazyComponent(() => import('./components/AuthView'), 'AuthView'), []);
-  const AcceptInviteView = useMemo(() => createSafeLazyComponent(() => import('./components/AcceptInviteView'), 'AcceptInviteView'), []);
-  const AICommandBar = useMemo(() => createSafeLazyComponent(() => import('./components/AICommandBar'), 'AICommandBar'), []);
+  // Упрощённый lazy loading - используем стандартный React.lazy напрямую
+  // без дополнительных обёрток, чтобы избежать проблем с инициализацией
+  const CalendarView = lazy(() => import('./components/CalendarView').then(m => ({ default: m.CalendarView })));
+  const GanttChart = lazy(() => import('./components/GanttChart').then(m => ({ default: m.GanttChart })));
+  const Dashboard = lazy(() => import('./components/Dashboard').then(m => ({ default: m.Dashboard })));
+  const TaskList = lazy(() => import('./components/TaskList').then(m => ({ default: m.TaskList })));
+  const KanbanBoard = lazy(() => import('./components/KanbanBoard').then(m => ({ default: m.KanbanBoard })));
+  const SettingsView = lazy(() => import('./components/SettingsView').then(m => ({ default: m.SettingsView })));
+  const NotificationHistory = lazy(() => import('./components/NotificationHistory').then(m => ({ default: m.NotificationHistory })));
+  const TaskModal = lazy(() => import('./components/TaskModal').then(m => ({ default: m.TaskModal })));
+  const TaskProfile = lazy(() => import('./components/TaskProfile').then(m => ({ default: m.TaskProfile })));
+  const ProjectModal = lazy(() => import('./components/ProjectModal').then(m => ({ default: m.ProjectModal })));
+  const UserModal = lazy(() => import('./components/UserModal').then(m => ({ default: m.UserModal })));
+  const ProfileModal = lazy(() => import('./components/ProfileModal').then(m => ({ default: m.ProfileModal })));
+  const AuthView = lazy(() => import('./components/AuthView').then(m => ({ default: m.AuthView })));
+  const AcceptInviteView = lazy(() => import('./components/AcceptInviteView').then(m => ({ default: m.AcceptInviteView })));
+  const AICommandBar = lazy(() => import('./components/AICommandBar').then(m => ({ default: m.AICommandBar })));
   
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
@@ -295,8 +259,7 @@ const App: React.FC = () => {
     notifications: firestoreNotifications,
     markAllAsRead,
     markAsRead,
-    clearAll,
-    deleteNotification
+    clearAll
   } = useNotifications(currentWorkspaceId, currentUser?.id || null);
 
   // Локальные уведомления (для ошибок и системных сообщений)
@@ -977,18 +940,15 @@ const App: React.FC = () => {
                     logger.error('Failed to mark notification as read', error instanceof Error ? error : undefined);
                   }
                 }}
-                onDelete={async (notificationId: string) => {
-                  try {
-                    if (firestoreNotifications.find(n => n.id === notificationId)) {
-                      await deleteNotification(notificationId);
-                    } else {
-                      // Удаляем локальное уведомление
-                      setLocalNotifications(prev => prev.filter(n => n.id !== notificationId));
-                    }
-                  } catch (error) {
-                    logger.error('Failed to delete notification', error instanceof Error ? error : undefined);
-                  }
-                }}
+                    onDelete={async (notificationId: string) => {
+                      try {
+                        // Удаляем только локальные уведомления
+                        // Firestore уведомления удаляются через clearAll или автоматически
+                        setLocalNotifications(prev => prev.filter(n => n.id !== notificationId));
+                      } catch (error) {
+                        logger.error('Failed to delete notification', error instanceof Error ? error : undefined);
+                      }
+                    }}
               />
             </Suspense>
           )}
@@ -1206,7 +1166,53 @@ const App: React.FC = () => {
           </Suspense>
         </>
       )}
+      
+      {/* Toaster загружается внутри App после монтирования компонента */}
+      <ToasterWrapper />
     </Layout>
+  );
+};
+
+// Компонент для ленивой загрузки Toaster
+const ToasterWrapper: React.FC = () => {
+  const [ToasterComponent, setToasterComponent] = useState<React.ComponentType<any> | null>(null);
+  
+  useEffect(() => {
+    // Загружаем Toaster только после монтирования компонента
+    import('react-hot-toast').then((module) => {
+      setToasterComponent(() => module.Toaster);
+    }).catch((error) => {
+      console.error('[ToasterWrapper] Failed to load Toaster:', error);
+    });
+  }, []);
+  
+  if (!ToasterComponent) {
+    return null;
+  }
+  
+  return (
+    <ToasterComponent
+      position="top-right"
+      toastOptions={{
+        duration: 4000,
+        style: {
+          background: 'var(--toast-bg, #fff)',
+          color: 'var(--toast-color, #000)',
+        },
+        success: {
+          iconTheme: {
+            primary: '#22c55e',
+            secondary: '#fff',
+          },
+        },
+        error: {
+          iconTheme: {
+            primary: '#ef4444',
+            secondary: '#fff',
+          },
+        },
+      }}
+    />
   );
 };
 
