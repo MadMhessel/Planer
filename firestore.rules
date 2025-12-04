@@ -179,17 +179,19 @@ service cloud.firestore {
                             request.resource.data.email == request.auth.token.email ||
                             request.resource.data.email.toLowerCase() == request.auth.token.email.toLowerCase())) ||
                           // Разрешаем создание member при создании workspace (в транзакции)
-                          // Для транзакций get() может не видеть создаваемый workspace, поэтому используем более гибкую проверку
+                          // Для анонимных пользователей (демо-режим) разрешаем создание member при создании workspace
+                          // В транзакции workspace может еще не существовать, поэтому проверяем только по email и роли
                           (request.resource.data.role == 'OWNER' &&
                            request.resource.data.userId == request.auth.uid &&
                            request.resource.data.userId == memberId &&
-                           // Разрешаем если workspace существует и пользователь владелец
-                           ((exists(/databases/$(database)/documents/workspaces/$(workspaceId)) &&
-                             get(/databases/$(database)/documents/workspaces/$(workspaceId)).data.ownerId == request.auth.uid) ||
-                            // Для анонимных пользователей (демо-режим) разрешаем создание member при создании workspace
-                            // В транзакции workspace может еще не существовать, поэтому проверяем только по email
-                            (request.auth.token.email == null && 
-                             request.resource.data.email == 'demo@example.com'))));
+                           request.auth.token.email == null &&
+                           request.resource.data.email == 'demo@example.com') ||
+                          // Разрешаем если workspace существует и пользователь владелец
+                          (request.resource.data.role == 'OWNER' &&
+                           request.resource.data.userId == request.auth.uid &&
+                           request.resource.data.userId == memberId &&
+                           exists(/databases/$(database)/documents/workspaces/$(workspaceId)) &&
+                           get(/databases/$(database)/documents/workspaces/$(workspaceId)).data.ownerId == request.auth.uid));
         
         // Обновление: только админы/владельцы могут обновлять участников
         // ИЛИ пользователь может обновить себя при принятии приглашения
