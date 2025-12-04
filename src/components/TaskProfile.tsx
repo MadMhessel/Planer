@@ -1,9 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { Task, Project, User, TaskStatus, TaskPriority } from '../types';
 import { getStatusLabel, getPriorityLabel, getPriorityColor, getStatusColor } from '../utils/taskHelpers';
 import { formatMoscowDate } from '../utils/dateUtils';
 import { X, Edit, Calendar, User as UserIcon, Tag, Clock, Users, FileText } from 'lucide-react';
-import { TaskComments } from './TaskComments';
+
+// Lazy load TaskComments to avoid circular dependencies and improve performance
+const TaskComments = lazy(() => import('./TaskComments').then(m => ({ default: m.TaskComments })));
 
 interface TaskProfileProps {
   task: Task | null;
@@ -328,13 +330,19 @@ export const TaskProfile: React.FC<TaskProfileProps> = ({
           {/* Комментарии */}
           <div className="border-t border-gray-200 dark:border-slate-700 mt-6">
             <div className="h-[400px]">
-              <TaskComments
-                taskId={task.id}
-                currentUserId={currentUser.id}
-                currentUserName={currentUser.displayName || currentUser.email}
-                currentUserEmail={currentUser.email}
-                currentUserAvatar={currentUser.photoURL}
-              />
+              <Suspense fallback={
+                <div className="flex items-center justify-center h-full">
+                  <div className="text-sm text-gray-500 dark:text-slate-400">Загрузка комментариев...</div>
+                </div>
+              }>
+                <TaskComments
+                  taskId={task.id}
+                  currentUserId={currentUser.id}
+                  currentUserName={currentUser.displayName || currentUser.email}
+                  currentUserEmail={currentUser.email}
+                  currentUserAvatar={currentUser.photoURL}
+                />
+              </Suspense>
             </div>
           </div>
         </div>
