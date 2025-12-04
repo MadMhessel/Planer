@@ -4,26 +4,9 @@ import { AuthService } from './services/auth';
 import { StorageService } from './services/storage';
 import { logger } from './utils/logger';
 
-// ===== БЕЗОПАСНАЯ ФУНКЦИЯ ДЛЯ LAZY LOADING =====
-// Предотвращает ошибку "Cannot set properties of undefined (setting 'Activity')"
-// и "Cannot access 'It' before initialization"
-// 
-// КРИТИЧЕСКИ ВАЖНО: Эта функция НЕ использует logger на верхнем уровне,
-// чтобы избежать проблем с порядком инициализации модулей.
-// logger используется только внутри асинхронной функции lazy(), когда модули уже загружены.
-//
-// РЕШЕНИЕ: 
-// 1. Проверяем, что модуль загружен и не undefined
-// 2. Проверяем, что компонент существует в модуле
-// 3. Проверяем, что компонент является функцией
-// 4. Возвращаем fallback компонент вместо undefined при любой ошибке
-// Убрали createSafeLazyComponent - используем стандартный React.lazy напрямую
-// для избежания проблем с инициализацией модулей
-
-// КРИТИЧЕСКИ ВАЖНО: Не создаём lazy компоненты на верхнем уровне модуля,
-// чтобы избежать ошибки "Cannot access 'It' before initialization" в production сборке.
-// Вместо этого создаём их внутри компонента App или используем прямые lazy() вызовы.
-// Это гарантирует правильный порядок инициализации модулей.
+// ===== LAZY LOADING COMPONENTS =====
+// Lazy компоненты созданы на верхнем уровне модуля для правильной инициализации
+// и предотвращения ошибки "Cannot access 'It' before initialization" в production сборке.
 
 // ===== Синхронные импорты (легкие компоненты, используются всегда) =====
 import { WorkspaceSelector } from './components/WorkspaceSelector';
@@ -48,7 +31,6 @@ import { useProjects } from './hooks/useProjects';
 import { useMembers } from './hooks/useMembers';
 import { useInvites } from './hooks/useInvites';
 import { useNotifications } from './hooks/useNotifications';
-// logger уже импортирован выше, перед createSafeLazyComponent
 import { useUsersFromMembers } from './hooks/useUsersFromMembers';
 import { MAX_CHAT_HISTORY_LENGTH } from './constants/ai';
 import toast from 'react-hot-toast';
@@ -71,28 +53,30 @@ type InviteContext = {
 
 type ThemeMode = 'light' | 'dark' | 'system';
 
+// ===== LAZY COMPONENTS - созданы на верхнем уровне модуля =====
+// КРИТИЧЕСКИ ВАЖНО: Lazy компоненты должны быть созданы на верхнем уровне модуля,
+// а не внутри компонента App, чтобы избежать ошибки "Cannot access 'It' before initialization"
+// в production сборке. Это гарантирует правильный порядок инициализации модулей.
+const CalendarView = lazy(() => import('./components/CalendarView').then(m => ({ default: m.CalendarView })));
+const GanttChart = lazy(() => import('./components/GanttChart').then(m => ({ default: m.GanttChart })));
+const Dashboard = lazy(() => import('./components/Dashboard').then(m => ({ default: m.Dashboard })));
+const TaskList = lazy(() => import('./components/TaskList').then(m => ({ default: m.TaskList })));
+const KanbanBoard = lazy(() => import('./components/KanbanBoard').then(m => ({ default: m.KanbanBoard })));
+const SettingsView = lazy(() => import('./components/SettingsView').then(m => ({ default: m.SettingsView })));
+const NotificationHistory = lazy(() => import('./components/NotificationHistory').then(m => ({ default: m.NotificationHistory })));
+const TaskModal = lazy(() => import('./components/TaskModal').then(m => ({ default: m.TaskModal })));
+const TaskProfile = lazy(() => import('./components/TaskProfile').then(m => ({ default: m.TaskProfile })));
+const ProjectModal = lazy(() => import('./components/ProjectModal').then(m => ({ default: m.ProjectModal })));
+const UserModal = lazy(() => import('./components/UserModal').then(m => ({ default: m.UserModal })));
+const ProfileModal = lazy(() => import('./components/ProfileModal').then(m => ({ default: m.ProfileModal })));
+const AuthView = lazy(() => import('./components/AuthView').then(m => ({ default: m.AuthView })));
+const AcceptInviteView = lazy(() => import('./components/AcceptInviteView').then(m => ({ default: m.AcceptInviteView })));
+const AICommandBar = lazy(() => import('./components/AICommandBar').then(m => ({ default: m.AICommandBar })));
+
 const App: React.FC = () => {
   // Диагностика: логируем начало рендеринга App
   console.log('[App] Компонент App начинает рендеринг');
   logger.info('App component rendering');
-  
-  // Упрощённый lazy loading - используем стандартный React.lazy напрямую
-  // без дополнительных обёрток, чтобы избежать проблем с инициализацией
-  const CalendarView = lazy(() => import('./components/CalendarView').then(m => ({ default: m.CalendarView })));
-  const GanttChart = lazy(() => import('./components/GanttChart').then(m => ({ default: m.GanttChart })));
-  const Dashboard = lazy(() => import('./components/Dashboard').then(m => ({ default: m.Dashboard })));
-  const TaskList = lazy(() => import('./components/TaskList').then(m => ({ default: m.TaskList })));
-  const KanbanBoard = lazy(() => import('./components/KanbanBoard').then(m => ({ default: m.KanbanBoard })));
-  const SettingsView = lazy(() => import('./components/SettingsView').then(m => ({ default: m.SettingsView })));
-  const NotificationHistory = lazy(() => import('./components/NotificationHistory').then(m => ({ default: m.NotificationHistory })));
-  const TaskModal = lazy(() => import('./components/TaskModal').then(m => ({ default: m.TaskModal })));
-  const TaskProfile = lazy(() => import('./components/TaskProfile').then(m => ({ default: m.TaskProfile })));
-  const ProjectModal = lazy(() => import('./components/ProjectModal').then(m => ({ default: m.ProjectModal })));
-  const UserModal = lazy(() => import('./components/UserModal').then(m => ({ default: m.UserModal })));
-  const ProfileModal = lazy(() => import('./components/ProfileModal').then(m => ({ default: m.ProfileModal })));
-  const AuthView = lazy(() => import('./components/AuthView').then(m => ({ default: m.AuthView })));
-  const AcceptInviteView = lazy(() => import('./components/AcceptInviteView').then(m => ({ default: m.AcceptInviteView })));
-  const AICommandBar = lazy(() => import('./components/AICommandBar').then(m => ({ default: m.AICommandBar })));
   
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
