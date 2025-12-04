@@ -291,7 +291,8 @@ const App: React.FC = () => {
     
     // Инициализируем Firebase и затем настраиваем auth listener
     import('./firebase').then(({ firebaseInit }) => {
-      return firebaseInit;
+      // firebaseInit теперь функция, а не промис, поэтому вызываем её явно
+      return firebaseInit();
     }).then(() => {
       if (!mounted) return;
       
