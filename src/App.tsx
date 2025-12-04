@@ -17,148 +17,39 @@ import { logger } from './utils/logger';
 // 2. Проверяем, что компонент существует в модуле
 // 3. Проверяем, что компонент является функцией
 // 4. Возвращаем fallback компонент вместо undefined при любой ошибке
+// Упрощённая функция для lazy loading - используем стандартный React.lazy
+// с простой обработкой ошибок
 const createSafeLazyComponent = <T extends React.ComponentType<any>>(
   importFn: () => Promise<{ [key: string]: T }>,
   componentName: string
 ): React.LazyExoticComponent<T> => {
   return lazy(async () => {
-    // Ленивая загрузка logger только внутри асинхронной функции,
-    // чтобы избежать проблем с порядком инициализации модулей
-    let safeLogger: typeof logger;
     try {
-      // Динамически импортируем logger только при необходимости
-      const loggerModule = await import('./utils/logger');
-      safeLogger = loggerModule.logger;
-    } catch {
-      // Если logger не загрузился, используем console напрямую
-      safeLogger = {
-        error: (msg: string, err?: Error, ctx?: any) => console.error(`[ERROR] ${msg}`, err, ctx),
-        warn: (msg: string, ctx?: any) => console.warn(`[WARN] ${msg}`, ctx),
-        info: (msg: string, ctx?: any) => {
-          if (import.meta.env.DEV) console.log(`[INFO] ${msg}`, ctx);
-        }
-      };
-    }
-    
-    try {
-      // Шаг 1: Загружаем модуль
       const module = await importFn();
-      
-      // Шаг 2: КРИТИЧЕСКАЯ ПРОВЕРКА - модуль не должен быть undefined
-      if (!module || typeof module !== 'object') {
-        const error = new Error(`Module for ${componentName} is undefined or invalid. Type: ${typeof module}`);
-        console.error('[createSafeLazyComponent] Module check failed:', error);
-        safeLogger.error('Lazy loading error - module is undefined', error);
-        throw error;
-      }
-      
-      // Шаг 3: Проверяем, что компонент существует в модуле
       const Component = module[componentName];
-      
       if (!Component) {
-        const availableExports = Object.keys(module).filter(k => k !== 'default');
-        const error = new Error(
-          `Component ${componentName} not found in module. ` +
-          `Available exports: ${availableExports.length > 0 ? availableExports.join(', ') : 'none'}. ` +
-          `Module keys: ${Object.keys(module).join(', ')}`
-        );
-        console.error('[createSafeLazyComponent] Component not found:', error);
-        safeLogger.error('Lazy loading error - component not found', error);
-        throw error;
+        throw new Error(`Component ${componentName} not found`);
       }
-      
-      // Шаг 4: Проверяем, что это действительно React компонент (функция или класс)
-      if (typeof Component !== 'function') {
-        const error = new Error(
-          `Component ${componentName} is not a function. ` +
-          `Type: ${typeof Component}, Value: ${String(Component).substring(0, 100)}`
-        );
-        console.error('[createSafeLazyComponent] Component type check failed:', error);
-        safeLogger.error('Lazy loading error - component is not a function', error);
-        throw error;
-      }
-      
-      // Шаг 5: Дополнительная проверка - компонент не должен быть null/undefined
-      if (Component === null || Component === undefined) {
-        const error = new Error(`Component ${componentName} is null or undefined after type check`);
-        console.error('[createSafeLazyComponent] Component is null/undefined:', error);
-        safeLogger.error('Lazy loading error - component is null', error);
-        throw error;
-      }
-      
-      // Шаг 6: Возвращаем компонент с гарантией, что он не undefined
-      // Важно: возвращаем объект с default, чтобы React.lazy мог его использовать
-      const result = { default: Component };
-      
-      // Финальная проверка перед возвратом
-      if (!result.default) {
-        throw new Error(`Failed to create default export for ${componentName}`);
-      }
-      
-      console.log(`[createSafeLazyComponent] ✅ Successfully loaded ${componentName}`);
-      return result;
-      
+      return { default: Component };
     } catch (error) {
-      // Логируем ошибку для диагностики
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      console.error(`[createSafeLazyComponent] ❌ Failed to load ${componentName}:`, errorMessage);
-      safeLogger.error(`Failed to load component ${componentName}`, error instanceof Error ? error : undefined);
-      
-      // Возвращаем fallback компонент вместо undefined
-      // Это критически важно - React не должен получить undefined
-      const FallbackComponent: React.FC = () => {
-        React.useEffect(() => {
-          console.error(`[FallbackComponent] Component ${componentName} failed to load`);
-        }, []);
-        
-        return (
-          <div className="min-h-screen flex items-center justify-center bg-white dark:bg-slate-900">
-            <div className="text-center p-6 max-w-md">
-              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
-                <svg className="w-8 h-8 text-red-600 dark:text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                </svg>
-              </div>
-              <h2 className="text-xl font-bold text-red-600 dark:text-red-400 mb-2">
-                Ошибка загрузки компонента
-              </h2>
-              <p className="text-gray-700 dark:text-slate-300 mb-4">
-                Не удалось загрузить {componentName}. Пожалуйста, обновите страницу.
-              </p>
-              {import.meta.env.DEV && errorMessage && (
-                <p className="text-xs text-gray-500 dark:text-slate-400 mb-4 font-mono">
-                  {errorMessage.substring(0, 200)}
-                </p>
-              )}
-              <button
-                onClick={() => window.location.reload()}
-                className="px-4 py-2 bg-sky-500 hover:bg-sky-400 text-white rounded-lg transition"
-              >
-                🔄 Обновить страницу
-              </button>
-            </div>
+      console.error(`[createSafeLazyComponent] Failed to load ${componentName}:`, error);
+      // Возвращаем простой fallback компонент
+      const FallbackComponent: React.FC = () => (
+        <div className="min-h-screen flex items-center justify-center bg-white dark:bg-slate-900">
+          <div className="text-center p-6">
+            <p className="text-red-600 dark:text-red-400 mb-4">
+              Ошибка загрузки {componentName}
+            </p>
+            <button
+              onClick={() => window.location.reload()}
+              className="px-4 py-2 bg-sky-500 hover:bg-sky-400 text-white rounded-lg"
+            >
+              Обновить страницу
+            </button>
           </div>
-        );
-      };
-      
-      // КРИТИЧЕСКИ ВАЖНО: возвращаем объект с default, который точно не undefined
-      const fallbackResult = { default: FallbackComponent as T };
-      
-      // Финальная проверка
-      if (!fallbackResult.default) {
-        console.error('[createSafeLazyComponent] CRITICAL: Fallback component is also undefined!');
-        // В крайнем случае возвращаем простейший компонент
-        return { 
-          default: (() => {
-            const SimpleFallback: React.FC = () => React.createElement('div', { 
-              style: { padding: '20px', textAlign: 'center' } 
-            }, 'Ошибка загрузки. Обновите страницу.');
-            return SimpleFallback;
-          })() as T
-        };
-      }
-      
-      return fallbackResult;
+        </div>
+      );
+      return { default: FallbackComponent as T };
     }
   });
 };
@@ -194,9 +85,7 @@ import { useNotifications } from './hooks/useNotifications';
 // logger уже импортирован выше, перед createSafeLazyComponent
 import { useUsersFromMembers } from './hooks/useUsersFromMembers';
 import { MAX_CHAT_HISTORY_LENGTH } from './constants/ai';
-// КРИТИЧЕСКИ ВАЖНО: Используем обёртку для toast вместо прямого импорта,
-// чтобы избежать ошибки "Cannot access 'It' before initialization" в production сборке.
-import { toast } from './utils/toast';
+import toast from 'react-hot-toast';
 import { SUPER_ADMINS } from './constants/superAdmins';
 import { getMoscowISOString } from './utils/dateUtils';
 
@@ -1317,54 +1206,7 @@ const App: React.FC = () => {
           </Suspense>
         </>
       )}
-      
-      {/* Toaster импортируется динамически внутри компонента App,
-          чтобы избежать ошибки "Cannot access 'It' before initialization" */}
-      <ToasterWrapper />
     </Layout>
-  );
-};
-
-// Отдельный компонент для ленивой загрузки Toaster
-const ToasterWrapper: React.FC = () => {
-  const [Toaster, setToaster] = useState<React.ComponentType<any> | null>(null);
-  
-  useEffect(() => {
-    // Динамически импортируем Toaster только после монтирования компонента
-    import('react-hot-toast').then((module) => {
-      setToaster(() => module.Toaster);
-    }).catch((error) => {
-      console.error('[ToasterWrapper] Failed to load Toaster:', error);
-    });
-  }, []);
-  
-  if (!Toaster) {
-    return null; // Не показываем ничего, пока Toaster не загрузится
-  }
-  
-  return (
-    <Toaster
-      position="top-right"
-      toastOptions={{
-        duration: 4000,
-        style: {
-          background: 'var(--toast-bg, #fff)',
-          color: 'var(--toast-color, #000)',
-        },
-        success: {
-          iconTheme: {
-            primary: '#22c55e',
-            secondary: '#fff',
-          },
-        },
-        error: {
-          iconTheme: {
-            primary: '#ef4444',
-            secondary: '#fff',
-          },
-        },
-      }}
-    />
   );
 };
 
