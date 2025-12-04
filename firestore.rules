@@ -189,7 +189,7 @@ service cloud.firestore {
                             // Для анонимных пользователей (демо-режим) разрешаем создание member при создании workspace
                             // В транзакции workspace может еще не существовать, поэтому проверяем только по email
                             (request.auth.token.email == null && 
-                             request.resource.data.email == 'demo@example.com')));
+                             request.resource.data.email == 'demo@example.com')))
         
         // Обновление: только админы/владельцы могут обновлять участников
         // ИЛИ пользователь может обновить себя при принятии приглашения
