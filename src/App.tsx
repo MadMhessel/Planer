@@ -73,6 +73,52 @@ const AuthView = lazy(() => import('./components/AuthView').then(m => ({ default
 const AcceptInviteView = lazy(() => import('./components/AcceptInviteView').then(m => ({ default: m.AcceptInviteView })));
 const AICommandBar = lazy(() => import('./components/AICommandBar').then(m => ({ default: m.AICommandBar })));
 
+// Компонент для ленивой загрузки Toaster
+// КРИТИЧЕСКИ ВАЖНО: Определяем ToasterWrapper ПЕРЕД компонентом App,
+// чтобы избежать ошибки "Cannot access 'It' before initialization" в production сборке.
+// Это гарантирует правильный порядок инициализации модулей.
+const ToasterWrapper: React.FC = () => {
+  const [ToasterComponent, setToasterComponent] = useState<React.ComponentType<any> | null>(null);
+  
+  useEffect(() => {
+    // Загружаем Toaster только после монтирования компонента
+    import('react-hot-toast').then((module) => {
+      setToasterComponent(() => module.Toaster);
+    }).catch((error) => {
+      console.error('[ToasterWrapper] Failed to load Toaster:', error);
+    });
+  }, []);
+  
+  if (!ToasterComponent) {
+    return null;
+  }
+  
+  return (
+    <ToasterComponent
+      position="top-right"
+      toastOptions={{
+        duration: 4000,
+        style: {
+          background: 'var(--toast-bg, #fff)',
+          color: 'var(--toast-color, #000)',
+        },
+        success: {
+          iconTheme: {
+            primary: '#22c55e',
+            secondary: '#fff',
+          },
+        },
+        error: {
+          iconTheme: {
+            primary: '#ef4444',
+            secondary: '#fff',
+          },
+        },
+      }}
+    />
+  );
+};
+
 const App: React.FC = () => {
   // Диагностика: логируем начало рендеринга App
   console.log('[App] Компонент App начинает рендеринг');
@@ -1154,49 +1200,6 @@ const App: React.FC = () => {
       {/* Toaster загружается внутри App после монтирования компонента */}
       <ToasterWrapper />
     </Layout>
-  );
-};
-
-// Компонент для ленивой загрузки Toaster
-const ToasterWrapper: React.FC = () => {
-  const [ToasterComponent, setToasterComponent] = useState<React.ComponentType<any> | null>(null);
-  
-  useEffect(() => {
-    // Загружаем Toaster только после монтирования компонента
-    import('react-hot-toast').then((module) => {
-      setToasterComponent(() => module.Toaster);
-    }).catch((error) => {
-      console.error('[ToasterWrapper] Failed to load Toaster:', error);
-    });
-  }, []);
-  
-  if (!ToasterComponent) {
-    return null;
-  }
-  
-  return (
-    <ToasterComponent
-      position="top-right"
-      toastOptions={{
-        duration: 4000,
-        style: {
-          background: 'var(--toast-bg, #fff)',
-          color: 'var(--toast-color, #000)',
-        },
-        success: {
-          iconTheme: {
-            primary: '#22c55e',
-            secondary: '#fff',
-          },
-        },
-        error: {
-          iconTheme: {
-            primary: '#ef4444',
-            secondary: '#fff',
-          },
-        },
-      }}
-    />
   );
 };
 
