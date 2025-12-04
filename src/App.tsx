@@ -2,18 +2,15 @@ import React, { useCallback, useEffect, useState, useMemo, lazy, Suspense } from
 import { Layout } from './components/Layout';
 import { AuthService } from './services/auth';
 import { StorageService } from './services/storage';
-// КРИТИЧЕСКИ ВАЖНО: logger должен быть импортирован ДО createSafeLazyComponent,
-// так как функция использует logger внутри себя. Иначе возникает ошибка
-// "Cannot access 'It' before initialization" в production сборке.
 import { logger } from './utils/logger';
 
 // ===== БЕЗОПАСНАЯ ФУНКЦИЯ ДЛЯ LAZY LOADING =====
 // Предотвращает ошибку "Cannot set properties of undefined (setting 'Activity')"
-// которая возникает, когда React пытается установить внутренние свойства на undefined компонент
+// и "Cannot access 'It' before initialization"
 // 
-// ПРОБЛЕМА: В production сборке при минификации модуль может вернуть undefined,
-// и React пытается установить внутреннее свойство Activity на undefined, что вызывает ошибку
-// до монтирования React-дерева (ErrorBoundary не срабатывает)
+// КРИТИЧЕСКИ ВАЖНО: Эта функция НЕ использует logger на верхнем уровне,
+// чтобы избежать проблем с порядком инициализации модулей.
+// logger используется только внутри асинхронной функции lazy(), когда модули уже загружены.
 //
 // РЕШЕНИЕ: 
 // 1. Проверяем, что модуль загружен и не undefined
@@ -25,6 +22,24 @@ const createSafeLazyComponent = <T extends React.ComponentType<any>>(
   componentName: string
 ): React.LazyExoticComponent<T> => {
   return lazy(async () => {
+    // Ленивая загрузка logger только внутри асинхронной функции,
+    // чтобы избежать проблем с порядком инициализации модулей
+    let safeLogger: typeof logger;
+    try {
+      // Динамически импортируем logger только при необходимости
+      const loggerModule = await import('./utils/logger');
+      safeLogger = loggerModule.logger;
+    } catch {
+      // Если logger не загрузился, используем console напрямую
+      safeLogger = {
+        error: (msg: string, err?: Error, ctx?: any) => console.error(`[ERROR] ${msg}`, err, ctx),
+        warn: (msg: string, ctx?: any) => console.warn(`[WARN] ${msg}`, ctx),
+        info: (msg: string, ctx?: any) => {
+          if (import.meta.env.DEV) console.log(`[INFO] ${msg}`, ctx);
+        }
+      };
+    }
+    
     try {
       // Шаг 1: Загружаем модуль
       const module = await importFn();
@@ -33,7 +48,7 @@ const createSafeLazyComponent = <T extends React.ComponentType<any>>(
       if (!module || typeof module !== 'object') {
         const error = new Error(`Module for ${componentName} is undefined or invalid. Type: ${typeof module}`);
         console.error('[createSafeLazyComponent] Module check failed:', error);
-        logger.error('Lazy loading error - module is undefined', error);
+        safeLogger.error('Lazy loading error - module is undefined', error);
         throw error;
       }
       
@@ -48,7 +63,7 @@ const createSafeLazyComponent = <T extends React.ComponentType<any>>(
           `Module keys: ${Object.keys(module).join(', ')}`
         );
         console.error('[createSafeLazyComponent] Component not found:', error);
-        logger.error('Lazy loading error - component not found', error);
+        safeLogger.error('Lazy loading error - component not found', error);
         throw error;
       }
       
@@ -59,7 +74,7 @@ const createSafeLazyComponent = <T extends React.ComponentType<any>>(
           `Type: ${typeof Component}, Value: ${String(Component).substring(0, 100)}`
         );
         console.error('[createSafeLazyComponent] Component type check failed:', error);
-        logger.error('Lazy loading error - component is not a function', error);
+        safeLogger.error('Lazy loading error - component is not a function', error);
         throw error;
       }
       
@@ -67,7 +82,7 @@ const createSafeLazyComponent = <T extends React.ComponentType<any>>(
       if (Component === null || Component === undefined) {
         const error = new Error(`Component ${componentName} is null or undefined after type check`);
         console.error('[createSafeLazyComponent] Component is null/undefined:', error);
-        logger.error('Lazy loading error - component is null', error);
+        safeLogger.error('Lazy loading error - component is null', error);
         throw error;
       }
       
@@ -87,7 +102,7 @@ const createSafeLazyComponent = <T extends React.ComponentType<any>>(
       // Логируем ошибку для диагностики
       const errorMessage = error instanceof Error ? error.message : String(error);
       console.error(`[createSafeLazyComponent] ❌ Failed to load ${componentName}:`, errorMessage);
-      logger.error(`Failed to load component ${componentName}`, error instanceof Error ? error : undefined);
+      safeLogger.error(`Failed to load component ${componentName}`, error instanceof Error ? error : undefined);
       
       // Возвращаем fallback компонент вместо undefined
       // Это критически важно - React не должен получить undefined
@@ -1300,7 +1315,54 @@ const App: React.FC = () => {
           </Suspense>
         </>
       )}
+      
+      {/* Toaster импортируется динамически внутри компонента App,
+          чтобы избежать ошибки "Cannot access 'It' before initialization" */}
+      <ToasterWrapper />
     </Layout>
+  );
+};
+
+// Отдельный компонент для ленивой загрузки Toaster
+const ToasterWrapper: React.FC = () => {
+  const [Toaster, setToaster] = useState<React.ComponentType<any> | null>(null);
+  
+  useEffect(() => {
+    // Динамически импортируем Toaster только после монтирования компонента
+    import('react-hot-toast').then((module) => {
+      setToaster(() => module.Toaster);
+    }).catch((error) => {
+      console.error('[ToasterWrapper] Failed to load Toaster:', error);
+    });
+  }, []);
+  
+  if (!Toaster) {
+    return null; // Не показываем ничего, пока Toaster не загрузится
+  }
+  
+  return (
+    <Toaster
+      position="top-right"
+      toastOptions={{
+        duration: 4000,
+        style: {
+          background: 'var(--toast-bg, #fff)',
+          color: 'var(--toast-color, #000)',
+        },
+        success: {
+          iconTheme: {
+            primary: '#22c55e',
+            secondary: '#fff',
+          },
+        },
+        error: {
+          iconTheme: {
+            primary: '#ef4444',
+            secondary: '#fff',
+          },
+        },
+      }}
+    />
   );
 };
 

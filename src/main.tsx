@@ -2,7 +2,9 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
 import AppErrorBoundary from './components/AppErrorBoundary';
-import { Toaster } from 'react-hot-toast';
+// КРИТИЧЕСКИ ВАЖНО: Не импортируем Toaster на верхнем уровне,
+// чтобы избежать ошибки "Cannot access 'It' before initialization" в production сборке.
+// Toaster будет импортирован внутри компонента App.
 import { logger } from './utils/logger';
 import './index.css';
 
@@ -108,31 +110,10 @@ try {
   
   // Верхнеуровневый ErrorBoundary оборачивает всё приложение
   // для предотвращения "white screen of death" при любых необработанных ошибках
+  // Toaster теперь импортируется внутри компонента App, чтобы избежать проблем с порядком инициализации
   root.render(
     <AppErrorBoundary>
       <App />
-      <Toaster
-        position="top-right"
-        toastOptions={{
-          duration: 4000,
-          style: {
-            background: 'var(--toast-bg, #fff)',
-            color: 'var(--toast-color, #000)',
-          },
-          success: {
-            iconTheme: {
-              primary: '#22c55e',
-              secondary: '#fff',
-            },
-          },
-          error: {
-            iconTheme: {
-              primary: '#ef4444',
-              secondary: '#fff',
-            },
-          },
-        }}
-      />
     </AppErrorBoundary>
   );
   
