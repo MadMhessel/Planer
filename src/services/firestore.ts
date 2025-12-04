@@ -28,6 +28,13 @@ export const FirestoreService = {
   // --- Workspaces ---
 
   async createWorkspace(name: string, owner: User): Promise<Workspace> {
+    logger.info('[createWorkspace] Начало создания workspace', {
+      name,
+      ownerId: owner.id,
+      ownerEmail: owner.email,
+      ownerDisplayName: owner.displayName
+    });
+
     const workspaceRef = doc(collection(db, 'workspaces'));
     const now = getMoscowISOString();
 
@@ -52,11 +59,44 @@ export const FirestoreService = {
 
     const memberRef = doc(collection(workspaceRef, 'members'), owner.id);
 
-    // Используем транзакцию, чтобы гарантировать атомарность создания workspace и member
-    await runTransaction(db, async (transaction) => {
-      transaction.set(workspaceRef, workspace);
-      transaction.set(memberRef, member);
+    logger.info('[createWorkspace] Данные для транзакции', {
+      workspaceId: workspaceRef.id,
+      workspacePath: workspaceRef.path,
+      workspaceData: workspace,
+      memberId: memberRef.id,
+      memberPath: memberRef.path,
+      memberData: member
     });
+
+    try {
+      // Используем транзакцию, чтобы гарантировать атомарность создания workspace и member
+      await runTransaction(db, async (transaction) => {
+        logger.info('[createWorkspace] Начало транзакции');
+        transaction.set(workspaceRef, workspace);
+        logger.info('[createWorkspace] Workspace добавлен в транзакцию');
+        transaction.set(memberRef, member);
+        logger.info('[createWorkspace] Member добавлен в транзакцию');
+      });
+      logger.info('[createWorkspace] Транзакция успешно завершена', { workspaceId: workspaceRef.id });
+    } catch (error) {
+      const errorDetails = error instanceof Error ? {
+        message: error.message,
+        name: error.name,
+        stack: error.stack,
+        code: (error as any).code,
+        serverResponse: (error as any).serverResponse
+      } : { error: String(error) };
+      
+      logger.error('[createWorkspace] Ошибка при создании workspace', {
+        workspaceId: workspaceRef.id,
+        ownerId: owner.id,
+        ownerEmail: owner.email,
+        workspaceData: workspace,
+        memberData: member,
+        error: errorDetails
+      });
+      throw error;
+    }
 
     return workspace;
   },

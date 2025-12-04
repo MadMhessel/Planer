@@ -69,8 +69,30 @@ export async function initializeDemoData(user: User): Promise<Workspace> {
     }
 
     // 1. Создаем демо-пространство
-    const workspace = await FirestoreService.createWorkspace('Демо пространство', user);
-    logger.info('Демо-пространство создано', { workspaceId: workspace.id });
+    logger.info('[initializeDemoData] Создание демо-пространства', {
+      userId: user.id,
+      userEmail: user.email,
+      userDisplayName: user.displayName
+    });
+    
+    let workspace: Workspace;
+    try {
+      workspace = await FirestoreService.createWorkspace('Демо пространство', user);
+      logger.info('[initializeDemoData] Демо-пространство создано', { workspaceId: workspace.id });
+    } catch (workspaceError) {
+      logger.error('[initializeDemoData] Ошибка при создании демо-пространства', {
+        userId: user.id,
+        userEmail: user.email,
+        error: workspaceError instanceof Error ? {
+          message: workspaceError.message,
+          name: workspaceError.name,
+          code: (workspaceError as any).code,
+          stack: workspaceError.stack,
+          serverResponse: (workspaceError as any).serverResponse
+        } : { error: String(workspaceError) }
+      });
+      throw workspaceError;
+    }
 
     // 2. Создаем искусственных участников
     const demoMembers = [

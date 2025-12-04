@@ -200,14 +200,25 @@ export const AuthService = {
 
   async loginAsDemo(): Promise<User> {
     try {
+      logger.info('[loginAsDemo] Начало входа в демо-режим');
+      
       // Используем анонимную аутентификацию для демо-режима
       const result = await signInAnonymously(auth);
       const firebaseUser = result.user;
+
+      logger.info('[loginAsDemo] Анонимная аутентификация успешна', {
+        uid: firebaseUser.uid,
+        isAnonymous: firebaseUser.isAnonymous,
+        email: firebaseUser.email,
+        displayName: firebaseUser.displayName
+      });
 
       const userRef = doc(db, 'users', firebaseUser.uid);
       const snapshot = await getDoc(userRef);
 
       if (!snapshot.exists()) {
+        logger.info('[loginAsDemo] Создание нового демо-пользователя');
+        
         // Создаем демо-пользователя
         // Firestore не принимает undefined, поэтому создаем объект без undefined полей
         const demoUser: NewUserData = {
@@ -224,15 +235,40 @@ export const AuthService = {
           demoUser.photoURL = firebaseUser.photoURL;
         }
 
-        await setDoc(userRef, demoUser);
+        logger.info('[loginAsDemo] Данные демо-пользователя', { demoUser });
+        
+        try {
+          await setDoc(userRef, demoUser);
+          logger.info('[loginAsDemo] Демо-пользователь создан в Firestore', { userId: firebaseUser.uid });
+        } catch (userError) {
+          logger.error('[loginAsDemo] Ошибка при создании демо-пользователя', {
+            userId: firebaseUser.uid,
+            error: userError instanceof Error ? {
+              message: userError.message,
+              name: userError.name,
+              code: (userError as any).code
+            } : { error: String(userError) }
+          });
+          throw userError;
+        }
         
         // Инициализируем демо-данные для нового пользователя
         try {
+          logger.info('[loginAsDemo] Начало инициализации демо-данных');
           const { initializeDemoData } = await import('./demoData');
           await initializeDemoData(demoUser as User);
+          logger.info('[loginAsDemo] Демо-данные успешно инициализированы');
         } catch (demoError) {
           // Не блокируем вход, если демо-данные не создались
-          logger.warn('Не удалось создать демо-данные', { error: demoError });
+          logger.warn('[loginAsDemo] Не удалось создать демо-данные', {
+            userId: firebaseUser.uid,
+            error: demoError instanceof Error ? {
+              message: demoError.message,
+              name: demoError.name,
+              code: (demoError as any).code,
+              stack: demoError.stack
+            } : { error: String(demoError) }
+          });
         }
         
         return demoUser as User;
