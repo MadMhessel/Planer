@@ -127,6 +127,8 @@ type InviteContext = {
 type ThemeMode = 'light' | 'dark' | 'system';
 
 const App: React.FC = () => {
+  // Диагностика: логируем начало рендеринга App
+  console.log('[App] Компонент App начинает рендеринг');
   logger.info('App component rendering');
   
   const [currentUser, setCurrentUser] = useState<User | null>(null);

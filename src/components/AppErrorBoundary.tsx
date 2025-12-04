@@ -33,6 +33,11 @@ class AppErrorBoundary extends Component<Props, State> {
       error: null,
       errorInfo: null
     };
+    
+    // Диагностика: логируем создание ErrorBoundary
+    if (import.meta.env.DEV) {
+      console.log('[AppErrorBoundary] Инициализирован');
+    }
   }
 
   static getDerivedStateFromError(error: Error): State {
@@ -132,9 +137,16 @@ class AppErrorBoundary extends Component<Props, State> {
   };
 
   render() {
+    // Диагностика: логируем каждый рендер
+    if (import.meta.env.DEV) {
+      console.log('[AppErrorBoundary] render() вызван', { hasError: this.state.hasError });
+    }
+    
     if (this.state.hasError) {
       const isDev = import.meta.env.DEV;
       const { error, errorInfo } = this.state;
+      
+      console.error('[AppErrorBoundary] Отображаем fallback UI из-за ошибки:', error);
 
       return (
         <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 p-4">
@@ -245,6 +257,10 @@ class AppErrorBoundary extends Component<Props, State> {
     }
 
     // Если ошибки нет, рендерим дочерние компоненты
+    if (import.meta.env.DEV) {
+      console.log('[AppErrorBoundary] Рендерим дочерние компоненты (нет ошибок)');
+    }
+    
     return this.props.children;
   }
 }
