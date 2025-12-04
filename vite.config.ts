@@ -33,8 +33,12 @@ export default defineConfig({
     // Оптимизация ассетов
     assetsInlineLimit: 4096, // Инлайним маленькие файлы (< 4KB)
     commonjsOptions: {
+      // Включаем все node_modules для трансформации CommonJS в ESM
       include: [/node_modules/],
       transformMixedEsModules: true,
+      // Явно указываем, что scheduler должен быть трансформирован
+      // Это критически важно для предотвращения ошибки "Cannot set properties of undefined (setting 'unstable_now')"
+      requireReturnsDefault: 'auto',
     },
     // Защита от проблем с lazy loading в production
     rollupOptions: {
@@ -45,8 +49,11 @@ export default defineConfig({
         // Улучшенное разделение на чанки для лучшего кэширования
         manualChunks: (id) => {
           // Упрощенное разделение чанков для избежания проблем с React 19
-          // React и связанные библиотеки
-          if (id.includes('node_modules/react') || id.includes('node_modules/react-dom') || id.includes('node_modules/react-is')) {
+          // React и связанные библиотеки (включая scheduler - внутренний модуль react-dom)
+          if (id.includes('node_modules/react') || 
+              id.includes('node_modules/react-dom') || 
+              id.includes('node_modules/react-is') ||
+              id.includes('node_modules/scheduler')) {
             return 'react-vendor';
           }
           // Firebase SDK
@@ -66,9 +73,10 @@ export default defineConfig({
             return 'vendor';
           }
         },
-        // Сохраняем имена экспортов для правильной работы named exports в lazy loading
-        // Это критически важно для предотвращения ошибки "Cannot set properties of undefined (setting 'Activity')"
-        exports: 'named',
+        // Используем 'auto' вместо 'named' для правильной обработки CommonJS модулей (например, scheduler)
+        // 'named' конфликтует с CommonJS модулями, которые используют exports.property = value
+        // Это критически важно для предотвращения ошибки "Cannot set properties of undefined (setting 'unstable_now')"
+        exports: 'auto',
         // Оптимизация имен файлов для кэширования
         chunkFileNames: 'assets/js/[name]-[hash].js',
         entryFileNames: 'assets/js/[name]-[hash].js',
@@ -97,9 +105,16 @@ export default defineConfig({
   },
   // Оптимизация для разработки
   optimizeDeps: {
-    include: ['react', 'react-dom', 'react-is', 'firebase/app', 'firebase/auth', 'firebase/firestore'],
+    // Включаем scheduler для правильной предобработки CommonJS модуля
+    // scheduler - внутренний модуль react-dom, который должен быть правильно трансформирован
+    include: ['react', 'react-dom', 'react-is', 'scheduler', 'firebase/app', 'firebase/auth', 'firebase/firestore'],
     exclude: [],
     // Принудительно пересобрать зависимости при изменении
     force: false,
+    // Настройка для правильной обработки CommonJS модулей
+    esbuildOptions: {
+      // Убеждаемся, что CommonJS модули правильно обрабатываются
+      mainFields: ['module', 'main'],
+    },
   },
 })
