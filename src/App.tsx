@@ -2,6 +2,10 @@ import React, { useCallback, useEffect, useState, useMemo, lazy, Suspense } from
 import { Layout } from './components/Layout';
 import { AuthService } from './services/auth';
 import { StorageService } from './services/storage';
+// КРИТИЧЕСКИ ВАЖНО: logger должен быть импортирован ДО createSafeLazyComponent,
+// так как функция использует logger внутри себя. Иначе возникает ошибка
+// "Cannot access 'It' before initialization" в production сборке.
+import { logger } from './utils/logger';
 
 // ===== БЕЗОПАСНАЯ ФУНКЦИЯ ДЛЯ LAZY LOADING =====
 // Предотвращает ошибку "Cannot set properties of undefined (setting 'Activity')"
@@ -190,7 +194,7 @@ import { useProjects } from './hooks/useProjects';
 import { useMembers } from './hooks/useMembers';
 import { useInvites } from './hooks/useInvites';
 import { useNotifications } from './hooks/useNotifications';
-import { logger } from './utils/logger';
+// logger уже импортирован выше, перед createSafeLazyComponent
 import { useUsersFromMembers } from './hooks/useUsersFromMembers';
 import { MAX_CHAT_HISTORY_LENGTH } from './constants/ai';
 import toast from 'react-hot-toast';
