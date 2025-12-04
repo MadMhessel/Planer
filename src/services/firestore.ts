@@ -28,9 +28,10 @@ import { InviteStatus, Project, Task, TaskComment, TaskPriority, TaskStatus, Use
 import { logger } from '../utils/logger';
 import { getMoscowISOString } from '../utils/dateUtils';
 
-// Вспомогательная функция для получения getDb() внутри методов
-// Гарантирует, что Firebase инициализирован перед использованием
-const getDb = () => getFirestoreInstance();
+// КРИТИЧЕСКИ ВАЖНО: Не определяем getDb на верхнем уровне модуля,
+// чтобы избежать ошибки "Cannot access 'It' before initialization" в production сборке.
+// Вместо этого используем getFirestoreInstance() напрямую в каждом методе,
+// или определяем getDb как ленивую функцию внутри методов.
 
 export const FirestoreService = {
   // --- Workspaces ---
@@ -43,7 +44,7 @@ export const FirestoreService = {
       ownerDisplayName: owner.displayName
     });
 
-    const db = getDb();
+    const db = getFirestoreInstance();
     const workspaceRef = doc(collection(db, 'workspaces'));
     const now = getMoscowISOString();
 
@@ -116,7 +117,7 @@ export const FirestoreService = {
       return () => {};
     }
 
-    const db = getDb();
+    const db = getFirestoreInstance();
     const workspaceMap = new Map<string, Workspace>();
     let ownedUnsubscribe: (() => void) | null = null;
     let memberUnsubscribe: (() => void) | null = null;
@@ -270,7 +271,7 @@ export const FirestoreService = {
   },
 
   async getWorkspaceMembers(workspaceId: string): Promise<WorkspaceMember[]> {
-    const db = getDb();
+    const db = getFirestoreInstance();
     const membersRef = collection(db, 'workspaces', workspaceId, 'members');
     const snapshot = await getDocs(membersRef);
     return snapshot.docs.map(docSnap => ({
@@ -280,7 +281,7 @@ export const FirestoreService = {
   },
 
   subscribeToMembers(workspaceId: string, callback: (members: WorkspaceMember[]) => void) {
-    const db = getDb();
+    const db = getFirestoreInstance();
     const membersRef = collection(db, 'workspaces', workspaceId, 'members');
     return onSnapshot(membersRef, (snapshot) => {
       const members: WorkspaceMember[] = snapshot.docs.map(docSnap => ({
@@ -301,7 +302,7 @@ export const FirestoreService = {
 
   async createInvite(workspaceId: string, email: string, role: UserRole, invitedBy: string): Promise<WorkspaceInvite> {
     // создаём документ заранее и используем его id как token
-    const db = getDb();
+    const db = getFirestoreInstance();
     const inviteRef = doc(collection(db, 'workspaces', workspaceId, 'invites'));
     const token = inviteRef.id;
 
@@ -326,7 +327,7 @@ export const FirestoreService = {
   },
 
   async revokeInvite(workspaceId: string, token: string) {
-    const db = getDb();
+    const db = getFirestoreInstance();
     const inviteRef = doc(db, 'workspaces', workspaceId, 'invites', token);
     const inviteSnap = await getDoc(inviteRef);
 
@@ -342,7 +343,7 @@ export const FirestoreService = {
   },
 
   async getInvite(workspaceId: string, token: string): Promise<WorkspaceInvite | null> {
-    const db = getDb();
+    const db = getFirestoreInstance();
     const inviteRef = doc(db, 'workspaces', workspaceId, 'invites', token);
     const snap = await getDoc(inviteRef);
     if (!snap.exists()) return null;
@@ -352,7 +353,7 @@ export const FirestoreService = {
   async acceptInvite(workspaceId: string, token: string, user: User): Promise<void> {
     logger.info('[acceptInvite] Starting', { workspaceId, token, userId: user.id, userEmail: user.email });
     
-    const db = getDb();
+    const db = getFirestoreInstance();
     const workspaceRef = doc(db, 'workspaces', workspaceId);
     const inviteRef = doc(db, 'workspaces', workspaceId, 'invites', token);
     const memberRef = doc(db, 'workspaces', workspaceId, 'members', user.id);
@@ -447,7 +448,7 @@ export const FirestoreService = {
   },
 
   async removeMember(workspaceId: string, memberId: string, actingUser: WorkspaceMember) {
-    const db = getDb();
+    const db = getFirestoreInstance();
     logger.info('[FirestoreService] removeMember called', {
       workspaceId,
       memberId,
@@ -498,7 +499,7 @@ export const FirestoreService = {
   },
 
   subscribeToInvites(workspaceId: string, callback: (invites: WorkspaceInvite[]) => void) {
-    const db = getDb();
+    const db = getFirestoreInstance();
     const invitesRef = collection(db, 'workspaces', workspaceId, 'invites');
     return onSnapshot(invitesRef, (snapshot) => {
       const invites: WorkspaceInvite[] = snapshot.docs.map(docSnap => ({
@@ -518,7 +519,7 @@ export const FirestoreService = {
   // --- Tasks ---
 
   subscribeToTasks(workspaceId: string, callback: (tasks: Task[]) => void) {
-    const db = getDb();
+    const db = getFirestoreInstance();
     const q = query(
       collection(db, 'tasks'),
       where('workspaceId', '==', workspaceId),
@@ -567,7 +568,7 @@ export const FirestoreService = {
   },
 
   async createTask(task: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>): Promise<Task> {
-    const db = getDb();
+    const db = getFirestoreInstance();
     // Фильтруем undefined значения, так как Firestore их не принимает
     const taskData: any = {
       createdAt: getMoscowISOString(),
@@ -617,7 +618,7 @@ export const FirestoreService = {
   },
 
   async updateTask(taskId: string, updates: Partial<Task>) {
-    const db = getDb();
+    const db = getFirestoreInstance();
     const taskRef = doc(db, 'tasks', taskId);
     
     // Логируем всегда (не только в DEV режиме)
@@ -864,7 +865,7 @@ export const FirestoreService = {
   },
 
   async deleteTask(taskId: string) {
-    const db = getDb();
+    const db = getFirestoreInstance();
     const taskRef = doc(db, 'tasks', taskId);
     await deleteDoc(taskRef);
   },
@@ -872,7 +873,7 @@ export const FirestoreService = {
   // --- Projects ---
 
   subscribeToProjects(workspaceId: string, callback: (projects: Project[]) => void) {
-    const db = getDb();
+    const db = getFirestoreInstance();
     const q = query(
       collection(db, 'projects'),
       where('workspaceId', '==', workspaceId),
@@ -889,7 +890,7 @@ export const FirestoreService = {
   },
 
   async createProject(project: Omit<Project, 'id' | 'createdAt' | 'updatedAt'>): Promise<Project> {
-    const db = getDb();
+    const db = getFirestoreInstance();
     // Фильтруем undefined значения, так как Firestore их не принимает
     const projectData: any = {
       createdAt: getMoscowISOString(),
@@ -937,7 +938,7 @@ export const FirestoreService = {
   },
 
   async updateProject(projectId: string, updates: Partial<Project>) {
-    const db = getDb();
+    const db = getFirestoreInstance();
     const projectRef = doc(db, 'projects', projectId);
     
     // Фильтруем undefined значения, так как Firestore их не принимает
@@ -957,7 +958,7 @@ export const FirestoreService = {
   },
 
   async deleteProject(projectId: string) {
-    const db = getDb();
+    const db = getFirestoreInstance();
     const projectRef = doc(db, 'projects', projectId);
     await deleteDoc(projectRef);
   },
@@ -965,7 +966,7 @@ export const FirestoreService = {
   // --- Users ---
 
   async getUserById(userId: string): Promise<User | null> {
-    const db = getDb();
+    const db = getFirestoreInstance();
     const userRef = doc(db, 'users', userId);
     const snap = await getDoc(userRef);
     if (!snap.exists()) return null;
@@ -976,7 +977,7 @@ export const FirestoreService = {
   },
 
   async updateUser(userId: string, updates: Partial<Omit<User, 'id' | 'email' | 'createdAt'>>): Promise<void> {
-    const db = getDb();
+    const db = getFirestoreInstance();
     const userRef = doc(db, 'users', userId);
     await updateDoc(userRef, {
       ...updates,
@@ -987,7 +988,7 @@ export const FirestoreService = {
   // --- Task Comments ---
 
   subscribeToTaskComments(taskId: string, callback: (comments: TaskComment[]) => void) {
-    const db = getDb();
+    const db = getFirestoreInstance();
     const commentsRef = collection(db, 'tasks', taskId, 'comments');
     const q = query(commentsRef, orderBy('createdAt', 'desc')); // Новые сверху
 
@@ -1007,7 +1008,7 @@ export const FirestoreService = {
   },
 
   async createTaskComment(taskId: string, comment: Omit<TaskComment, 'id' | 'createdAt'>): Promise<TaskComment> {
-    const db = getDb();
+    const db = getFirestoreInstance();
     const commentsRef = collection(db, 'tasks', taskId, 'comments');
     const commentData = {
       ...comment,
@@ -1024,7 +1025,7 @@ export const FirestoreService = {
   },
 
   async deleteTaskComment(taskId: string, commentId: string): Promise<void> {
-    const db = getDb();
+    const db = getFirestoreInstance();
     const commentRef = doc(db, 'tasks', taskId, 'comments', commentId);
     await deleteDoc(commentRef);
   }

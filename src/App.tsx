@@ -148,28 +148,10 @@ const createSafeLazyComponent = <T extends React.ComponentType<any>>(
   });
 };
 
-// ===== LAZY LOADING: Основные экраны =====
-// Эти компоненты загружаются только при переключении на соответствующий view
-const CalendarView = createSafeLazyComponent(() => import('./components/CalendarView'), 'CalendarView');
-const GanttChart = createSafeLazyComponent(() => import('./components/GanttChart'), 'GanttChart');
-const Dashboard = createSafeLazyComponent(() => import('./components/Dashboard'), 'Dashboard');
-const TaskList = createSafeLazyComponent(() => import('./components/TaskList'), 'TaskList');
-const KanbanBoard = createSafeLazyComponent(() => import('./components/KanbanBoard'), 'KanbanBoard');
-const SettingsView = createSafeLazyComponent(() => import('./components/SettingsView'), 'SettingsView');
-const NotificationHistory = createSafeLazyComponent(() => import('./components/NotificationHistory'), 'NotificationHistory');
-
-// ===== LAZY LOADING: Модальные окна =====
-// Загружаются только при открытии
-const TaskModal = createSafeLazyComponent(() => import('./components/TaskModal'), 'TaskModal');
-const TaskProfile = createSafeLazyComponent(() => import('./components/TaskProfile'), 'TaskProfile');
-const ProjectModal = createSafeLazyComponent(() => import('./components/ProjectModal'), 'ProjectModal');
-const UserModal = createSafeLazyComponent(() => import('./components/UserModal'), 'UserModal');
-const ProfileModal = createSafeLazyComponent(() => import('./components/ProfileModal'), 'ProfileModal');
-
-// ===== LAZY LOADING: Auth и специальные компоненты =====
-const AuthView = createSafeLazyComponent(() => import('./components/AuthView'), 'AuthView');
-const AcceptInviteView = createSafeLazyComponent(() => import('./components/AcceptInviteView'), 'AcceptInviteView');
-const AICommandBar = createSafeLazyComponent(() => import('./components/AICommandBar'), 'AICommandBar');
+// КРИТИЧЕСКИ ВАЖНО: Не создаём lazy компоненты на верхнем уровне модуля,
+// чтобы избежать ошибки "Cannot access 'It' before initialization" в production сборке.
+// Вместо этого создаём их внутри компонента App или используем прямые lazy() вызовы.
+// Это гарантирует правильный порядок инициализации модулей.
 
 // ===== Синхронные импорты (легкие компоненты, используются всегда) =====
 import { WorkspaceSelector } from './components/WorkspaceSelector';
@@ -221,6 +203,26 @@ const App: React.FC = () => {
   // Диагностика: логируем начало рендеринга App
   console.log('[App] Компонент App начинает рендеринг');
   logger.info('App component rendering');
+  
+  // КРИТИЧЕСКИ ВАЖНО: Создаём lazy компоненты внутри компонента App,
+  // а не на верхнем уровне модуля, чтобы избежать ошибки
+  // "Cannot access 'It' before initialization" в production сборке.
+  // Это гарантирует правильный порядок инициализации модулей.
+  const CalendarView = useMemo(() => createSafeLazyComponent(() => import('./components/CalendarView'), 'CalendarView'), []);
+  const GanttChart = useMemo(() => createSafeLazyComponent(() => import('./components/GanttChart'), 'GanttChart'), []);
+  const Dashboard = useMemo(() => createSafeLazyComponent(() => import('./components/Dashboard'), 'Dashboard'), []);
+  const TaskList = useMemo(() => createSafeLazyComponent(() => import('./components/TaskList'), 'TaskList'), []);
+  const KanbanBoard = useMemo(() => createSafeLazyComponent(() => import('./components/KanbanBoard'), 'KanbanBoard'), []);
+  const SettingsView = useMemo(() => createSafeLazyComponent(() => import('./components/SettingsView'), 'SettingsView'), []);
+  const NotificationHistory = useMemo(() => createSafeLazyComponent(() => import('./components/NotificationHistory'), 'NotificationHistory'), []);
+  const TaskModal = useMemo(() => createSafeLazyComponent(() => import('./components/TaskModal'), 'TaskModal'), []);
+  const TaskProfile = useMemo(() => createSafeLazyComponent(() => import('./components/TaskProfile'), 'TaskProfile'), []);
+  const ProjectModal = useMemo(() => createSafeLazyComponent(() => import('./components/ProjectModal'), 'ProjectModal'), []);
+  const UserModal = useMemo(() => createSafeLazyComponent(() => import('./components/UserModal'), 'UserModal'), []);
+  const ProfileModal = useMemo(() => createSafeLazyComponent(() => import('./components/ProfileModal'), 'ProfileModal'), []);
+  const AuthView = useMemo(() => createSafeLazyComponent(() => import('./components/AuthView'), 'AuthView'), []);
+  const AcceptInviteView = useMemo(() => createSafeLazyComponent(() => import('./components/AcceptInviteView'), 'AcceptInviteView'), []);
+  const AICommandBar = useMemo(() => createSafeLazyComponent(() => import('./components/AICommandBar'), 'AICommandBar'), []);
   
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
