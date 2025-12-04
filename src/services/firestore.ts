@@ -507,11 +507,43 @@ export const FirestoreService = {
     );
 
     return onSnapshot(q, (snapshot) => {
-      const tasks: Task[] = snapshot.docs.map(docSnap => ({
-        ...(docSnap.data() as Task),
-        id: docSnap.id
-      }));
+      // Безопасная нормализация задач из Firestore
+      // Гарантируем, что все обязательные поля инициализированы
+      const tasks: Task[] = snapshot.docs.map(docSnap => {
+        const data = docSnap.data();
+        
+        // Создаем нормализованный объект задачи с гарантированными значениями
+        const normalizedTask: Task = {
+          id: docSnap.id,
+          title: data.title || 'Без названия',
+          description: data.description ?? '',
+          status: data.status || 'TODO',
+          priority: data.priority || 'NORMAL',
+          createdAt: data.createdAt || getMoscowISOString(),
+          updatedAt: data.updatedAt || getMoscowISOString(),
+          workspaceId: data.workspaceId || workspaceId,
+          // Опциональные поля с безопасными значениями по умолчанию
+          projectId: data.projectId ?? undefined,
+          assigneeId: data.assigneeId ?? undefined,
+          assigneeIds: Array.isArray(data.assigneeIds) ? data.assigneeIds : (data.assigneeId ? [data.assigneeId] : undefined),
+          dueDate: data.dueDate ?? undefined,
+          startDate: data.startDate ?? undefined,
+          tags: Array.isArray(data.tags) ? data.tags : [],
+          dependencies: Array.isArray(data.dependencies) ? data.dependencies : [],
+          estimatedHours: data.estimatedHours ?? undefined,
+          loggedHours: data.loggedHours ?? undefined,
+        };
+        
+        return normalizedTask;
+      });
+      
       callback(tasks);
+    }, (error) => {
+      logger.error('[subscribeToTasks] Error in snapshot', {
+        workspaceId,
+        error: error instanceof Error ? error.message : String(error),
+        code: (error as any)?.code
+      });
     });
   },
 
@@ -533,10 +565,35 @@ export const FirestoreService = {
     const docRef = await addDoc(collection(db, 'tasks'), taskData);
 
     const docSnap = await getDoc(docRef);
-    return {
-      ...(docSnap.data() as Task),
-      id: docSnap.id
+    const data = docSnap.data();
+    
+    if (!data) {
+      throw new Error('Task document not found after creation');
+    }
+    
+    // Безопасная нормализация созданной задачи
+    // Гарантируем, что все обязательные поля инициализированы
+    const normalizedTask: Task = {
+      id: docSnap.id,
+      title: data.title || 'Без названия',
+      description: data.description ?? '',
+      status: data.status || 'TODO',
+      priority: data.priority || 'NORMAL',
+      createdAt: data.createdAt || getMoscowISOString(),
+      updatedAt: data.updatedAt || getMoscowISOString(),
+      workspaceId: data.workspaceId || task.workspaceId,
+      projectId: data.projectId ?? undefined,
+      assigneeId: data.assigneeId ?? undefined,
+      assigneeIds: Array.isArray(data.assigneeIds) ? data.assigneeIds : (data.assigneeId ? [data.assigneeId] : undefined),
+      dueDate: data.dueDate ?? undefined,
+      startDate: data.startDate ?? undefined,
+      tags: Array.isArray(data.tags) ? data.tags : [],
+      dependencies: Array.isArray(data.dependencies) ? data.dependencies : [],
+      estimatedHours: data.estimatedHours ?? undefined,
+      loggedHours: data.loggedHours ?? undefined,
     };
+    
+    return normalizedTask;
   },
 
   async updateTask(taskId: string, updates: Partial<Task>) {

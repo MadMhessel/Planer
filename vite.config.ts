@@ -26,8 +26,8 @@ export default defineConfig({
     chunkSizeWarningLimit: 1000,
     // Оптимизация для production
     minify: 'esbuild',
-    // Генерируем source maps только для production (меньше размер)
-    sourcemap: false,
+    // Включаем source maps для отладки проблем с lazy loading в production
+    sourcemap: true,
     // Оптимизация CSS
     cssCodeSplit: true,
     // Оптимизация ассетов
@@ -36,7 +36,11 @@ export default defineConfig({
       include: [/node_modules/],
       transformMixedEsModules: true,
     },
+    // Защита от проблем с lazy loading в production
     rollupOptions: {
+      // Сохраняем имена экспортов для правильной работы lazy loading
+      // Это критически важно для предотвращения ошибки "Cannot set properties of undefined (setting 'Activity')"
+      preserveEntrySignatures: 'strict',
       output: {
         // Улучшенное разделение на чанки для лучшего кэширования
         manualChunks: (id) => {
@@ -62,6 +66,9 @@ export default defineConfig({
             return 'vendor';
           }
         },
+        // Сохраняем имена экспортов для правильной работы named exports в lazy loading
+        // Это критически важно для предотвращения ошибки "Cannot set properties of undefined (setting 'Activity')"
+        exports: 'named',
         // Оптимизация имен файлов для кэширования
         chunkFileNames: 'assets/js/[name]-[hash].js',
         entryFileNames: 'assets/js/[name]-[hash].js',
