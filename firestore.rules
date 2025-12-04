@@ -178,15 +178,14 @@ service cloud.firestore {
                            (request.auth.token.email == null || 
                             request.resource.data.email == request.auth.token.email ||
                             request.resource.data.email.toLowerCase() == request.auth.token.email.toLowerCase())) ||
-                          // Разрешаем создание member при создании workspace (в транзакции)
-                          // Для анонимных пользователей (демо-режим) разрешаем создание member при создании workspace
-                          // В транзакции workspace может еще не существовать, поэтому проверяем только по email и роли
+                          // Разрешаем создание member при создании workspace для анонимных пользователей (демо-режим)
+                          // В транзакции workspace может еще не существовать, поэтому не проверяем его существование
+                          // Разрешаем если: роль OWNER, пользователь создает себя, и это анонимный пользователь
                           (request.resource.data.role == 'OWNER' &&
                            request.resource.data.userId == request.auth.uid &&
                            request.resource.data.userId == memberId &&
-                           request.auth.token.email == null &&
-                           request.resource.data.email == 'demo@example.com') ||
-                          // Разрешаем если workspace существует и пользователь владелец
+                           request.auth.token.email == null) ||
+                          // Разрешаем если workspace существует и пользователь владелец (для обычных пользователей)
                           (request.resource.data.role == 'OWNER' &&
                            request.resource.data.userId == request.auth.uid &&
                            request.resource.data.userId == memberId &&
