@@ -212,55 +212,87 @@ export const GanttChart: React.FC<GanttChartProps> = ({ tasks, projects, onTaskC
   }, [startDate, daysToShow]);
 
   return (
-    <div className="flex flex-col h-full bg-white dark:bg-slate-800/80 backdrop-blur-sm rounded-xl shadow-lg border border-gray-200 dark:border-slate-700/50 overflow-hidden pb-20 md:pb-0">
+    <div className="flex flex-col h-full bg-white dark:bg-slate-800/80 backdrop-blur-sm rounded-xl shadow-lg border border-gray-200 dark:border-slate-700/50 overflow-hidden pb-20 md:pb-0" role="main" aria-label="Диаграмма Ганта">
       {/* Controls */}
       <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-slate-700/50 bg-gradient-to-r from-gray-50 to-white dark:from-slate-800 dark:to-slate-900 flex-shrink-0">
         <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-4">
-             <h2 className="font-bold text-gray-800 dark:text-slate-100 text-base md:text-lg bg-gradient-to-r from-sky-400 to-indigo-400 bg-clip-text text-transparent">Временная шкала</h2>
-             <span className="text-xs md:text-sm font-semibold text-indigo-600 dark:text-indigo-400 capitalize bg-indigo-50 dark:bg-indigo-900/30 px-3 py-1 rounded-lg border border-indigo-200 dark:border-indigo-700/50">
+             <h2 className="font-bold text-gray-800 dark:text-slate-100 text-base md:text-lg bg-gradient-to-r from-sky-400 to-indigo-400 bg-clip-text text-transparent" id="gantt-title">Временная шкала</h2>
+             <span className="text-xs md:text-sm font-semibold text-indigo-600 dark:text-indigo-400 capitalize bg-indigo-50 dark:bg-indigo-900/30 px-3 py-1 rounded-lg border border-indigo-200 dark:border-indigo-700/50" aria-label={`Период: ${currentMonthYear}`}>
                 {currentMonthYear}
              </span>
         </div>
         
-        <div className="flex gap-2">
-            <button onClick={() => handleScroll(-7)} className="p-2 bg-white dark:bg-slate-700/50 border border-gray-200 dark:border-slate-600 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg shadow-md hover:shadow-lg transition-all text-gray-600 dark:text-slate-300">
-                <ChevronLeft size={18}/>
+        <div className="flex gap-2" role="group" aria-label="Управление временной шкалой">
+            <button 
+              onClick={() => handleScroll(-7)} 
+              className="p-2 bg-white dark:bg-slate-700/50 border border-gray-200 dark:border-slate-600 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg shadow-md hover:shadow-lg transition-all text-gray-600 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2 dark:focus:ring-offset-slate-900"
+              aria-label="На неделю назад"
+            >
+                <ChevronLeft size={18} aria-hidden="true"/>
             </button>
-            <button onClick={() => {
-              setViewDate(new Date());
-              setHasUserScrolled(true);
-            }} className="text-xs font-semibold px-4 py-2 bg-white dark:bg-slate-700/50 border border-gray-200 dark:border-slate-600 rounded-lg shadow-md hover:shadow-lg hover:bg-gray-50 dark:hover:bg-slate-700 transition-all text-gray-700 dark:text-slate-200">
+            <button 
+              onClick={() => {
+                setViewDate(new Date());
+                setHasUserScrolled(true);
+              }} 
+              className="text-xs font-semibold px-4 py-2 bg-white dark:bg-slate-700/50 border border-gray-200 dark:border-slate-600 rounded-lg shadow-md hover:shadow-lg hover:bg-gray-50 dark:hover:bg-slate-700 transition-all text-gray-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2 dark:focus:ring-offset-slate-900"
+              aria-label="Перейти к сегодняшней дате"
+            >
                 Сегодня
             </button>
-            <button onClick={() => handleScroll(7)} className="p-2 bg-white dark:bg-slate-700/50 border border-gray-200 dark:border-slate-600 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg shadow-md hover:shadow-lg transition-all text-gray-600 dark:text-slate-300">
-                <ChevronRight size={18}/>
+            <button 
+              onClick={() => handleScroll(7)} 
+              className="p-2 bg-white dark:bg-slate-700/50 border border-gray-200 dark:border-slate-600 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg shadow-md hover:shadow-lg transition-all text-gray-600 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2 dark:focus:ring-offset-slate-900"
+              aria-label="На неделю вперед"
+            >
+                <ChevronRight size={18} aria-hidden="true"/>
             </button>
         </div>
       </div>
 
       <div className="flex flex-1 overflow-hidden relative">
         {/* Left Sidebar (Task Names) - Hidden on very small screens or reduced */}
-        <div className="w-24 md:w-48 flex-shrink-0 border-r border-gray-200 bg-white sticky left-0 z-20 overflow-y-hidden select-none">
-            <div className="h-10 border-b border-gray-200 bg-gray-50 font-semibold text-xs text-gray-500 flex items-center px-3">
+        <div className="w-24 md:w-48 flex-shrink-0 border-r border-gray-200 bg-white sticky left-0 z-20 overflow-y-hidden select-none" role="complementary" aria-label="Список задач">
+            <div className="h-10 border-b border-gray-200 bg-gray-50 font-semibold text-xs text-gray-500 flex items-center px-3" role="columnheader">
                 Задача
             </div>
-            {sortedTasks.map(task => (
-                <div 
-                    key={task.id} 
-                    onClick={() => onEditTask(task)}
-                    className="h-12 border-b border-gray-50 flex items-center px-3 text-xs md:text-sm text-gray-700 font-medium truncate bg-white cursor-pointer hover:bg-gray-50 transition-colors" 
-                    title={task.title}
-                >
-                    <span className="truncate">{task.title}</span>
-                </div>
-            ))}
+            <div role="list" aria-label="Список задач на временной шкале">
+              {sortedTasks.map((task, index) => (
+                  <button
+                      key={task.id} 
+                      type="button"
+                      onClick={() => onEditTask(task)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          onEditTask(task);
+                        } else if (e.key === 'ArrowDown') {
+                          e.preventDefault();
+                          const nextButton = document.querySelector(`[data-task-index="${index + 1}"]`) as HTMLElement;
+                          nextButton?.focus();
+                        } else if (e.key === 'ArrowUp') {
+                          e.preventDefault();
+                          const prevButton = document.querySelector(`[data-task-index="${index - 1}"]`) as HTMLElement;
+                          prevButton?.focus();
+                        }
+                      }}
+                      data-task-index={index}
+                      className="h-12 border-b border-gray-50 flex items-center px-3 text-xs md:text-sm text-gray-700 font-medium truncate bg-white cursor-pointer hover:bg-gray-50 transition-colors w-full text-left focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-inset" 
+                      title={task.title}
+                      aria-label={`Задача: ${task.title}. Нажмите для редактирования`}
+                      role="listitem"
+                  >
+                      <span className="truncate">{task.title}</span>
+                  </button>
+              ))}
+            </div>
         </div>
 
         {/* Timeline Area */}
         <div className="flex-1 overflow-x-auto overflow-y-auto">
             <div className="relative min-w-full" style={{ width: `${dates.length * dayWidth}px` }}>
                 {/* Header Days */}
-                <div className="flex h-10 border-b border-gray-200 bg-gray-50 sticky top-0 z-10">
+                <div className="flex h-10 border-b border-gray-200 bg-gray-50 sticky top-0 z-10" role="row">
                     {dates.map((d, i) => (
                         <div 
                             key={i} 
@@ -268,6 +300,8 @@ export const GanttChart: React.FC<GanttChartProps> = ({ tasks, projects, onTaskC
                                 d.getDay() === 0 || d.getDay() === 6 ? 'bg-gray-100/50' : ''
                             }`}
                             style={{ width: `${dayWidth}px` }}
+                            role="columnheader"
+                            aria-label={formatMoscowDate(d, { day: 'numeric', month: 'long', weekday: 'long' })}
                         >
                             <span className={`font-bold ${d.toDateString() === new Date().toDateString() ? 'text-indigo-600' : 'text-gray-700'}`}>
                                 {d.getDate()}
@@ -316,28 +350,37 @@ export const GanttChart: React.FC<GanttChartProps> = ({ tasks, projects, onTaskC
                     })()}
 
                     {/* Tasks Rows */}
-                    <div className="relative pt-0">
+                    <div className="relative pt-0" role="rowgroup">
                         {sortedTasks
                           .filter(task => {
                             // Фильтруем задачи без дат или с датами вне видимой области
                             const style = getTaskStyle(task);
                             return style.display !== 'none';
                           })
-                          .map((task) => {
+                          .map((task, index) => {
                             const style = getTaskStyle(task);
+                            const taskDates = `${task.startDate ? formatMoscowDate(task.startDate) : ''}${task.dueDate ? ` - ${formatMoscowDate(task.dueDate)}` : ''}`;
                             return (
-                              <div key={task.id} className="h-12 border-b border-gray-50 relative flex items-center group">
-                                  <div 
+                              <div key={task.id} className="h-12 border-b border-gray-50 relative flex items-center group" role="row">
+                                  <button
+                                      type="button"
                                       onClick={() => onEditTask(task)}
-                                      className="absolute h-6 rounded-md shadow-sm text-[10px] text-white flex items-center px-2 whitespace-nowrap overflow-hidden cursor-pointer hover:brightness-110 hover:shadow-md transition-all z-10"
+                                      onKeyDown={(e) => {
+                                        if (e.key === 'Enter' || e.key === ' ') {
+                                          e.preventDefault();
+                                          onEditTask(task);
+                                        }
+                                      }}
+                                      className="absolute h-6 rounded-md shadow-sm text-[10px] text-white flex items-center px-2 whitespace-nowrap overflow-hidden cursor-pointer hover:brightness-110 hover:shadow-md transition-all z-10 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-slate-800"
                                       style={style}
+                                      aria-label={`${task.title}${taskDates ? `, период: ${taskDates}` : ''}. Нажмите для редактирования`}
                                       title={`${task.title}${task.startDate ? ` (${formatMoscowDate(task.startDate)}` : ''}${task.dueDate ? ` - ${formatMoscowDate(task.dueDate)})` : ''}`}
                                   >
                                       {!isMobile && <span className="truncate font-medium">{task.title}</span>}
                                       {isMobile && style.width && parseFloat(style.width as string) > 40 && (
                                         <span className="truncate font-medium">{task.title}</span>
                                       )}
-                                  </div>
+                                  </button>
                               </div>
                             );
                           })}

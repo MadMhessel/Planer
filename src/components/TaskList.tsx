@@ -37,9 +37,17 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, projects, users, onTaskClick 
   const user = users.find(u => u.id === task.assigneeId);
   
   return (
-    <div 
+    <button
+      type="button"
       onClick={() => onTaskClick(task)}
-      className="bg-white dark:bg-slate-800/80 backdrop-blur-sm p-2.5 sm:p-3 md:p-4 rounded-xl shadow-md border border-gray-100 dark:border-slate-700/50 mb-2 sm:mb-3 active:scale-[0.98] transition-all hover:shadow-lg hover:-translate-y-0.5 cursor-pointer w-full max-w-full overflow-hidden touch-manipulation"
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onTaskClick(task);
+        }
+      }}
+      className="bg-white dark:bg-slate-800/80 backdrop-blur-sm p-2.5 sm:p-3 md:p-4 rounded-xl shadow-md border border-gray-100 dark:border-slate-700/50 mb-2 sm:mb-3 active:scale-[0.98] transition-all hover:shadow-lg hover:-translate-y-0.5 cursor-pointer w-full max-w-full overflow-hidden touch-manipulation text-left focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2 dark:focus:ring-offset-slate-900"
+      aria-label={`Задача: ${task.title}. Статус: ${getStatusLabel(task.status)}. Приоритет: ${getPriorityLabel(task.priority)}${task.description ? `. ${task.description}` : ''}`}
     >
       <div className="flex justify-between items-start mb-2 gap-2">
           {project ? (
@@ -84,7 +92,7 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, projects, users, onTaskClick 
               )}
           </div>
       </div>
-    </div>
+    </button>
   );
 };
 
@@ -151,11 +159,12 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks, projects, users, onTa
              <button 
                 type="button"
                 onClick={toggleSortOrder}
-                className="p-1.5 sm:p-2 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-all text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200 flex-shrink-0 touch-manipulation min-h-[36px] sm:min-h-[40px] flex items-center justify-center"
+                className="p-1.5 sm:p-2 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-all text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200 flex-shrink-0 touch-manipulation min-h-[36px] sm:min-h-[40px] flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2 dark:focus:ring-offset-slate-900"
                 title={sortOrder === 'asc' ? 'По возрастанию' : 'По убыванию'}
-                aria-label={sortOrder === 'asc' ? 'По возрастанию' : 'По убыванию'}
+                aria-label={`${sortOrder === 'asc' ? 'По возрастанию' : 'По убыванию'}. Нажмите для изменения порядка сортировки`}
+                aria-pressed={sortOrder === 'desc'}
              >
-                 {sortOrder === 'asc' ? <ArrowUp size={16} className="sm:w-[18px] sm:h-[18px]" /> : <ArrowDown size={16} className="sm:w-[18px] sm:h-[18px]" />}
+                 {sortOrder === 'asc' ? <ArrowUp size={16} className="sm:w-[18px] sm:h-[18px]" aria-hidden="true" /> : <ArrowDown size={16} className="sm:w-[18px] sm:h-[18px]" aria-hidden="true" />}
              </button>
          </div>
          <div className="flex items-center justify-between sm:justify-end gap-2 sm:gap-4">
@@ -173,9 +182,10 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks, projects, users, onTa
                workspaceId: '',
                priority: TaskPriority.NORMAL
              } as Task)}
-             className="flex items-center gap-1 sm:gap-1.5 px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm rounded-lg bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-semibold hover:from-indigo-700 hover:to-purple-700 transition-all shadow-lg shadow-indigo-500/30 hover:shadow-xl hover:shadow-indigo-500/40 hover:-translate-y-0.5 active:scale-95 touch-manipulation whitespace-nowrap flex-shrink-0"
+             className="flex items-center gap-1 sm:gap-1.5 px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm rounded-lg bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-semibold hover:from-indigo-700 hover:to-purple-700 transition-all shadow-lg shadow-indigo-500/30 hover:shadow-xl hover:shadow-indigo-500/40 hover:-translate-y-0.5 active:scale-95 touch-manipulation whitespace-nowrap flex-shrink-0 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 dark:focus:ring-offset-slate-900"
+             aria-label="Создать новую задачу"
            >
-             <Plus size={14} className="sm:w-4 sm:h-4" />
+             <Plus size={14} className="sm:w-4 sm:h-4" aria-hidden="true" />
              <span className="hidden xs:inline">Новая задача</span>
              <span className="xs:hidden">Создать</span>
            </button>
@@ -198,15 +208,15 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks, projects, users, onTa
       {/* Desktop View: Table */}
       <div className="hidden md:block overflow-hidden bg-white dark:bg-slate-800/80 backdrop-blur-sm rounded-xl shadow-lg border border-gray-200 dark:border-slate-700/50 flex-1">
         <div className="overflow-x-auto h-full">
-            <table className="min-w-full divide-y divide-gray-200 dark:divide-slate-700/50">
+            <table className="min-w-full divide-y divide-gray-200 dark:divide-slate-700/50" role="table" aria-label="Список задач">
                 <thead className="bg-gradient-to-r from-gray-50 to-white dark:from-slate-800 dark:to-slate-900 sticky top-0 z-10 border-b border-gray-200 dark:border-slate-700/50">
-                <tr>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Название</th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Проект</th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Статус</th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Исполнитель</th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Срок</th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Приоритет</th>
+                <tr role="row">
+                    <th scope="col" className="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Название</th>
+                    <th scope="col" className="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Проект</th>
+                    <th scope="col" className="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Статус</th>
+                    <th scope="col" className="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Исполнитель</th>
+                    <th scope="col" className="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Срок</th>
+                    <th scope="col" className="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-slate-400 uppercase tracking-wider">Приоритет</th>
                 </tr>
                 </thead>
                 <tbody className="bg-white dark:bg-slate-900/50 divide-y divide-gray-100 dark:divide-slate-800/50">
@@ -218,7 +228,16 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks, projects, users, onTa
                     <tr 
                         key={task.id} 
                         onClick={() => onEditTask(task)}
-                        className="hover:bg-indigo-50/30 dark:hover:bg-slate-800/60 cursor-pointer transition-all group"
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            onEditTask(task);
+                          }
+                        }}
+                        className="hover:bg-indigo-50/30 dark:hover:bg-slate-800/60 cursor-pointer transition-all group focus-within:bg-indigo-50/30 dark:focus-within:bg-slate-800/60 focus-within:outline-none focus-within:ring-2 focus-within:ring-sky-500 focus-within:ring-inset"
+                        role="row"
+                        tabIndex={0}
+                        aria-label={`Задача: ${task.title}. Статус: ${getStatusLabel(task.status)}. Приоритет: ${getPriorityLabel(task.priority)}. Нажмите Enter или Space для редактирования`}
                     >
                         <td className="px-6 py-4">
                             <div className="text-sm font-semibold text-gray-900 dark:text-slate-100 group-hover:text-indigo-600 dark:group-hover:text-sky-400 transition-colors">{task.title}</div>

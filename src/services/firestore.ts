@@ -20,7 +20,7 @@ import {
   arrayUnion
 } from 'firebase/firestore';
 import { db } from '../firebase';
-import { InviteStatus, Project, Task, TaskPriority, TaskStatus, User, UserRole, Workspace, WorkspaceInvite, WorkspaceMember } from '../types';
+import { InviteStatus, Project, Task, TaskComment, TaskPriority, TaskStatus, User, UserRole, Workspace, WorkspaceInvite, WorkspaceMember } from '../types';
 import { logger } from '../utils/logger';
 import { getMoscowISOString } from '../utils/dateUtils';
 
@@ -897,5 +897,47 @@ export const FirestoreService = {
       ...updates,
       updatedAt: getMoscowISOString()
     });
+  },
+
+  // --- Task Comments ---
+
+  subscribeToTaskComments(taskId: string, callback: (comments: TaskComment[]) => void) {
+    const commentsRef = collection(db, 'tasks', taskId, 'comments');
+    const q = query(commentsRef, orderBy('createdAt', 'desc')); // Новые сверху
+
+    return onSnapshot(q, (snapshot) => {
+      const comments: TaskComment[] = snapshot.docs.map(docSnap => ({
+        ...(docSnap.data() as Omit<TaskComment, 'id'>),
+        id: docSnap.id
+      }));
+      callback(comments);
+    }, (error) => {
+      logger.error('[subscribeToTaskComments] Error in snapshot', {
+        taskId,
+        error: error instanceof Error ? error.message : String(error),
+        code: (error as any)?.code
+      });
+    });
+  },
+
+  async createTaskComment(taskId: string, comment: Omit<TaskComment, 'id' | 'createdAt'>): Promise<TaskComment> {
+    const commentsRef = collection(db, 'tasks', taskId, 'comments');
+    const commentData = {
+      ...comment,
+      createdAt: getMoscowISOString()
+    };
+
+    const docRef = await addDoc(commentsRef, commentData);
+    const docSnap = await getDoc(docRef);
+    
+    return {
+      ...(docSnap.data() as Omit<TaskComment, 'id'>),
+      id: docSnap.id
+    };
+  },
+
+  async deleteTaskComment(taskId: string, commentId: string): Promise<void> {
+    const commentRef = doc(db, 'tasks', taskId, 'comments', commentId);
+    await deleteDoc(commentRef);
   }
 };

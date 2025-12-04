@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from "react";
-import { Sparkles, Send, X, ChevronUp, ChevronDown } from "lucide-react";
+import { Sparkles, Send, X, ChevronUp, ChevronDown, FileText, Calendar, CheckSquare, Lightbulb, Zap, HelpCircle } from "lucide-react";
 import { formatMoscowDate } from '../utils/dateUtils';
 
 interface Message {
@@ -7,6 +7,12 @@ interface Message {
   role: 'user' | 'assistant';
   content: string;
   timestamp: Date;
+  suggestedTasks?: Array<{
+    title: string;
+    description?: string;
+    priority?: string;
+    dueDate?: string;
+  }>;
 }
 
 interface AICommandBarProps {
@@ -28,6 +34,50 @@ const isTouchEnvironment =
     ((navigator as NavigatorWithTouch).maxTouchPoints ?? 0) > 0 ||
     ((navigator as NavigatorWithTouch).msMaxTouchPoints ?? 0) > 0);
 
+// Пресеты с понятными сценариями
+const PRESET_SCENARIOS = [
+  {
+    id: 'parse-text',
+    title: 'Разобрать текст на задачи',
+    description: 'Вставьте большой текст, и AI разобьёт его на отдельные задачи',
+    icon: FileText,
+    prompt: 'Разбери следующий текст и создай задачи:',
+    example: 'Пример: "Нужно сделать: 1) Обновить дизайн главной страницы 2) Написать документацию 3) Провести тестирование"'
+  },
+  {
+    id: 'plan-week',
+    title: 'План на неделю',
+    description: 'AI создаст структурированный план задач на неделю',
+    icon: Calendar,
+    prompt: 'Создай план задач на эту неделю для проекта',
+    example: 'Пример: "Создай план разработки на неделю с задачами по фронтенду и бэкенду"'
+  },
+  {
+    id: 'review-overdue',
+    title: 'Проверить просроченные',
+    description: 'Найти и проанализировать просроченные задачи',
+    icon: CheckSquare,
+    prompt: 'Проверь просроченные задачи и предложи план действий',
+    example: 'Пример: "Найди все просроченные задачи и предложи, как их решить"'
+  },
+  {
+    id: 'breakdown-task',
+    title: 'Разбить задачу на подзадачи',
+    description: 'Большую задачу можно разбить на более мелкие',
+    icon: Zap,
+    prompt: 'Разбей эту задачу на подзадачи:',
+    example: 'Пример: "Разбей задачу \'Разработать мобильное приложение\' на подзадачи"'
+  },
+  {
+    id: 'suggest-priorities',
+    title: 'Предложить приоритеты',
+    description: 'AI проанализирует задачи и предложит приоритеты',
+    icon: Lightbulb,
+    prompt: 'Проанализируй задачи и предложи приоритеты',
+    example: 'Пример: "Посмотри все задачи и предложи, какие нужно сделать в первую очередь"'
+  }
+] as const;
+
 export const AICommandBar: React.FC<AICommandBarProps> = ({
   onCommand,
   isProcessing,
@@ -36,7 +86,13 @@ export const AICommandBar: React.FC<AICommandBarProps> = ({
   const [isOpen, setIsOpen] = useState(false);
   const [input, setInput] = useState("");
   const [localMessages, setLocalMessages] = useState<Message[]>([]);
+  const [showTooltip, setShowTooltip] = useState(false);
+  const [hasSeenWelcome, setHasSeenWelcome] = useState(() => {
+    // Проверяем, видел ли пользователь приветствие
+    return localStorage.getItem('ai-welcome-seen') === 'true';
+  });
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const tooltipTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Синхронизируем локальные сообщения с историей из App
   useEffect(() => {
@@ -55,7 +111,7 @@ export const AICommandBar: React.FC<AICommandBarProps> = ({
       }
       return historyMessages;
     });
-  }, [chatHistory]); // Обновляем при изменении истории
+  }, [chatHistory]);
 
   // Автопрокрутка к последнему сообщению
   useEffect(() => {
@@ -64,29 +120,29 @@ export const AICommandBar: React.FC<AICommandBarProps> = ({
     }
   }, [localMessages]);
 
-  const quickPrompts = useMemo(
-    () => [
-      "Сформулируй задачи из моего сообщения",
-      "Разбей текущую большую задачу на подзадачи",
-      "Проверь, ничего ли не упущено по срокам на этой неделе",
-      "Предложи приоритеты задач на завтра",
-    ],
-    []
-  );
+  // Показываем приветствие при первом открытии
+  useEffect(() => {
+    if (isOpen && !hasSeenWelcome && localMessages.length === 0) {
+      // Не добавляем приветствие в сообщения, оно будет показано в UI
+    }
+  }, [isOpen, hasSeenWelcome, localMessages.length]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim() || isProcessing) return;
 
-    // Не добавляем сообщение пользователя сразу - оно появится из chatHistory
     const commandText = input.trim();
     setInput("");
+
+    // Помечаем, что пользователь видел приветствие
+    if (!hasSeenWelcome) {
+      setHasSeenWelcome(true);
+      localStorage.setItem('ai-welcome-seen', 'true');
+    }
 
     try {
       const response = await onCommand(commandText);
       
-      // Ответ тоже появится из chatHistory через useEffect
-      // Но если ответ не пришел, показываем ошибку
       if (!response) {
         const errorMessage: Message = {
           id: Date.now().toString(),
@@ -107,21 +163,86 @@ export const AICommandBar: React.FC<AICommandBarProps> = ({
     }
   };
 
+  const handlePresetClick = (preset: typeof PRESET_SCENARIOS[number]) => {
+    setInput(preset.prompt);
+    // Помечаем, что пользователь видел приветствие
+    if (!hasSeenWelcome) {
+      setHasSeenWelcome(true);
+      localStorage.setItem('ai-welcome-seen', 'true');
+    }
+  };
+
+  const handleTooltipShow = () => {
+    if (tooltipTimeoutRef.current) {
+      clearTimeout(tooltipTimeoutRef.current);
+    }
+    setShowTooltip(true);
+  };
+
+  const handleTooltipHide = () => {
+    tooltipTimeoutRef.current = setTimeout(() => {
+      setShowTooltip(false);
+    }, 200);
+  };
+
+  // Компонент кнопки с tooltip
+  const AIButton = ({ className, onClick, children }: { className: string; onClick: () => void; children: React.ReactNode }) => (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={onClick}
+        onMouseEnter={handleTooltipShow}
+        onMouseLeave={handleTooltipHide}
+        onFocus={handleTooltipShow}
+        onBlur={handleTooltipHide}
+        className={className}
+        aria-label="Открыть AI-помощник"
+        aria-describedby="ai-tooltip"
+      >
+        {children}
+      </button>
+      {showTooltip && !isOpen && (
+        <div
+          id="ai-tooltip"
+          role="tooltip"
+          className="absolute bottom-full right-0 mb-2 w-72 p-3 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-xl z-50 animate-fade-in-down"
+          onMouseEnter={handleTooltipShow}
+          onMouseLeave={handleTooltipHide}
+        >
+          <div className="flex items-start gap-2 mb-2">
+            <Sparkles className="w-4 h-4 text-indigo-500 mt-0.5 flex-shrink-0" aria-hidden="true" />
+            <div>
+              <h3 className="text-sm font-semibold text-gray-900 dark:text-slate-100 mb-1">
+                AI-помощник
+              </h3>
+              <p className="text-xs text-gray-600 dark:text-slate-400 leading-relaxed">
+                Помогает создавать задачи, планировать спринты, разбирать тексты и анализировать работу команды
+              </p>
+            </div>
+          </div>
+          <div className="pt-2 border-t border-gray-100 dark:border-slate-700">
+            <p className="text-xs text-gray-500 dark:text-slate-500">
+              <strong>Примеры:</strong> "Разбей текст на задачи", "Создай план на неделю", "Проверь просроченные задачи"
+            </p>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
   // ===== МОБИЛЬНАЯ ВЕРСИЯ: кнопка + чат =====
   if (isTouchEnvironment) {
     return (
       <>
         {/* Плавающая кнопка для открытия чата */}
         {!isOpen && (
-          <button
-            type="button"
-            onClick={() => setIsOpen(true)}
+          <AIButton
             className="fixed bottom-20 sm:bottom-24 right-4 z-40 flex items-center gap-2 rounded-full bg-gradient-to-r from-indigo-500 to-purple-600 text-white px-3 sm:px-4 py-2.5 sm:py-3 shadow-xl shadow-indigo-500/40 hover:shadow-2xl hover:shadow-indigo-500/50 hover:scale-110 active:scale-95 transition-all font-semibold touch-manipulation"
-            aria-label="Открыть AI-помощник"
+            onClick={() => setIsOpen(true)}
           >
             <Sparkles className="h-4 w-4 sm:h-5 sm:w-5" />
             <span className="text-xs sm:text-sm hidden xs:inline">AI-помощь</span>
-          </button>
+          </AIButton>
         )}
 
         {/* Чат панель */}
@@ -146,6 +267,7 @@ export const AICommandBar: React.FC<AICommandBarProps> = ({
                 type="button"
                 onClick={() => setIsOpen(false)}
                 className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-gray-300 dark:border-slate-700 text-gray-600 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-800 hover:text-gray-900 dark:hover:text-slate-100 transition-all"
+                aria-label="Закрыть AI-помощник"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -153,26 +275,85 @@ export const AICommandBar: React.FC<AICommandBarProps> = ({
 
             {/* Сообщения */}
             <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
-              {localMessages.length === 0 && (
-                <div className="text-center py-8">
-                  <p className="text-sm text-gray-600 dark:text-slate-400 mb-4">
-                    Начните диалог с AI-помощником
-                  </p>
-                  <div className="flex flex-wrap gap-2 justify-center">
-                    {quickPrompts.map((prompt) => (
-                      <button
-                        key={prompt}
-                        type="button"
-                        onClick={() => setInput(prompt)}
-                        className="rounded-full border border-gray-300 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 px-3 py-1.5 text-xs text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition-all"
-                      >
-                        {prompt}
-                      </button>
-                    ))}
+              {/* Приветственное сообщение при первом открытии */}
+              {localMessages.length === 0 && !hasSeenWelcome && (
+                <div className="mb-6 p-4 bg-gradient-to-br from-indigo-50 to-purple-50 dark:from-indigo-900/20 dark:to-purple-900/20 border border-indigo-200 dark:border-indigo-800 rounded-xl">
+                  <div className="flex items-start gap-3 mb-3">
+                    <div className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-r from-indigo-500 to-purple-600 flex-shrink-0">
+                      <HelpCircle className="h-4 w-4 text-white" />
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="text-sm font-semibold text-gray-900 dark:text-slate-100 mb-2">
+                        Что умеет AI-помощник?
+                      </h3>
+                      <ul className="text-xs text-gray-700 dark:text-slate-300 space-y-1.5 mb-3">
+                        <li className="flex items-start gap-2">
+                          <span className="text-indigo-500 mt-0.5">•</span>
+                          <span><strong>Создавать задачи</strong> из текста или команд</span>
+                        </li>
+                        <li className="flex items-start gap-2">
+                          <span className="text-indigo-500 mt-0.5">•</span>
+                          <span><strong>Разбивать</strong> большие задачи на подзадачи</span>
+                        </li>
+                        <li className="flex items-start gap-2">
+                          <span className="text-indigo-500 mt-0.5">•</span>
+                          <span><strong>Планировать</strong> спринты и недели</span>
+                        </li>
+                        <li className="flex items-start gap-2">
+                          <span className="text-indigo-500 mt-0.5">•</span>
+                          <span><strong>Анализировать</strong> просроченные задачи</span>
+                        </li>
+                        <li className="flex items-start gap-2">
+                          <span className="text-indigo-500 mt-0.5">•</span>
+                          <span><strong>Предлагать</strong> приоритеты и сроки</span>
+                        </li>
+                      </ul>
+                      <p className="text-xs text-gray-600 dark:text-slate-400 italic">
+                        Просто опишите, что нужно сделать, и AI поможет структурировать это в задачи
+                      </p>
+                    </div>
                   </div>
                 </div>
               )}
 
+              {/* Пресеты при пустом чате */}
+              {localMessages.length === 0 && (
+                <div className="space-y-3">
+                  <p className="text-sm font-medium text-gray-700 dark:text-slate-300 text-center mb-3">
+                    Попробуйте один из сценариев:
+                  </p>
+                  {PRESET_SCENARIOS.map((preset) => {
+                    const Icon = preset.icon;
+                    return (
+                      <button
+                        key={preset.id}
+                        type="button"
+                        onClick={() => handlePresetClick(preset)}
+                        className="w-full text-left p-3 rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-gray-50 dark:hover:bg-slate-700 transition-all group"
+                      >
+                        <div className="flex items-start gap-3">
+                          <div className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 text-white flex-shrink-0 group-hover:scale-110 transition-transform">
+                            <Icon className="h-4 w-4" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <h4 className="text-sm font-semibold text-gray-900 dark:text-slate-100 mb-1">
+                              {preset.title}
+                            </h4>
+                            <p className="text-xs text-gray-600 dark:text-slate-400 mb-2">
+                              {preset.description}
+                            </p>
+                            <p className="text-[10px] text-gray-500 dark:text-slate-500 italic">
+                              {preset.example}
+                            </p>
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Сообщения чата */}
               {localMessages.map((message) => (
                 <div
                   key={message.id}
@@ -219,27 +400,29 @@ export const AICommandBar: React.FC<AICommandBarProps> = ({
                   disabled={isProcessing}
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
-                  placeholder="Напишите сообщение..."
+                  placeholder="Напишите команду или опишите задачу..."
                 />
                 <button
                   type="submit"
                   disabled={isProcessing || !input.trim()}
                   className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-lg shadow-indigo-500/30 disabled:opacity-40 disabled:cursor-not-allowed hover:shadow-xl hover:shadow-indigo-500/40 hover:scale-110 transition-all"
                   title="Отправить"
+                  aria-label="Отправить сообщение"
                 >
                   <Send className="h-4 w-4" />
                 </button>
               </form>
 
+              {/* Быстрые пресеты под полем ввода */}
               <div className="mt-2 flex flex-wrap gap-1.5">
-                {quickPrompts.map((prompt) => (
+                {PRESET_SCENARIOS.slice(0, 3).map((preset) => (
                   <button
-                    key={prompt}
+                    key={preset.id}
                     type="button"
-                    onClick={() => setInput(prompt)}
+                    onClick={() => handlePresetClick(preset)}
                     className="rounded-full border border-gray-300 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 px-2.5 py-1 text-[10px] text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition-all"
                   >
-                    {prompt}
+                    {preset.title}
                   </button>
                 ))}
               </div>
@@ -255,14 +438,13 @@ export const AICommandBar: React.FC<AICommandBarProps> = ({
     <>
       {/* Плавающая кнопка — только на десктопе */}
       {!isOpen && (
-        <button
-          type="button"
-          onClick={() => setIsOpen(true)}
+        <AIButton
           className="hidden md:flex fixed bottom-6 right-6 z-30 items-center gap-2 rounded-full bg-gradient-to-r from-indigo-500 to-purple-600 text-white px-5 py-3 shadow-xl shadow-indigo-500/40 hover:shadow-2xl hover:shadow-indigo-500/50 hover:scale-110 transition-all font-semibold"
+          onClick={() => setIsOpen(true)}
         >
           <Sparkles className="h-4 w-4" />
           <span className="text-sm">AI-помощник</span>
-        </button>
+        </AIButton>
       )}
 
       {/* Чат панель — нижнее окошко */}
@@ -288,6 +470,7 @@ export const AICommandBar: React.FC<AICommandBarProps> = ({
                 type="button"
                 onClick={() => setIsOpen(false)}
                 className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-gray-300 dark:border-slate-700 text-gray-600 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-800 hover:text-gray-900 dark:hover:text-slate-100 transition-all"
+                aria-label="Закрыть AI-помощник"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -295,26 +478,84 @@ export const AICommandBar: React.FC<AICommandBarProps> = ({
 
             {/* Сообщения */}
             <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
-              {localMessages.length === 0 && (
-                <div className="text-center py-8">
-                  <p className="text-sm text-gray-600 dark:text-slate-400 mb-4">
-                    Начните диалог с AI-помощником
-                  </p>
-                  <div className="flex flex-wrap gap-2 justify-center">
-                    {quickPrompts.map((prompt) => (
-                      <button
-                        key={prompt}
-                        type="button"
-                        onClick={() => setInput(prompt)}
-                        className="rounded-full border border-gray-300 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 px-3 py-1.5 text-xs text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition-all"
-                      >
-                        {prompt}
-                      </button>
-                    ))}
+              {/* Приветственное сообщение при первом открытии */}
+              {localMessages.length === 0 && !hasSeenWelcome && (
+                <div className="mb-6 p-4 bg-gradient-to-br from-indigo-50 to-purple-50 dark:from-indigo-900/20 dark:to-purple-900/20 border border-indigo-200 dark:border-indigo-800 rounded-xl">
+                  <div className="flex items-start gap-3 mb-3">
+                    <div className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-r from-indigo-500 to-purple-600 flex-shrink-0">
+                      <HelpCircle className="h-4 w-4 text-white" />
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="text-sm font-semibold text-gray-900 dark:text-slate-100 mb-2">
+                        Что умеет AI-помощник?
+                      </h3>
+                      <ul className="text-xs text-gray-700 dark:text-slate-300 space-y-1.5 mb-3">
+                        <li className="flex items-start gap-2">
+                          <span className="text-indigo-500 mt-0.5">•</span>
+                          <span><strong>Создавать задачи</strong> из текста или команд</span>
+                        </li>
+                        <li className="flex items-start gap-2">
+                          <span className="text-indigo-500 mt-0.5">•</span>
+                          <span><strong>Разбивать</strong> большие задачи на подзадачи</span>
+                        </li>
+                        <li className="flex items-start gap-2">
+                          <span className="text-indigo-500 mt-0.5">•</span>
+                          <span><strong>Планировать</strong> спринты и недели</span>
+                        </li>
+                        <li className="flex items-start gap-2">
+                          <span className="text-indigo-500 mt-0.5">•</span>
+                          <span><strong>Анализировать</strong> просроченные задачи</span>
+                        </li>
+                        <li className="flex items-start gap-2">
+                          <span className="text-indigo-500 mt-0.5">•</span>
+                          <span><strong>Предлагать</strong> приоритеты и сроки</span>
+                        </li>
+                      </ul>
+                      <p className="text-xs text-gray-600 dark:text-slate-400 italic">
+                        Просто опишите, что нужно сделать, и AI поможет структурировать это в задачи
+                      </p>
+                    </div>
                   </div>
                 </div>
               )}
 
+              {/* Пресеты при пустом чате */}
+              {localMessages.length === 0 && (
+                <div className="space-y-2">
+                  <p className="text-sm font-medium text-gray-700 dark:text-slate-300 text-center mb-3">
+                    Попробуйте один из сценариев:
+                  </p>
+                  <div className="grid grid-cols-2 gap-2">
+                    {PRESET_SCENARIOS.map((preset) => {
+                      const Icon = preset.icon;
+                      return (
+                        <button
+                          key={preset.id}
+                          type="button"
+                          onClick={() => handlePresetClick(preset)}
+                          className="text-left p-3 rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-gray-50 dark:hover:bg-slate-700 transition-all group"
+                        >
+                          <div className="flex items-start gap-2 mb-2">
+                            <div className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 text-white flex-shrink-0 group-hover:scale-110 transition-transform">
+                              <Icon className="h-3.5 w-3.5" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <h4 className="text-xs font-semibold text-gray-900 dark:text-slate-100 mb-1">
+                                {preset.title}
+                              </h4>
+                            </div>
+                          </div>
+                          <p className="text-[10px] text-gray-600 dark:text-slate-400">
+                            {preset.description}
+                          </p>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Сообщения чата */}
               {localMessages.map((message) => (
                 <div
                   key={message.id}
@@ -360,18 +601,18 @@ export const AICommandBar: React.FC<AICommandBarProps> = ({
                   disabled={isProcessing}
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
-                  placeholder="Напишите сообщение..."
+                  placeholder="Напишите команду или опишите задачу..."
                 />
                 <div className="mt-3 flex items-center justify-between gap-3">
                   <div className="flex flex-wrap gap-1.5">
-                    {quickPrompts.map((prompt) => (
+                    {PRESET_SCENARIOS.slice(0, 4).map((preset) => (
                       <button
-                        key={prompt}
+                        key={preset.id}
                         type="button"
-                        onClick={() => setInput(prompt)}
+                        onClick={() => handlePresetClick(preset)}
                         className="rounded-full border border-gray-300 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 px-3 py-1 text-[11px] text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700 transition-all"
                       >
-                        {prompt}
+                        {preset.title}
                       </button>
                     ))}
                   </div>

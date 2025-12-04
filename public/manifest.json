@@ -1,0 +1,37 @@
+{
+  "name": "Command Task Planner",
+  "short_name": "Task Planner",
+  "description": "Командное управление задачами с поддержкой Kanban-доски, календаря, диаграммы Ганта и AI-помощника",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#0f172a",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/logo.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ],
+  "categories": ["productivity", "business"],
+  "lang": "ru",
+  "dir": "ltr",
+  "scope": "/",
+  "shortcuts": [
+    {
+      "name": "Создать задачу",
+      "short_name": "Новая задача",
+      "description": "Быстро создать новую задачу",
+      "url": "/?action=create-task",
+      "icons": [{ "src": "/logo.svg", "sizes": "any" }]
+    }
+  ]
+}
+

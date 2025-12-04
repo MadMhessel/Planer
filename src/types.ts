@@ -149,3 +149,16 @@ export type UserNotificationSettings = {
 };
 
 export type ViewMode = 'BOARD' | 'CALENDAR' | 'GANTT' | 'LIST' | 'DASHBOARD';
+
+// Task Comment type
+export type TaskComment = {
+  id: string;
+  taskId: string;
+  authorId: string;
+  authorName: string;
+  authorEmail?: string;
+  authorAvatar?: string;
+  text: string;
+  createdAt: string; // ISO string
+  updatedAt?: string; // ISO string (optional, for future edit functionality)
+};

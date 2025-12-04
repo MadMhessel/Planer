@@ -124,6 +124,10 @@ export const Layout: React.FC<LayoutProps> = ({
                   src="/logo.svg" 
                   alt="Command Task Planner" 
                   className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl shadow-lg"
+                  width="40"
+                  height="40"
+                  loading="eager"
+                  fetchpriority="high"
                 />
                 <div className="hidden sm:flex flex-col leading-tight">
                   <span className="font-bold text-xs sm:text-sm bg-gradient-to-r from-sky-500 to-indigo-600 dark:from-sky-400 dark:to-indigo-400 bg-clip-text text-transparent">
@@ -137,11 +141,16 @@ export const Layout: React.FC<LayoutProps> = ({
             {/* Center: Workspace Selector - Always visible on mobile */}
             <div className="flex items-center gap-0.5 sm:gap-1 flex-1 max-w-[120px] sm:max-w-[160px] md:max-w-xs mx-0.5 sm:mx-1 md:mx-2 min-w-0 overflow-hidden">
               <div className="relative flex-1 min-w-0">
+                <label htmlFor="workspace-selector" className="sr-only">
+                  Выберите рабочее пространство
+                </label>
                 <select
+                  id="workspace-selector"
                   className="w-full bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg text-[8px] sm:text-[10px] md:text-xs px-1 sm:px-1.5 md:px-2 py-1 sm:py-1.5 md:py-2 pr-5 sm:pr-6 md:pr-7 focus:ring-1 focus:ring-sky-500/50 focus:border-sky-500 transition-all text-gray-900 dark:text-slate-100 truncate appearance-none cursor-pointer"
                   value={currentWorkspaceId || ''}
                   onChange={e => onWorkspaceChange(e.target.value)}
                   title={currentWorkspace?.name || 'Выберите workspace'}
+                  aria-label="Выберите рабочее пространство"
                 >
                   {workspaces.length === 0 && (
                     <option value="">Нет пространств</option>
@@ -202,12 +211,14 @@ export const Layout: React.FC<LayoutProps> = ({
                 <div className="relative">
                   <button
                     onClick={onNotificationsToggle}
-                    className="relative p-1.5 sm:p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-800 transition-all text-gray-600 dark:text-slate-400"
+                    className="relative p-1.5 sm:p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-800 transition-all text-gray-600 dark:text-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2 dark:focus:ring-offset-slate-900"
                     title="Уведомления"
+                    aria-label={`Уведомления${unreadCount > 0 ? `, ${unreadCount} непрочитанных` : ''}`}
+                    aria-expanded="false"
                   >
-                    <Bell className="w-4 h-4 sm:w-5 sm:h-5" />
+                    <Bell className="w-4 h-4 sm:w-5 sm:h-5" aria-hidden="true" />
                     {unreadCount > 0 && (
-                      <span className="absolute -top-0.5 -right-0.5 bg-red-500 text-[9px] font-bold text-white rounded-full min-w-[16px] h-[16px] flex items-center justify-center shadow-lg animate-pulse px-1">
+                      <span className="absolute -top-0.5 -right-0.5 bg-red-500 text-[9px] font-bold text-white rounded-full min-w-[16px] h-[16px] flex items-center justify-center shadow-lg animate-pulse px-1" aria-label={`${unreadCount} непрочитанных уведомлений`}>
                         {unreadCount > 9 ? '9+' : unreadCount}
                       </span>
                     )}
@@ -230,18 +241,20 @@ export const Layout: React.FC<LayoutProps> = ({
                 {onProfileClick && (
                   <button
                     onClick={onProfileClick}
-                    className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs border border-gray-200 dark:border-slate-700 hover:bg-gray-100 dark:hover:bg-slate-800 transition-all font-medium text-gray-700 dark:text-slate-300"
+                    className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs border border-gray-200 dark:border-slate-700 hover:bg-gray-100 dark:hover:bg-slate-800 transition-all font-medium text-gray-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2 dark:focus:ring-offset-slate-900"
                     title="Профиль"
+                    aria-label="Открыть профиль пользователя"
                   >
-                    <UserIcon className="w-3.5 h-3.5" />
+                    <UserIcon className="w-3.5 h-3.5" aria-hidden="true" />
                     <span className="hidden md:inline">Профиль</span>
                   </button>
                 )}
                 <button
                   onClick={onLogout}
-                  className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs border border-gray-200 dark:border-slate-700 hover:bg-gray-100 dark:hover:bg-slate-800 transition-all font-medium text-gray-700 dark:text-slate-300"
+                  className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs border border-gray-200 dark:border-slate-700 hover:bg-gray-100 dark:hover:bg-slate-800 transition-all font-medium text-gray-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2 dark:focus:ring-offset-slate-900"
+                  aria-label="Выйти из системы"
                 >
-                  <LogOut className="w-3.5 h-3.5" />
+                  <LogOut className="w-3.5 h-3.5" aria-hidden="true" />
                   <span className="hidden md:inline">Выйти</span>
                 </button>
               </div>
@@ -249,7 +262,7 @@ export const Layout: React.FC<LayoutProps> = ({
           </div>
 
           {/* Desktop Navigation */}
-          <nav className="hidden md:flex items-center gap-1.5 px-4 pb-2 text-xs border-t border-gray-100 dark:border-slate-800">
+          <nav className="hidden md:flex items-center gap-1.5 px-4 pb-2 text-xs border-t border-gray-100 dark:border-slate-800" aria-label="Основная навигация">
             {viewButtons.map(btn => {
               const Icon = btn.icon;
               const active = view === btn.id;
@@ -258,13 +271,15 @@ export const Layout: React.FC<LayoutProps> = ({
                   key={btn.id}
                   onClick={() => onChangeView(btn.id)}
                   className={
-                    'flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all font-medium ' +
+                    'flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all font-medium focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2 dark:focus:ring-offset-slate-900 ' +
                     (active
                       ? 'bg-gradient-to-r from-sky-500 to-indigo-600 text-white shadow-lg shadow-sky-500/30'
                       : 'text-gray-600 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-800 hover:text-gray-900 dark:hover:text-slate-100')
                   }
+                  aria-label={`Переключиться на ${btn.label}`}
+                  aria-current={active ? 'page' : undefined}
                 >
-                  <Icon className="w-3.5 h-3.5" />
+                  <Icon className="w-3.5 h-3.5" aria-hidden="true" />
                   <span>{btn.label}</span>
                 </button>
               );
@@ -274,7 +289,7 @@ export const Layout: React.FC<LayoutProps> = ({
       </header>
 
       {/* Main Content */}
-      <main className="flex-1 max-w-7xl mx-auto w-full px-2 sm:px-3 md:px-4 lg:px-6 py-2 sm:py-3 md:py-4 pb-20 md:pb-4 overflow-x-hidden">
+      <main className="flex-1 max-w-7xl mx-auto w-full px-2 sm:px-3 md:px-4 lg:px-6 py-2 sm:py-3 md:py-4 pb-20 md:pb-4 overflow-x-hidden" role="main" aria-label="Основной контент приложения">
         <div className="w-full max-w-full overflow-x-hidden min-h-0">
           {children}
         </div>

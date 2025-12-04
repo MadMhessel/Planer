@@ -1,31 +1,44 @@
-import React, { useCallback, useEffect, useState, useMemo } from 'react';
+import React, { useCallback, useEffect, useState, useMemo, lazy, Suspense } from 'react';
 import { Layout } from './components/Layout';
-// Code splitting для больших компонентов
-import { TaskList } from './components/TaskList';
-import { KanbanBoard } from './components/KanbanBoard';
-import { lazy, Suspense } from 'react';
+import { AuthService } from './services/auth';
+import { StorageService } from './services/storage';
 
+// ===== LAZY LOADING: Основные экраны =====
+// Эти компоненты загружаются только при переключении на соответствующий view
 const CalendarView = lazy(() => import('./components/CalendarView').then(m => ({ default: m.CalendarView })));
 const GanttChart = lazy(() => import('./components/GanttChart').then(m => ({ default: m.GanttChart })));
 const Dashboard = lazy(() => import('./components/Dashboard').then(m => ({ default: m.Dashboard })));
-import { TaskModal } from './components/TaskModal';
-import { ProjectModal } from './components/ProjectModal';
-import { UserModal } from './components/UserModal';
-import { ProfileModal } from './components/ProfileModal';
-import { SettingsView } from './components/SettingsView';
-import { AuthView } from './components/AuthView';
+const TaskList = lazy(() => import('./components/TaskList').then(m => ({ default: m.TaskList })));
+const KanbanBoard = lazy(() => import('./components/KanbanBoard').then(m => ({ default: m.KanbanBoard })));
+const SettingsView = lazy(() => import('./components/SettingsView').then(m => ({ default: m.SettingsView })));
+const NotificationHistory = lazy(() => import('./components/NotificationHistory').then(m => ({ default: m.NotificationHistory })));
+
+// ===== LAZY LOADING: Модальные окна =====
+// Загружаются только при открытии
+const TaskModal = lazy(() => import('./components/TaskModal').then(m => ({ default: m.TaskModal })));
+const TaskProfile = lazy(() => import('./components/TaskProfile').then(m => ({ default: m.TaskProfile })));
+const ProjectModal = lazy(() => import('./components/ProjectModal').then(m => ({ default: m.ProjectModal })));
+const UserModal = lazy(() => import('./components/UserModal').then(m => ({ default: m.UserModal })));
+const ProfileModal = lazy(() => import('./components/ProfileModal').then(m => ({ default: m.ProfileModal })));
+
+// ===== LAZY LOADING: Auth и специальные компоненты =====
+const AuthView = lazy(() => import('./components/AuthView').then(m => ({ default: m.AuthView })));
+const AcceptInviteView = lazy(() => import('./components/AcceptInviteView').then(m => ({ default: m.AcceptInviteView })));
+const AICommandBar = lazy(() => import('./components/AICommandBar').then(m => ({ default: m.AICommandBar })));
+
+// ===== Синхронные импорты (легкие компоненты, используются всегда) =====
 import { WorkspaceSelector } from './components/WorkspaceSelector';
 import { NotificationCenter } from './components/NotificationCenter';
-import { NotificationHistory } from './components/NotificationHistory';
-import { AcceptInviteView } from './components/AcceptInviteView';
-import { AICommandBar } from './components/AICommandBar';
 
-// Spinner for Suspense fallbacks
-import { LoadingSpinner } from './components/LoadingSpinner';
-import { AuthService } from './services/auth';
-import { StorageService } from './services/storage';
-import { GeminiService } from './services/gemini';
-import { TelegramService } from './services/telegram';
+// ===== Skeleton компоненты для оптимизации CLS =====
+import { 
+  KanbanSkeleton, 
+  TaskListSkeleton, 
+  CalendarSkeleton, 
+  GanttSkeleton, 
+  DashboardSkeleton, 
+  SettingsSkeleton 
+} from './components/Skeleton';
 
 import { Project, Task, TaskPriority, TaskStatus, User, ViewMode, Notification } from './types';
 
@@ -68,6 +81,7 @@ const App: React.FC = () => {
   const [view, setView] = useState<AppView>('BOARD');
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [viewingTask, setViewingTask] = useState<Task | null>(null); // Задача для просмотра (профиль)
   const [isProjectModalOpen, setIsProjectModalOpen] = useState(false);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
@@ -527,6 +541,9 @@ const App: React.FC = () => {
       // Добавляем контекст текущих задач для поиска по названию
       const taskTitles = tasks.map(t => t.title).slice(0, 50); // Ограничиваем для промпта
 
+      // Динамическая загрузка GeminiService (загружается только при использовании AI)
+      const { GeminiService } = await import('./services/gemini');
+      
       // Получаем ответ от AI с историей
       const response = await GeminiService.suggestTasksFromCommand(command, {
         projectNames,
@@ -607,6 +624,8 @@ const App: React.FC = () => {
         });
         
         if (allRecipients.length > 0 && createdCount > 0) {
+          // Динамическая загрузка TelegramService (загружается только при отправке уведомлений)
+          const { TelegramService } = await import('./services/telegram');
           const uniqueRecipients = [...new Set(allRecipients)];
           await TelegramService.sendNotification(
             uniqueRecipients, 
@@ -698,19 +717,35 @@ const App: React.FC = () => {
 
   if (!currentUser) {
     return (
-      <AuthView
-        onAuth={handleAuth}
-      />
+      <Suspense fallback={
+        <div className="min-h-screen flex items-center justify-center bg-white dark:bg-slate-900">
+          <div className="text-center">
+            <div className="animate-pulse text-lg mb-2 text-gray-900 dark:text-slate-100">Загрузка...</div>
+          </div>
+        </div>
+      }>
+        <AuthView
+          onAuth={handleAuth}
+        />
+      </Suspense>
     );
   }
 
   if (inviteContext) {
     return (
-      <AcceptInviteView
-        currentUser={currentUser}
-        inviteContext={inviteContext}
-        onClose={() => setInviteContext(null)}
-      />
+      <Suspense fallback={
+        <div className="min-h-screen flex items-center justify-center bg-white dark:bg-slate-900">
+          <div className="text-center">
+            <div className="animate-pulse text-lg mb-2 text-gray-900 dark:text-slate-100">Загрузка...</div>
+          </div>
+        </div>
+      }>
+        <AcceptInviteView
+          currentUser={currentUser}
+          inviteContext={inviteContext}
+          onClose={() => setInviteContext(null)}
+        />
+      </Suspense>
     );
   }
 
@@ -747,32 +782,32 @@ const App: React.FC = () => {
       {currentWorkspace && (
         <>
           {view === 'BOARD' && (
-            <KanbanBoard
-              tasks={tasks}
-              projects={projects}
-              users={usersFromMembers}
-              onTaskClick={t => {
-                setEditingTask(t);
-                setIsTaskModalOpen(true);
-              }}
-              onStatusChange={(task, status) => handleUpdateTask(task.id, { status })}
-              onCreateTask={() => {
-                setEditingTask(null);
-                setIsTaskModalOpen(true);
-              }}
-              onDeleteTask={async (task) => {
-                await handleDeleteTask(task.id);
-              }}
-            />
+            <Suspense fallback={<KanbanSkeleton />}>
+              <KanbanBoard
+                tasks={tasks}
+                projects={projects}
+                users={usersFromMembers}
+                onTaskClick={t => {
+                  setViewingTask(t);
+                }}
+                onStatusChange={(task, status) => handleUpdateTask(task.id, { status })}
+                onCreateTask={() => {
+                  setEditingTask(null);
+                  setIsTaskModalOpen(true);
+                }}
+                onDeleteTask={async (task) => {
+                  await handleDeleteTask(task.id);
+                }}
+              />
+            </Suspense>
           )}
 
           {view === 'CALENDAR' && (
-            <Suspense fallback={<LoadingSpinner text="Загрузка календаря..." />}>
+            <Suspense fallback={<CalendarSkeleton />}>
               <CalendarView
                 tasks={tasks}
                 onTaskClick={t => {
-                  setEditingTask(t);
-                  setIsTaskModalOpen(true);
+                  setViewingTask(t);
                 }}
                 onCreateTask={(date) => {
                   if (!currentWorkspaceId) return;
@@ -793,40 +828,38 @@ const App: React.FC = () => {
           )}
 
           {view === 'GANTT' && (
-            <Suspense fallback={<LoadingSpinner text="Загрузка диаграммы Ганта..." />}>
+            <Suspense fallback={<GanttSkeleton />}>
               <GanttChart
                 tasks={tasks}
                 projects={projects}
                 onTaskClick={t => {
-                  setEditingTask(t);
-                  setIsTaskModalOpen(true);
+                  setViewingTask(t);
                 }}
                 onEditTask={t => {
-                  setEditingTask(t);
-                  setIsTaskModalOpen(true);
+                  setViewingTask(t);
                 }}
               />
             </Suspense>
           )}
 
           {view === 'LIST' && (
-            <TaskList
-              tasks={tasks}
-              projects={projects}
-              users={usersFromMembers}
-              onTaskClick={t => {
-                setEditingTask(t);
-                setIsTaskModalOpen(true);
-              }}
-              onEditTask={t => {
-                setEditingTask(t);
-                setIsTaskModalOpen(true);
-              }}
-            />
+            <Suspense fallback={<TaskListSkeleton />}>
+              <TaskList
+                tasks={tasks}
+                projects={projects}
+                users={usersFromMembers}
+                onTaskClick={t => {
+                  setViewingTask(t);
+                }}
+                onEditTask={t => {
+                  setViewingTask(t);
+                }}
+              />
+            </Suspense>
           )}
 
           {view === 'DASHBOARD' && (
-            <Suspense fallback={<LoadingSpinner text="Загрузка аналитики..." />}>
+            <Suspense fallback={<DashboardSkeleton />}>
               <Dashboard
                 tasks={tasks}
                 projects={projects}
@@ -835,58 +868,62 @@ const App: React.FC = () => {
           )}
 
           {view === 'NOTIFICATIONS' && currentWorkspace && currentUser && (
-            <NotificationHistory
-              notifications={notifications}
-              currentUserId={currentUser.id}
-              onMarkAsRead={async (notificationId: string) => {
-                try {
-                  if (firestoreNotifications.find(n => n.id === notificationId)) {
-                    await markAsRead(notificationId);
+            <Suspense fallback={<div className="space-y-2"><TaskListSkeleton /></div>}>
+              <NotificationHistory
+                notifications={notifications}
+                currentUserId={currentUser.id}
+                onMarkAsRead={async (notificationId: string) => {
+                  try {
+                    if (firestoreNotifications.find(n => n.id === notificationId)) {
+                      await markAsRead(notificationId);
+                    }
+                  } catch (error) {
+                    logger.error('Failed to mark notification as read', error instanceof Error ? error : undefined);
                   }
-                } catch (error) {
-                  logger.error('Failed to mark notification as read', error instanceof Error ? error : undefined);
-                }
-              }}
-              onDelete={async (notificationId: string) => {
-                try {
-                  if (firestoreNotifications.find(n => n.id === notificationId)) {
-                    await deleteNotification(notificationId);
-                  } else {
-                    // Удаляем локальное уведомление
-                    setLocalNotifications(prev => prev.filter(n => n.id !== notificationId));
+                }}
+                onDelete={async (notificationId: string) => {
+                  try {
+                    if (firestoreNotifications.find(n => n.id === notificationId)) {
+                      await deleteNotification(notificationId);
+                    } else {
+                      // Удаляем локальное уведомление
+                      setLocalNotifications(prev => prev.filter(n => n.id !== notificationId));
+                    }
+                  } catch (error) {
+                    logger.error('Failed to delete notification', error instanceof Error ? error : undefined);
                   }
-                } catch (error) {
-                  logger.error('Failed to delete notification', error instanceof Error ? error : undefined);
-                }
-              }}
-            />
+                }}
+              />
+            </Suspense>
           )}
 
           {view === 'SETTINGS' && currentWorkspace && (
-            <SettingsView
-              workspace={currentWorkspace}
-              members={members}
-              invites={invites}
-              projects={projects}
-              currentUser={currentUser}
-              onCreateProject={handleAddProject}
-              onUpdateProject={handleUpdateProject}
-              onDeleteProject={handleDeleteProject}
-              onNotification={(title, message, type = 'SYSTEM') => {
-                setLocalNotifications(prev => [
-                  {
-                    id: Date.now().toString(),
-                    workspaceId: currentWorkspace?.id || '',
-                    type,
-                    title,
-                    message,
-                    createdAt: getMoscowISOString(),
-                    readBy: []
-                  },
-                  ...prev
-                ]);
-              }}
-            />
+            <Suspense fallback={<SettingsSkeleton />}>
+              <SettingsView
+                workspace={currentWorkspace}
+                members={members}
+                invites={invites}
+                projects={projects}
+                currentUser={currentUser}
+                onCreateProject={handleAddProject}
+                onUpdateProject={handleUpdateProject}
+                onDeleteProject={handleDeleteProject}
+                onNotification={(title, message, type = 'SYSTEM') => {
+                  setLocalNotifications(prev => [
+                    {
+                      id: Date.now().toString(),
+                      workspaceId: currentWorkspace?.id || '',
+                      type,
+                      title,
+                      message,
+                      createdAt: getMoscowISOString(),
+                      readBy: []
+                    },
+                    ...prev
+                  ]);
+                }}
+              />
+            </Suspense>
           )}
 
           <NotificationCenter
@@ -936,101 +973,141 @@ const App: React.FC = () => {
             currentUserId={currentUser?.id}
           />
 
-          <TaskModal
-            isOpen={isTaskModalOpen}
-            task={editingTask}
-            projects={projects}
-            users={usersFromMembers}
-            onClose={() => setIsTaskModalOpen(false)}
-            onSave={async (t) => {
-              if (!currentWorkspaceId) return;
-
-              // Проверяем, существует ли задача: если editingTask был установлен и имеет id, значит это редактирование
-              const isExistingTask = editingTask && editingTask.id && editingTask.id.trim() !== '';
-              
-              if (isExistingTask && editingTask.id) {
-                // Фильтруем undefined значения перед передачей
-                const updateData: Partial<Task> = {
-                  workspaceId: currentWorkspaceId
-                };
-                
-                // Копируем только определенные поля из задачи
-                for (const [key, value] of Object.entries(t)) {
-                  if (value !== undefined && key !== 'id' && key !== 'workspaceId') {
-                    updateData[key as keyof Task] = value as any;
+          {/* Task Profile - просмотр задачи */}
+          {viewingTask && currentUser && (
+            <Suspense fallback={null}>
+              <TaskProfile
+                task={viewingTask}
+                projects={projects}
+                users={usersFromMembers}
+                currentUser={currentUser}
+                onClose={() => setViewingTask(null)}
+                onEdit={(task) => {
+                  setViewingTask(null);
+                  setEditingTask(task);
+                  setIsTaskModalOpen(true);
+                }}
+                onDelete={async (task) => {
+                  if (task.id) {
+                    await handleDeleteTask(task.id);
                   }
-                }
-                
-                await handleUpdateTask(editingTask.id, updateData);
-              } else {
-                // Для новой задачи добавляем workspaceId и убираем id
-                const { id, ...taskData } = t;
-                await handleAddTask({
-                  ...taskData,
-                  workspaceId: currentWorkspaceId
-                });
-              }
-
-              setIsTaskModalOpen(false);
-            }}
-            onDelete={async (t) => {
-              if (t.id) {
-                await handleDeleteTask(t.id);
-              }
-              setIsTaskModalOpen(false);
-            }}
-          />
-
-          <ProjectModal
-            isOpen={isProjectModalOpen}
-            project={editingProject}
-            onClose={() => setIsProjectModalOpen(false)}
-            onSave={async (p) => {
-              if (p.id) {
-                await handleUpdateProject(p.id, p);
-              } else {
-                await handleAddProject(p);
-              }
-              setIsProjectModalOpen(false);
-            }}
-            onDelete={async (projectId: string) => {
-              await handleDeleteProject(projectId);
-              setIsProjectModalOpen(false);
-            }}
-          />
-
-          <UserModal
-            isOpen={isUserModalOpen}
-            user={editingUser}
-            onClose={() => setIsUserModalOpen(false)}
-            onSave={async (u) => {
-              // Placeholder: пользовательские настройки/профиль
-              setEditingUser(null);
-              setIsUserModalOpen(false);
-            }}
-            onDelete={async (userId) => {
-              // Placeholder: удаление пользователя
-              setEditingUser(null);
-              setIsUserModalOpen(false);
-            }}
-          />
-
-          {currentUser && (
-            <ProfileModal
-              isOpen={isProfileModalOpen}
-              user={currentUser}
-              onClose={() => setIsProfileModalOpen(false)}
-              onUserUpdate={(updatedUser) => {
-                setCurrentUser(updatedUser);
-              }}
-            />
+                }}
+              />
+            </Suspense>
           )}
 
-          <AICommandBar
-            onCommand={handleCommand}
-            isProcessing={isProcessingCommand}
-            chatHistory={chatHistory}
-          />
+          {/* Task Modal - редактирование задачи */}
+          {isTaskModalOpen && (
+            <Suspense fallback={null}>
+              <TaskModal
+                isOpen={isTaskModalOpen}
+                task={editingTask}
+                projects={projects}
+                users={usersFromMembers}
+                onClose={() => setIsTaskModalOpen(false)}
+                onSave={async (t) => {
+                  if (!currentWorkspaceId) return;
+
+                  // Проверяем, существует ли задача: если editingTask был установлен и имеет id, значит это редактирование
+                  const isExistingTask = editingTask && editingTask.id && editingTask.id.trim() !== '';
+                  
+                  if (isExistingTask && editingTask.id) {
+                    // Фильтруем undefined значения перед передачей
+                    const updateData: Partial<Task> = {
+                      workspaceId: currentWorkspaceId
+                    };
+                    
+                    // Копируем только определенные поля из задачи
+                    for (const [key, value] of Object.entries(t)) {
+                      if (value !== undefined && key !== 'id' && key !== 'workspaceId') {
+                        updateData[key as keyof Task] = value as any;
+                      }
+                    }
+                    
+                    await handleUpdateTask(editingTask.id, updateData);
+                  } else {
+                    // Для новой задачи добавляем workspaceId и убираем id
+                    const { id, ...taskData } = t;
+                    await handleAddTask({
+                      ...taskData,
+                      workspaceId: currentWorkspaceId
+                    });
+                  }
+
+                  setIsTaskModalOpen(false);
+                }}
+                onDelete={async (t) => {
+                  if (t.id) {
+                    await handleDeleteTask(t.id);
+                  }
+                  setIsTaskModalOpen(false);
+                }}
+              />
+            </Suspense>
+          )}
+
+          {isProjectModalOpen && (
+            <Suspense fallback={null}>
+              <ProjectModal
+                isOpen={isProjectModalOpen}
+                project={editingProject}
+                onClose={() => setIsProjectModalOpen(false)}
+                onSave={async (p) => {
+                  if (p.id) {
+                    await handleUpdateProject(p.id, p);
+                  } else {
+                    await handleAddProject(p);
+                  }
+                  setIsProjectModalOpen(false);
+                }}
+                onDelete={async (projectId: string) => {
+                  await handleDeleteProject(projectId);
+                  setIsProjectModalOpen(false);
+                }}
+              />
+            </Suspense>
+          )}
+
+          {isUserModalOpen && (
+            <Suspense fallback={null}>
+              <UserModal
+                isOpen={isUserModalOpen}
+                user={editingUser}
+                onClose={() => setIsUserModalOpen(false)}
+                onSave={async (u) => {
+                  // Placeholder: пользовательские настройки/профиль
+                  setEditingUser(null);
+                  setIsUserModalOpen(false);
+                }}
+                onDelete={async (userId) => {
+                  // Placeholder: удаление пользователя
+                  setEditingUser(null);
+                  setIsUserModalOpen(false);
+                }}
+              />
+            </Suspense>
+          )}
+
+          {currentUser && isProfileModalOpen && (
+            <Suspense fallback={null}>
+              <ProfileModal
+                isOpen={isProfileModalOpen}
+                user={currentUser}
+                onClose={() => setIsProfileModalOpen(false)}
+                onUserUpdate={(updatedUser) => {
+                  setCurrentUser(updatedUser);
+                }}
+              />
+            </Suspense>
+          )}
+
+          <Suspense fallback={null}>
+            <AICommandBar
+              onCommand={handleCommand}
+              isProcessing={isProcessingCommand}
+              chatHistory={chatHistory}
+            />
+          </Suspense>
         </>
       )}
     </Layout>

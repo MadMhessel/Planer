@@ -11,14 +11,58 @@ export default defineConfig({
     },
   },
   build: {
+    // Увеличиваем лимит предупреждений для больших чанков
+    chunkSizeWarningLimit: 1000,
+    // Оптимизация для production
+    minify: 'esbuild',
+    // Генерируем source maps только для production (меньше размер)
+    sourcemap: false,
+    // Оптимизация CSS
+    cssCodeSplit: true,
+    // Оптимизация ассетов
+    assetsInlineLimit: 4096, // Инлайним маленькие файлы (< 4KB)
     commonjsOptions: {
       include: [/node_modules/],
       transformMixedEsModules: true,
     },
     rollupOptions: {
       output: {
-        manualChunks: {
-          'react-vendor': ['react', 'react-dom', 'react-is'],
+        // Улучшенное разделение на чанки для лучшего кэширования
+        manualChunks: (id) => {
+          // React и связанные библиотеки
+          if (id.includes('node_modules/react') || id.includes('node_modules/react-dom') || id.includes('node_modules/react-is')) {
+            return 'react-vendor';
+          }
+          // Firebase SDK
+          if (id.includes('node_modules/firebase')) {
+            return 'firebase-vendor';
+          }
+          // UI библиотеки (lucide-react, recharts)
+          if (id.includes('node_modules/lucide-react') || id.includes('node_modules/recharts')) {
+            return 'ui-vendor';
+          }
+          // AI библиотеки
+          if (id.includes('node_modules/@google/generative-ai')) {
+            return 'ai-vendor';
+          }
+          // Остальные node_modules
+          if (id.includes('node_modules')) {
+            return 'vendor';
+          }
+        },
+        // Оптимизация имен файлов для кэширования
+        chunkFileNames: 'assets/js/[name]-[hash].js',
+        entryFileNames: 'assets/js/[name]-[hash].js',
+        assetFileNames: (assetInfo) => {
+          const info = assetInfo.name.split('.');
+          const ext = info[info.length - 1];
+          if (/png|jpe?g|svg|gif|tiff|bmp|ico/i.test(ext)) {
+            return `assets/img/[name]-[hash][extname]`;
+          }
+          if (/woff2?|eot|ttf|otf/i.test(ext)) {
+            return `assets/fonts/[name]-[hash][extname]`;
+          }
+          return `assets/[ext]/[name]-[hash][extname]`;
         },
       },
     },
@@ -31,5 +75,10 @@ export default defineConfig({
         secure: false,
       }
     }
-  }
+  },
+  // Оптимизация для разработки
+  optimizeDeps: {
+    include: ['react', 'react-dom', 'firebase/app', 'firebase/auth', 'firebase/firestore'],
+    exclude: [],
+  },
 })

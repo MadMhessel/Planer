@@ -1,0 +1,14 @@
+# robots.txt для Command Task Planner
+User-agent: *
+Allow: /
+
+# Sitemap
+Sitemap: https://commandtaskplanner.com/sitemap.xml
+
+# Disallow API endpoints
+Disallow: /api/
+
+# Disallow admin/internal routes (если будут)
+# Disallow: /admin/
+# Disallow: /internal/
+
