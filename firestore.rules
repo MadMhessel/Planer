@@ -190,6 +190,11 @@ service cloud.firestore {
                            (request.auth.token.email == null || 
                             request.resource.data.email == request.auth.token.email ||
                             request.resource.data.email.toLowerCase() == request.auth.token.email.toLowerCase())) ||
+                          // Разрешаем создание демо-участников для владельца workspace (демо-режим)
+                          // Если workspace существует, пользователь является владельцем, и email участника заканчивается на @demo.com
+                          (exists(/databases/$(database)/documents/workspaces/$(workspaceId)) &&
+                           get(/databases/$(database)/documents/workspaces/$(workspaceId)).data.ownerId == request.auth.uid &&
+                           request.resource.data.email.matches('.*@demo\\.com$')) ||
                           // Разрешаем админам/владельцам добавлять участников (только если workspace существует)
                           (exists(/databases/$(database)/documents/workspaces/$(workspaceId)) &&
                            isAdminOrOwner(workspaceId)));
