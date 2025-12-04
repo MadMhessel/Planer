@@ -8,6 +8,12 @@ export default defineConfig({
     react({
       // Оптимизация для React 19
       jsxRuntime: 'automatic',
+      // Отключаем fast refresh для избежания проблем с React 19
+      fastRefresh: true,
+      // Явно указываем babel опции для совместимости
+      babel: {
+        plugins: [],
+      },
     })
   ],
   resolve: {
@@ -34,6 +40,7 @@ export default defineConfig({
       output: {
         // Улучшенное разделение на чанки для лучшего кэширования
         manualChunks: (id) => {
+          // Упрощенное разделение чанков для избежания проблем с React 19
           // React и связанные библиотеки
           if (id.includes('node_modules/react') || id.includes('node_modules/react-dom') || id.includes('node_modules/react-is')) {
             return 'react-vendor';

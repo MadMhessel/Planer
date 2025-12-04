@@ -34,11 +34,20 @@ if (!rootElement) {
   throw new Error('Root element not found');
 }
 
+// Проверяем, что React и ReactDOM инициализированы
+if (!React || !ReactDOM) {
+  logger.error('React or ReactDOM is not available');
+  throw new Error('React or ReactDOM is not available');
+}
+
 try {
-  // Временно отключен StrictMode из-за известной проблемы в React 19
+  // Отключен StrictMode из-за известной проблемы в React 19.2.0+
   // TODO: Включить обратно после обновления React или исправления проблемы
   // React.StrictMode вызывает ошибку "Cannot set properties of undefined (setting 'Activity')"
-  ReactDOM.createRoot(rootElement).render(
+  // Это известный баг в React 19, связанный с внутренними механизмами отслеживания компонентов
+  const root = ReactDOM.createRoot(rootElement);
+  
+  root.render(
     <ErrorBoundary>
       <App />
       <Toaster
@@ -65,9 +74,20 @@ try {
       />
     </ErrorBoundary>
   );
+  
   if (import.meta.env.DEV) {
     logger.info('App rendered successfully');
   }
 } catch (error) {
   logger.error('Failed to render app', error instanceof Error ? error : undefined);
+  // Показываем пользователю понятное сообщение об ошибке
+  rootElement.innerHTML = `
+    <div style="padding: 20px; text-align: center; font-family: sans-serif;">
+      <h1>Ошибка загрузки приложения</h1>
+      <p>Пожалуйста, обновите страницу или обратитесь в поддержку.</p>
+      <button onclick="window.location.reload()" style="padding: 10px 20px; margin-top: 10px; cursor: pointer;">
+        Обновить страницу
+      </button>
+    </div>
+  `;
 }
