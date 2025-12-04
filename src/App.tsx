@@ -289,6 +289,15 @@ const App: React.FC = () => {
     let mounted = true;
     let unsubscribe: (() => void) | null = null;
     
+    // Таймаут безопасности: если Firebase не инициализируется за 10 секунд, показываем UI
+    const safetyTimeout = setTimeout(() => {
+      if (mounted) {
+        logger.warn('Firebase initialization timeout - showing UI anyway');
+        console.warn('[App] Firebase initialization timeout');
+        setAuthLoading(false);
+      }
+    }, 10000);
+    
     // Инициализируем Firebase и затем настраиваем auth listener
     import('./firebase').then(({ firebaseInit }) => {
       // firebaseInit теперь функция, а не промис, поэтому вызываем её явно
@@ -296,30 +305,61 @@ const App: React.FC = () => {
     }).then(() => {
       if (!mounted) return;
       
+      clearTimeout(safetyTimeout);
+      logger.info('Firebase initialized, setting up auth listener');
+      console.log('[App] Firebase initialized successfully');
+      
       // После инициализации Firebase настраиваем auth listener
-      unsubscribe = AuthService.subscribeToAuth(async (user) => {
-        logger.info('Auth state changed', { hasUser: !!user, email: user?.email });
-        if (mounted) {
-          try {
-            setCurrentUser(user);
-            setAuthLoading(false);
-            logger.info('Auth state updated');
-          } catch (error) {
-            logger.error('Error setting user state', error instanceof Error ? error : undefined);
-            if (mounted) {
+      try {
+        let callbackCalled = false;
+        unsubscribe = AuthService.subscribeToAuth(async (user) => {
+          callbackCalled = true;
+          logger.info('Auth state changed', { hasUser: !!user, email: user?.email });
+          console.log('[App] Auth state changed', { hasUser: !!user });
+          if (mounted) {
+            try {
+              setCurrentUser(user);
               setAuthLoading(false);
+              logger.info('Auth state updated');
+              console.log('[App] Auth loading set to false');
+            } catch (error) {
+              logger.error('Error setting user state', error instanceof Error ? error : undefined);
+              console.error('[App] Error setting user state:', error);
+              if (mounted) {
+                setAuthLoading(false);
+              }
             }
           }
+        });
+        console.log('[App] Auth subscription set up');
+        
+        // Таймаут безопасности: если callback не вызвался за 2 секунды, устанавливаем authLoading в false
+        setTimeout(() => {
+          if (mounted && !callbackCalled) {
+            console.warn('[App] Auth callback not called within 2 seconds, setting authLoading to false');
+            logger.warn('Auth callback not called within timeout');
+            setAuthLoading(false);
+          }
+        }, 2000);
+      } catch (error) {
+        clearTimeout(safetyTimeout);
+        logger.error('Failed to subscribe to auth', error instanceof Error ? error : undefined);
+        console.error('[App] Auth subscription error:', error);
+        if (mounted) {
+          setAuthLoading(false);
         }
-      });
+      }
     }).catch((error) => {
+      clearTimeout(safetyTimeout);
       logger.error('Failed to initialize Firebase', error instanceof Error ? error : undefined);
+      console.error('[App] Firebase initialization error:', error);
       if (mounted) {
         setAuthLoading(false);
       }
     });
 
     return () => {
+      clearTimeout(safetyTimeout);
       logger.info('Cleaning up auth listener');
       mounted = false;
       if (unsubscribe) {

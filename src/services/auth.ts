@@ -24,56 +24,63 @@ const provider = new GoogleAuthProvider();
 
 export const AuthService = {
   subscribeToAuth(callback: (user: User | null) => void) {
-    // Получаем auth через функцию, которая гарантирует инициализацию
-    const auth = getAuthInstance();
-    return onAuthStateChanged(auth, async (firebaseUser) => {
-      try {
-        if (!firebaseUser) {
-          callback(null);
-          return;
-        }
-
-        // Получаем db через функцию, которая гарантирует инициализацию
-        const db = getFirestoreInstance();
-        const userRef = doc(db, 'users', firebaseUser.uid);
-        const snapshot = await getDoc(userRef);
-
-        if (!snapshot.exists()) {
-          // New user – create default profile
-          // Firestore не принимает undefined, поэтому создаем объект без undefined полей
-          const newUser: NewUserData = {
-            id: firebaseUser.uid,
-            email: firebaseUser.email || '',
-            displayName: firebaseUser.displayName || firebaseUser.email || '',
-            role: 'MEMBER',
-            isActive: true,
-            createdAt: getMoscowISOString(),
-            lastLoginAt: getMoscowISOString()
-          };
-          // Добавляем photoURL только если оно есть
-          if (firebaseUser.photoURL) {
-            newUser.photoURL = firebaseUser.photoURL;
+    try {
+      // Получаем auth через функцию, которая гарантирует инициализацию
+      const auth = getAuthInstance();
+      return onAuthStateChanged(auth, async (firebaseUser) => {
+        try {
+          if (!firebaseUser) {
+            callback(null);
+            return;
           }
 
-          await setDoc(userRef, newUser);
-          callback(newUser as User);
-        } else {
-          const data = snapshot.data() as User;
-          // Update lastLoginAt for existing user
-          await updateDoc(userRef, {
-            lastLoginAt: serverTimestamp()
-          });
-          callback({
-            ...data,
-            id: snapshot.id
-          });
+          // Получаем db через функцию, которая гарантирует инициализацию
+          const db = getFirestoreInstance();
+          const userRef = doc(db, 'users', firebaseUser.uid);
+          const snapshot = await getDoc(userRef);
+
+          if (!snapshot.exists()) {
+            // New user – create default profile
+            // Firestore не принимает undefined, поэтому создаем объект без undefined полей
+            const newUser: NewUserData = {
+              id: firebaseUser.uid,
+              email: firebaseUser.email || '',
+              displayName: firebaseUser.displayName || firebaseUser.email || '',
+              role: 'MEMBER',
+              isActive: true,
+              createdAt: getMoscowISOString(),
+              lastLoginAt: getMoscowISOString()
+            };
+            // Добавляем photoURL только если оно есть
+            if (firebaseUser.photoURL) {
+              newUser.photoURL = firebaseUser.photoURL;
+            }
+
+            await setDoc(userRef, newUser);
+            callback(newUser as User);
+          } else {
+            const data = snapshot.data() as User;
+            // Update lastLoginAt for existing user
+            await updateDoc(userRef, {
+              lastLoginAt: serverTimestamp()
+            });
+            callback({
+              ...data,
+              id: snapshot.id
+            });
+          }
+        } catch (error) {
+          logger.error('Error in subscribeToAuth', error instanceof Error ? error : undefined);
+          // В случае ошибки все равно вызываем callback с null, чтобы не блокировать UI
+          callback(null);
         }
-      } catch (error) {
-        logger.error('Error in subscribeToAuth', error instanceof Error ? error : undefined);
-        // В случае ошибки все равно вызываем callback с null, чтобы не блокировать UI
-        callback(null);
-      }
-    });
+      });
+    } catch (error) {
+      logger.error('Error in subscribeToAuth - Firebase not initialized', error instanceof Error ? error : undefined);
+      // Если Firebase не инициализирован, вызываем callback с null и возвращаем пустую функцию для unsubscribe
+      callback(null);
+      return () => {};
+    }
   },
 
   async loginWithGoogle(): Promise<User> {
