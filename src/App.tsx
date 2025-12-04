@@ -3,28 +3,82 @@ import { Layout } from './components/Layout';
 import { AuthService } from './services/auth';
 import { StorageService } from './services/storage';
 
+// ===== БЕЗОПАСНАЯ ФУНКЦИЯ ДЛЯ LAZY LOADING =====
+// Предотвращает ошибку "Cannot set properties of undefined (setting 'Activity')"
+// которая возникает, когда React пытается установить внутренние свойства на undefined компонент
+const createSafeLazyComponent = <T extends React.ComponentType<any>>(
+  importFn: () => Promise<{ [key: string]: T }>,
+  componentName: string
+): React.LazyExoticComponent<T> => {
+  return lazy(async () => {
+    try {
+      const module = await importFn();
+      const Component = module[componentName];
+      
+      // КРИТИЧЕСКАЯ ПРОВЕРКА: убеждаемся, что компонент существует и является функцией/классом
+      if (!Component) {
+        const error = new Error(`Component ${componentName} not found in module. Available exports: ${Object.keys(module).join(', ')}`);
+        logger.error('Lazy loading error', error);
+        throw error;
+      }
+      
+      // Проверяем, что это действительно React компонент
+      if (typeof Component !== 'function') {
+        const error = new Error(`Component ${componentName} is not a function. Type: ${typeof Component}`);
+        logger.error('Lazy loading error', error);
+        throw error;
+      }
+      
+      // Возвращаем компонент с гарантией, что он не undefined
+      return { default: Component };
+    } catch (error) {
+      logger.error(`Failed to load component ${componentName}`, error instanceof Error ? error : undefined);
+      // Возвращаем fallback компонент вместо undefined
+      const FallbackComponent: React.FC = () => (
+        <div className="min-h-screen flex items-center justify-center bg-white dark:bg-slate-900">
+          <div className="text-center p-6">
+            <h2 className="text-xl font-bold text-red-600 dark:text-red-400 mb-2">
+              Ошибка загрузки компонента
+            </h2>
+            <p className="text-gray-700 dark:text-slate-300 mb-4">
+              Не удалось загрузить {componentName}. Пожалуйста, обновите страницу.
+            </p>
+            <button
+              onClick={() => window.location.reload()}
+              className="px-4 py-2 bg-sky-500 hover:bg-sky-400 text-white rounded-lg transition"
+            >
+              Обновить страницу
+            </button>
+          </div>
+        </div>
+      );
+      return { default: FallbackComponent as T };
+    }
+  });
+};
+
 // ===== LAZY LOADING: Основные экраны =====
 // Эти компоненты загружаются только при переключении на соответствующий view
-const CalendarView = lazy(() => import('./components/CalendarView').then(m => ({ default: m.CalendarView })));
-const GanttChart = lazy(() => import('./components/GanttChart').then(m => ({ default: m.GanttChart })));
-const Dashboard = lazy(() => import('./components/Dashboard').then(m => ({ default: m.Dashboard })));
-const TaskList = lazy(() => import('./components/TaskList').then(m => ({ default: m.TaskList })));
-const KanbanBoard = lazy(() => import('./components/KanbanBoard').then(m => ({ default: m.KanbanBoard })));
-const SettingsView = lazy(() => import('./components/SettingsView').then(m => ({ default: m.SettingsView })));
-const NotificationHistory = lazy(() => import('./components/NotificationHistory').then(m => ({ default: m.NotificationHistory })));
+const CalendarView = createSafeLazyComponent(() => import('./components/CalendarView'), 'CalendarView');
+const GanttChart = createSafeLazyComponent(() => import('./components/GanttChart'), 'GanttChart');
+const Dashboard = createSafeLazyComponent(() => import('./components/Dashboard'), 'Dashboard');
+const TaskList = createSafeLazyComponent(() => import('./components/TaskList'), 'TaskList');
+const KanbanBoard = createSafeLazyComponent(() => import('./components/KanbanBoard'), 'KanbanBoard');
+const SettingsView = createSafeLazyComponent(() => import('./components/SettingsView'), 'SettingsView');
+const NotificationHistory = createSafeLazyComponent(() => import('./components/NotificationHistory'), 'NotificationHistory');
 
 // ===== LAZY LOADING: Модальные окна =====
 // Загружаются только при открытии
-const TaskModal = lazy(() => import('./components/TaskModal').then(m => ({ default: m.TaskModal })));
-const TaskProfile = lazy(() => import('./components/TaskProfile').then(m => ({ default: m.TaskProfile })));
-const ProjectModal = lazy(() => import('./components/ProjectModal').then(m => ({ default: m.ProjectModal })));
-const UserModal = lazy(() => import('./components/UserModal').then(m => ({ default: m.UserModal })));
-const ProfileModal = lazy(() => import('./components/ProfileModal').then(m => ({ default: m.ProfileModal })));
+const TaskModal = createSafeLazyComponent(() => import('./components/TaskModal'), 'TaskModal');
+const TaskProfile = createSafeLazyComponent(() => import('./components/TaskProfile'), 'TaskProfile');
+const ProjectModal = createSafeLazyComponent(() => import('./components/ProjectModal'), 'ProjectModal');
+const UserModal = createSafeLazyComponent(() => import('./components/UserModal'), 'UserModal');
+const ProfileModal = createSafeLazyComponent(() => import('./components/ProfileModal'), 'ProfileModal');
 
 // ===== LAZY LOADING: Auth и специальные компоненты =====
-const AuthView = lazy(() => import('./components/AuthView').then(m => ({ default: m.AuthView })));
-const AcceptInviteView = lazy(() => import('./components/AcceptInviteView').then(m => ({ default: m.AcceptInviteView })));
-const AICommandBar = lazy(() => import('./components/AICommandBar').then(m => ({ default: m.AICommandBar })));
+const AuthView = createSafeLazyComponent(() => import('./components/AuthView'), 'AuthView');
+const AcceptInviteView = createSafeLazyComponent(() => import('./components/AcceptInviteView'), 'AcceptInviteView');
+const AICommandBar = createSafeLazyComponent(() => import('./components/AICommandBar'), 'AICommandBar');
 
 // ===== Синхронные импорты (легкие компоненты, используются всегда) =====
 import { WorkspaceSelector } from './components/WorkspaceSelector';
