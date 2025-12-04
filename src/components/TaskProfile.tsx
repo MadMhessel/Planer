@@ -1,26 +1,12 @@
-import React, { useState, useEffect, lazy, Suspense } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Task, Project, User, TaskStatus, TaskPriority } from '../types';
 import { getStatusLabel, getPriorityLabel, getPriorityColor, getStatusColor } from '../utils/taskHelpers';
 import { formatMoscowDate } from '../utils/dateUtils';
 import { X, Edit, Calendar, User as UserIcon, Tag, Clock, Users, FileText } from 'lucide-react';
 
 // Lazy load TaskComments to avoid circular dependencies and improve performance
-// Используем динамический импорт с правильной обработкой ошибок для React 19
-const TaskComments = lazy(() => 
-  import('./TaskComments')
-    .then(module => ({ default: module.TaskComments }))
-    .catch(error => {
-      console.error('Failed to load TaskComments:', error);
-      // Возвращаем fallback компонент
-      return { 
-        default: () => (
-          <div className="flex items-center justify-center h-full">
-            <div className="text-sm text-red-500">Ошибка загрузки комментариев</div>
-          </div>
-        )
-      };
-    })
-);
+// Используем прямой импорт вместо lazy для избежания проблем с React 19
+import { TaskComments } from './TaskComments';
 
 interface TaskProfileProps {
   task: Task | null;
@@ -345,19 +331,13 @@ export const TaskProfile: React.FC<TaskProfileProps> = ({
           {/* Комментарии */}
           <div className="border-t border-gray-200 dark:border-slate-700 mt-6">
             <div className="h-[400px]">
-              <Suspense fallback={
-                <div className="flex items-center justify-center h-full">
-                  <div className="text-sm text-gray-500 dark:text-slate-400">Загрузка комментариев...</div>
-                </div>
-              }>
-                <TaskComments
-                  taskId={task.id}
-                  currentUserId={currentUser.id}
-                  currentUserName={currentUser.displayName || currentUser.email}
-                  currentUserEmail={currentUser.email}
-                  currentUserAvatar={currentUser.photoURL}
-                />
-              </Suspense>
+              <TaskComments
+                taskId={task.id}
+                currentUserId={currentUser.id}
+                currentUserName={currentUser.displayName || currentUser.email}
+                currentUserEmail={currentUser.email}
+                currentUserAvatar={currentUser.photoURL}
+              />
             </div>
           </div>
         </div>

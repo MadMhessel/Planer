@@ -35,34 +35,35 @@ if (!rootElement) {
 }
 
 try {
+  // Временно отключен StrictMode из-за известной проблемы в React 19
+  // TODO: Включить обратно после обновления React или исправления проблемы
+  // React.StrictMode вызывает ошибку "Cannot set properties of undefined (setting 'Activity')"
   ReactDOM.createRoot(rootElement).render(
-    <React.StrictMode>
-      <ErrorBoundary>
-        <App />
-        <Toaster
-          position="top-right"
-          toastOptions={{
-            duration: 4000,
-            style: {
-              background: 'var(--toast-bg, #fff)',
-              color: 'var(--toast-color, #000)',
+    <ErrorBoundary>
+      <App />
+      <Toaster
+        position="top-right"
+        toastOptions={{
+          duration: 4000,
+          style: {
+            background: 'var(--toast-bg, #fff)',
+            color: 'var(--toast-color, #000)',
+          },
+          success: {
+            iconTheme: {
+              primary: '#22c55e',
+              secondary: '#fff',
             },
-            success: {
-              iconTheme: {
-                primary: '#22c55e',
-                secondary: '#fff',
-              },
+          },
+          error: {
+            iconTheme: {
+              primary: '#ef4444',
+              secondary: '#fff',
             },
-            error: {
-              iconTheme: {
-                primary: '#ef4444',
-                secondary: '#fff',
-              },
-            },
-          }}
-        />
-      </ErrorBoundary>
-    </React.StrictMode>
+          },
+        }}
+      />
+    </ErrorBoundary>
   );
   if (import.meta.env.DEV) {
     logger.info('App rendered successfully');
