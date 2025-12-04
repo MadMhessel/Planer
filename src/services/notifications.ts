@@ -11,13 +11,18 @@ import {
   getDocs,
   deleteDoc
 } from 'firebase/firestore';
-import { db } from '../firebase';
+// КРИТИЧЕСКИ ВАЖНО: Не импортируем db напрямую, чтобы избежать ошибки
+// "Cannot access 'It' before initialization" в production сборке.
+// Вместо этого используем функцию getFirestoreInstance(),
+// которая гарантирует, что Firebase инициализирован перед использованием.
+import { getFirestoreInstance } from '../firebase';
 import { getMoscowISOString } from '../utils/dateUtils';
 import { Notification, WorkspaceMember } from '../types';
 import { logger } from '../utils/logger';
 
 export class NotificationsService {
   static workspaceCollection(workspaceId: string) {
+    const db = getFirestoreInstance();
     return collection(db, 'workspaces', workspaceId, 'notifications');
   }
 
@@ -103,6 +108,7 @@ export class NotificationsService {
       const q = query(this.workspaceCollection(workspaceId));
       const snapshot = await getDocs(q);
       
+      const db = getFirestoreInstance();
       const batch = writeBatch(db);
       snapshot.docs.forEach(docSnap => {
         const data = docSnap.data() as Notification;
@@ -130,6 +136,7 @@ export class NotificationsService {
       const q = query(this.workspaceCollection(workspaceId), orderBy('createdAt', 'desc'));
       const snapshot = await getDocs(q);
       
+      const db = getFirestoreInstance();
       const batch = writeBatch(db);
       let markedCount = 0;
       

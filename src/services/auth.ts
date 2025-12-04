@@ -7,17 +7,25 @@ import {
   signInAnonymously,
   signOut 
 } from 'firebase/auth';
-import { auth, db } from '../firebase';
+// КРИТИЧЕСКИ ВАЖНО: Не импортируем auth и db напрямую, чтобы избежать ошибки
+// "Cannot access 'It' before initialization" в production сборке.
+// Вместо этого используем функции getAuthInstance() и getFirestoreInstance(),
+// которые гарантируют, что Firebase инициализирован перед использованием.
+import { getAuthInstance, getFirestoreInstance } from '../firebase';
 import { User, UserRole } from '../types';
 import { NewUserData } from '../types/auth';
 import { doc, getDoc, serverTimestamp, setDoc, updateDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { logger } from '../utils/logger';
 import { getMoscowISOString } from '../utils/dateUtils';
 
+// Создаём provider на верхнем уровне - это безопасно, так как GoogleAuthProvider
+// не зависит от инициализации Firebase
 const provider = new GoogleAuthProvider();
 
 export const AuthService = {
   subscribeToAuth(callback: (user: User | null) => void) {
+    // Получаем auth через функцию, которая гарантирует инициализацию
+    const auth = getAuthInstance();
     return onAuthStateChanged(auth, async (firebaseUser) => {
       try {
         if (!firebaseUser) {
@@ -25,6 +33,8 @@ export const AuthService = {
           return;
         }
 
+        // Получаем db через функцию, которая гарантирует инициализацию
+        const db = getFirestoreInstance();
         const userRef = doc(db, 'users', firebaseUser.uid);
         const snapshot = await getDoc(userRef);
 
@@ -67,9 +77,11 @@ export const AuthService = {
   },
 
   async loginWithGoogle(): Promise<User> {
+    const auth = getAuthInstance();
     const result = await signInWithPopup(auth, provider);
     const firebaseUser = result.user;
 
+    const db = getFirestoreInstance();
     const userRef = doc(db, 'users', firebaseUser.uid);
     const snapshot = await getDoc(userRef);
 
@@ -105,10 +117,12 @@ export const AuthService = {
 
   async loginWithEmail(email: string, password: string): Promise<User> {
     try {
+      const auth = getAuthInstance();
       const result = await signInWithEmailAndPassword(auth, email, password);
       const firebaseUser = result.user;
 
-    const userRef = doc(db, 'users', firebaseUser.uid);
+      const db = getFirestoreInstance();
+      const userRef = doc(db, 'users', firebaseUser.uid);
     const snapshot = await getDoc(userRef);
 
     if (!snapshot.exists()) {
@@ -160,10 +174,12 @@ export const AuthService = {
 
   async registerWithEmail(email: string, password: string, displayName?: string): Promise<User> {
     try {
+      const auth = getAuthInstance();
       const result = await createUserWithEmailAndPassword(auth, email, password);
       const firebaseUser = result.user;
 
-    const userRef = doc(db, 'users', firebaseUser.uid);
+      const db = getFirestoreInstance();
+      const userRef = doc(db, 'users', firebaseUser.uid);
       // Firestore не принимает undefined, поэтому создаем объект без undefined полей
       const newUser: NewUserData = {
         id: firebaseUser.uid,
@@ -203,6 +219,7 @@ export const AuthService = {
       logger.info('[loginAsDemo] Начало входа в демо-режим');
       
       // Используем анонимную аутентификацию для демо-режима
+      const auth = getAuthInstance();
       const result = await signInAnonymously(auth);
       const firebaseUser = result.user;
 
@@ -213,6 +230,7 @@ export const AuthService = {
         displayName: firebaseUser.displayName
       });
 
+      const db = getFirestoreInstance();
       const userRef = doc(db, 'users', firebaseUser.uid);
       const snapshot = await getDoc(userRef);
 
@@ -308,6 +326,7 @@ export const AuthService = {
   },
 
   async logout() {
+    const auth = getAuthInstance();
     await signOut(auth);
   }
 };

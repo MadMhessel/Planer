@@ -2,7 +2,11 @@
 import { FirestoreService } from './firestore';
 import { User, Workspace, Task, Project, TaskStatus, TaskPriority, WorkspaceMember, UserRole } from '../types';
 import { logger } from '../utils/logger';
-import { db } from '../firebase';
+// КРИТИЧЕСКИ ВАЖНО: Не импортируем db напрямую, чтобы избежать ошибки
+// "Cannot access 'It' before initialization" в production сборке.
+// Вместо этого используем функцию getFirestoreInstance(),
+// которая гарантирует, что Firebase инициализирован перед использованием.
+import { getFirestoreInstance } from '../firebase';
 import { getMoscowISOString } from '../utils/dateUtils';
 import { collection, doc, setDoc, getDocs, getDoc, query, where } from 'firebase/firestore';
 
@@ -10,6 +14,7 @@ import { collection, doc, setDoc, getDocs, getDoc, query, where } from 'firebase
  * Создает фиктивного пользователя для демо-режима
  */
 async function createDemoUser(userId: string, email: string, displayName: string): Promise<void> {
+  const db = getFirestoreInstance();
   const userRef = doc(db, 'users', userId);
   await setDoc(userRef, {
     id: userId,
@@ -32,6 +37,7 @@ async function createDemoMember(
   role: UserRole,
   invitedBy: string
 ): Promise<void> {
+  const db = getFirestoreInstance();
   const memberRef = doc(collection(db, 'workspaces', workspaceId, 'members'), userId);
   await setDoc(memberRef, {
     id: userId,
@@ -52,6 +58,7 @@ export async function initializeDemoData(user: User): Promise<Workspace> {
     logger.info('Инициализация демо-данных для пользователя', { userId: user.id });
 
     // Проверяем, есть ли уже демо-пространство для этого пользователя
+    const db = getFirestoreInstance();
     const workspacesQuery = query(
       collection(db, 'workspaces'),
       where('ownerId', '==', user.id)
