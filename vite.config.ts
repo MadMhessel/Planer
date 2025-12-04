@@ -107,7 +107,17 @@ export default defineConfig({
   optimizeDeps: {
     // Включаем scheduler для правильной предобработки CommonJS модуля
     // scheduler - внутренний модуль react-dom, который должен быть правильно трансформирован
-    include: ['react', 'react-dom', 'react-is', 'scheduler', 'firebase/app', 'firebase/auth', 'firebase/firestore'],
+    // react-hot-toast добавлен для предотвращения ошибок инициализации
+    include: [
+      'react', 
+      'react-dom', 
+      'react-is', 
+      'scheduler', 
+      'react-hot-toast',
+      'firebase/app', 
+      'firebase/auth', 
+      'firebase/firestore'
+    ],
     exclude: [],
     // Принудительно пересобрать зависимости при изменении
     force: false,

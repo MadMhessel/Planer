@@ -194,7 +194,9 @@ import { useNotifications } from './hooks/useNotifications';
 // logger уже импортирован выше, перед createSafeLazyComponent
 import { useUsersFromMembers } from './hooks/useUsersFromMembers';
 import { MAX_CHAT_HISTORY_LENGTH } from './constants/ai';
-import toast from 'react-hot-toast';
+// КРИТИЧЕСКИ ВАЖНО: Используем обёртку для toast вместо прямого импорта,
+// чтобы избежать ошибки "Cannot access 'It' before initialization" в production сборке.
+import { toast } from './utils/toast';
 import { SUPER_ADMINS } from './constants/superAdmins';
 import { getMoscowISOString } from './utils/dateUtils';
 

@@ -3,7 +3,9 @@ import { Bell, BellOff, Volume2, VolumeX } from 'lucide-react';
 import { UserNotificationSettings } from '../types';
 import { PushService } from '../services/push';
 import { logger } from '../utils/logger';
-import toast from 'react-hot-toast';
+// КРИТИЧЕСКИ ВАЖНО: Используем обёртку для toast вместо прямого импорта,
+// чтобы избежать ошибки "Cannot access 'It' before initialization" в production сборке.
+import { toast } from '../utils/toast';
 
 interface Props {
   settings: UserNotificationSettings;
