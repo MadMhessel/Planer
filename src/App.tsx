@@ -1,8 +1,10 @@
 import React, { useCallback, useEffect, useState, useMemo, lazy, Suspense } from 'react';
 import { Layout } from './components/Layout';
-import { AuthService } from './services/auth';
 import { StorageService } from './services/storage';
 import { logger } from './utils/logger';
+// КРИТИЧЕСКИ ВАЖНО: Импортируем firebaseInit статически, чтобы избежать конфликта
+// между статическим импортом через AuthService и динамическим импортом
+import { firebaseInit } from './firebase';
 
 // ===== LAZY LOADING COMPONENTS =====
 // Lazy компоненты созданы на верхнем уровне модуля для правильной инициализации
@@ -201,10 +203,9 @@ const App: React.FC = () => {
     }, 10000);
     
     // Инициализируем Firebase и затем настраиваем auth listener
-    import('./firebase').then(({ firebaseInit }) => {
-      // firebaseInit теперь функция, а не промис, поэтому вызываем её явно
-      return firebaseInit();
-    }).then(() => {
+    // КРИТИЧЕСКИ ВАЖНО: Используем статический импорт firebaseInit вместо динамического,
+    // чтобы избежать ошибки "Cannot access 'It' before initialization"
+    firebaseInit().then(() => {
       if (!mounted) return;
       
       clearTimeout(safetyTimeout);
@@ -212,9 +213,12 @@ const App: React.FC = () => {
       console.log('[App] Firebase initialized successfully');
       
       // После инициализации Firebase настраиваем auth listener
-      try {
-        let callbackCalled = false;
-        unsubscribe = AuthService.subscribeToAuth(async (user) => {
+      // КРИТИЧЕСКИ ВАЖНО: Импортируем AuthService динамически после инициализации Firebase,
+      // чтобы избежать конфликта статического и динамического импорта firebase
+      import('./services/auth').then(({ AuthService }) => {
+        try {
+          let callbackCalled = false;
+          unsubscribe = AuthService.subscribeToAuth(async (user) => {
           callbackCalled = true;
           logger.info('Auth state changed', { hasUser: !!user, email: user?.email });
           console.log('[App] Auth state changed', { hasUser: !!user });
@@ -232,25 +236,33 @@ const App: React.FC = () => {
               }
             }
           }
-        });
-        console.log('[App] Auth subscription set up');
-        
-        // Таймаут безопасности: если callback не вызвался за 2 секунды, устанавливаем authLoading в false
-        setTimeout(() => {
-          if (mounted && !callbackCalled) {
-            console.warn('[App] Auth callback not called within 2 seconds, setting authLoading to false');
-            logger.warn('Auth callback not called within timeout');
+          });
+          console.log('[App] Auth subscription set up');
+          
+          // Таймаут безопасности: если callback не вызвался за 2 секунды, устанавливаем authLoading в false
+          setTimeout(() => {
+            if (mounted && !callbackCalled) {
+              console.warn('[App] Auth callback not called within 2 seconds, setting authLoading to false');
+              logger.warn('Auth callback not called within timeout');
+              setAuthLoading(false);
+            }
+          }, 2000);
+        } catch (error) {
+          clearTimeout(safetyTimeout);
+          logger.error('Failed to subscribe to auth', error instanceof Error ? error : undefined);
+          console.error('[App] Auth subscription error:', error);
+          if (mounted) {
             setAuthLoading(false);
           }
-        }, 2000);
-      } catch (error) {
+        }
+      }).catch((error) => {
         clearTimeout(safetyTimeout);
-        logger.error('Failed to subscribe to auth', error instanceof Error ? error : undefined);
-        console.error('[App] Auth subscription error:', error);
+        logger.error('Failed to load AuthService', error instanceof Error ? error : undefined);
+        console.error('[App] AuthService import error:', error);
         if (mounted) {
           setAuthLoading(false);
         }
-      }
+      });
     }).catch((error) => {
       clearTimeout(safetyTimeout);
       logger.error('Failed to initialize Firebase', error instanceof Error ? error : undefined);
@@ -735,6 +747,9 @@ const App: React.FC = () => {
   };
 
   const handleAuth = async (isLogin: boolean, ...args: string[]) => {
+    // КРИТИЧЕСКИ ВАЖНО: Импортируем AuthService динамически, чтобы избежать конфликта импортов
+    const { AuthService } = await import('./services/auth');
+    
     if (isLogin) {
       // Вход через email/password
       const [email, password] = args;
@@ -841,7 +856,11 @@ const App: React.FC = () => {
   return (
     <Layout
       currentUser={currentUser}
-      onLogout={AuthService.logout}
+      onLogout={async () => {
+        // КРИТИЧЕСКИ ВАЖНО: Импортируем AuthService динамически, чтобы избежать конфликта импортов
+        const { AuthService } = await import('./services/auth');
+        await AuthService.logout();
+      }}
       view={view}
       onChangeView={handleChangeView}
       workspaces={workspaces}
