@@ -5,7 +5,22 @@ import { formatMoscowDate } from '../utils/dateUtils';
 import { X, Edit, Calendar, User as UserIcon, Tag, Clock, Users, FileText } from 'lucide-react';
 
 // Lazy load TaskComments to avoid circular dependencies and improve performance
-const TaskComments = lazy(() => import('./TaskComments').then(m => ({ default: m.TaskComments })));
+// Используем динамический импорт с правильной обработкой ошибок для React 19
+const TaskComments = lazy(() => 
+  import('./TaskComments')
+    .then(module => ({ default: module.TaskComments }))
+    .catch(error => {
+      console.error('Failed to load TaskComments:', error);
+      // Возвращаем fallback компонент
+      return { 
+        default: () => (
+          <div className="flex items-center justify-center h-full">
+            <div className="text-sm text-red-500">Ошибка загрузки комментариев</div>
+          </div>
+        )
+      };
+    })
+);
 
 interface TaskProfileProps {
   task: Task | null;

@@ -83,7 +83,9 @@ export default defineConfig({
   },
   // Оптимизация для разработки
   optimizeDeps: {
-    include: ['react', 'react-dom', 'firebase/app', 'firebase/auth', 'firebase/firestore'],
+    include: ['react', 'react-dom', 'react-is', 'firebase/app', 'firebase/auth', 'firebase/firestore'],
     exclude: [],
+    // Принудительно пересобрать зависимости при изменении
+    force: false,
   },
 })
