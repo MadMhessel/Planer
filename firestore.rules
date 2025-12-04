@@ -168,18 +168,8 @@ service cloud.firestore {
         // ИЛИ супер-админ
         allow create: if request.auth != null && 
                          (isSuperAdmin() ||
-                          isAdminOrOwner(workspaceId) || 
-                          // Пользователь может создать себя при принятии приглашения
-                          // Проверяем, что пользователь создает себя с правильными данными
-                          (request.auth.uid == memberId && 
-                           request.resource.data.userId == request.auth.uid &&
-                           request.resource.data.status == 'ACTIVE' &&
-                           // Email проверяем только если он есть в токене (для анонимных пользователей может быть null)
-                           (request.auth.token.email == null || 
-                            request.resource.data.email == request.auth.token.email ||
-                            request.resource.data.email.toLowerCase() == request.auth.token.email.toLowerCase())) ||
                           // Разрешаем создание member при создании workspace для анонимных пользователей (демо-режим)
-                          // В транзакции workspace может еще не существовать, поэтому не проверяем его существование
+                          // В транзакции workspace может еще не существовать, поэтому проверяем это ПЕРВЫМ
                           // Разрешаем если: роль OWNER, пользователь создает себя, и это анонимный пользователь
                           (request.resource.data.role == 'OWNER' &&
                            request.resource.data.userId == request.auth.uid &&
@@ -190,7 +180,19 @@ service cloud.firestore {
                            request.resource.data.userId == request.auth.uid &&
                            request.resource.data.userId == memberId &&
                            exists(/databases/$(database)/documents/workspaces/$(workspaceId)) &&
-                           get(/databases/$(database)/documents/workspaces/$(workspaceId)).data.ownerId == request.auth.uid));
+                           get(/databases/$(database)/documents/workspaces/$(workspaceId)).data.ownerId == request.auth.uid) ||
+                          // Пользователь может создать себя при принятии приглашения
+                          // Проверяем, что пользователь создает себя с правильными данными
+                          (request.auth.uid == memberId && 
+                           request.resource.data.userId == request.auth.uid &&
+                           request.resource.data.status == 'ACTIVE' &&
+                           // Email проверяем только если он есть в токене (для анонимных пользователей может быть null)
+                           (request.auth.token.email == null || 
+                            request.resource.data.email == request.auth.token.email ||
+                            request.resource.data.email.toLowerCase() == request.auth.token.email.toLowerCase())) ||
+                          // Разрешаем админам/владельцам добавлять участников (только если workspace существует)
+                          (exists(/databases/$(database)/documents/workspaces/$(workspaceId)) &&
+                           isAdminOrOwner(workspaceId)));
         
         // Обновление: только админы/владельцы могут обновлять участников
         // ИЛИ пользователь может обновить себя при принятии приглашения
