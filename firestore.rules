@@ -170,11 +170,11 @@ service cloud.firestore {
                          (isSuperAdmin() ||
                           // Разрешаем создание member при создании workspace для анонимных пользователей (демо-режим)
                           // В транзакции workspace может еще не существовать, поэтому проверяем это ПЕРВЫМ
-                          // Разрешаем если: роль OWNER, пользователь создает себя, и это анонимный пользователь
+                          // Разрешаем если: роль OWNER, пользователь создает себя, и email в данных 'demo@example.com'
                           (request.resource.data.role == 'OWNER' &&
                            request.resource.data.userId == request.auth.uid &&
                            request.resource.data.userId == memberId &&
-                           request.auth.token.email == null) ||
+                           request.resource.data.email == 'demo@example.com') ||
                           // Разрешаем если workspace существует и пользователь владелец (для обычных пользователей)
                           (request.resource.data.role == 'OWNER' &&
                            request.resource.data.userId == request.auth.uid &&
