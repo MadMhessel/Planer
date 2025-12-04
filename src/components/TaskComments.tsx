@@ -1,9 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { TaskComment } from '../types';
 import { FirestoreService } from '../services/firestore';
-import { getMoscowISOString } from '../utils/dateUtils';
 import { formatMoscowDate } from '../utils/dateUtils';
-import { Send, User as UserIcon } from 'lucide-react';
+import { Send } from 'lucide-react';
 
 interface TaskCommentsProps {
   taskId: string;

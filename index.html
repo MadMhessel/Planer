@@ -43,7 +43,7 @@
     <link rel="dns-prefetch" href="https://fonts.gstatic.com" />
     
     <!-- Performance: Preload critical resources for LCP optimization -->
-    <link rel="preload" href="/logo.svg" as="image" type="image/svg+xml" />
+    <!-- Note: logo.svg preload removed as it's not used immediately in the app -->
     <link rel="preload" href="/index.css" as="style" />
     
     <!-- Performance: Optimize font loading with font-display: swap -->
@@ -88,9 +88,8 @@
     <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
     
     <!-- Security -->
-    <meta http-equiv="X-Content-Type-Options" content="nosniff" />
-    <meta http-equiv="X-Frame-Options" content="DENY" />
-    <meta http-equiv="X-XSS-Protection" content="1; mode=block" />
+    <!-- Note: X-Frame-Options, X-Content-Type-Options, and X-XSS-Protection should be set via HTTP headers, not meta tags -->
+    <!-- These are configured in server.js -->
     <meta name="referrer" content="strict-origin-when-cross-origin" />
   </head>
   <body>
