@@ -11,7 +11,12 @@ try {
   express = require('express');
   path = require('path');
   fs = require('fs');
-  GoogleGenerativeAI = require("@google/generative-ai");
+  const genAIModule = require("@google/generative-ai");
+  // @google/generative-ai экспортирует GoogleGenerativeAI как именованный экспорт
+  GoogleGenerativeAI = genAIModule.GoogleGenerativeAI || genAIModule.default || genAIModule;
+  if (!GoogleGenerativeAI) {
+    console.warn('[Server] GoogleGenerativeAI not found in module, AI features may not work');
+  }
   cors = require('cors');
   rateLimit = require('express-rate-limit');
   const expressValidator = require('express-validator');
@@ -33,11 +38,16 @@ if (typeof fetch === 'undefined') {
   process.exit(1);
 }
 
+console.log('[Server] Initializing Express app...');
 const app = express();
 const PORT = process.env.PORT || 8080;
+console.log('[Server] Express app created, PORT:', PORT);
 
 // Определяем distPath ДО использования
+console.log('[Server] Checking dist directory...');
 const distPath = path.join(__dirname, 'dist');
+console.log('[Server] distPath:', distPath);
+console.log('[Server] __dirname:', __dirname);
 
 // Проверяем существование dist директории при запуске
 if (!fs.existsSync(distPath)) {
@@ -62,6 +72,7 @@ if (!fs.existsSync(distPath)) {
     }
   } catch (e) {
     console.error('ERROR: Could not read dist directory:', e.message);
+    console.error('ERROR: Stack:', e.stack);
     process.exit(1);
   }
 }
@@ -185,10 +196,20 @@ if (!apiKey) {
     console.warn("GOOGLE_API_KEY is not set - Gemini features disabled");
   }
 } else {
-  const genAI = new GoogleGenerativeAI(apiKey);
-  model = genAI.getGenerativeModel({
-    model: "gemini-2.0-flash-001",
-  });
+  try {
+    if (!GoogleGenerativeAI) {
+      console.error('[Server] GoogleGenerativeAI is not available');
+    } else {
+      const genAI = new GoogleGenerativeAI(apiKey);
+      model = genAI.getGenerativeModel({
+        model: "gemini-2.0-flash-001",
+      });
+      console.log('[Server] ✓ Gemini AI initialized successfully');
+    }
+  } catch (error) {
+    console.error('[Server] ✗ Failed to initialize Gemini AI:', error);
+    // Не останавливаем сервер, просто отключаем AI функции
+  }
 }
 
 const parseGeminiResponse = (rawText) => {
