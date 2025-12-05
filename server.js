@@ -104,24 +104,43 @@ app.use(express.static(distPath, {
 }));
 
 // CORS Configuration - применяется только к API запросам
-const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || [
-  'http://localhost:5173',
-  'http://localhost:3000'
-];
+const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',').map(o => o.trim()).filter(Boolean) || [];
 
 // CORS применяется только к API маршрутам, не к статическим файлам
-app.use('/api', cors({
-  origin: (origin, callback) => {
-    // Разрешаем запросы без origin (например, мобильные приложения, Postman)
-    if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
+app.use('/api', (req, res, next) => {
+  cors({
+    origin: (origin, callback) => {
+      // Разрешаем запросы без origin
+      if (!origin) {
+        return callback(null, true);
+      }
+      
+      // Если origin в списке разрешенных
+      if (allowedOrigins.length > 0 && allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+      
+      // В production разрешаем все запросы (приложение работает на том же домене)
+      if (process.env.NODE_ENV === 'production') {
+        // В production разрешаем все origin, так как приложение и API на одном домене
+        return callback(null, true);
+      }
+      
+      // В development разрешаем localhost
+      if (process.env.NODE_ENV === 'development') {
+        if (origin.includes('localhost') || origin.includes('127.0.0.1')) {
+          return callback(null, true);
+        }
+      }
+      
+      // Логируем заблокированные запросы для диагностики
+      console.warn('[CORS] Blocked origin:', origin, 'Host:', req.headers.host);
       callback(new Error('Not allowed by CORS'));
-    }
-  },
-  credentials: true,
-  optionsSuccessStatus: 200
-}));
+    },
+    credentials: true,
+    optionsSuccessStatus: 200
+  })(req, res, next);
+});
 
 // Body parser middleware
 app.use(express.json({ limit: '10mb' })); // Ограничение размера тела запроса
