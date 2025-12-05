@@ -81,6 +81,7 @@ export const useUsersFromMembers = (
     logger.info('[useUsersFromMembers] Converted members to users', {
       membersCount: members.length,
       validMembersCount: usersList.length,
+      membersDetails: members.map(m => ({ userId: m.userId, email: m.email, isValid: !!(m.userId && typeof m.userId === 'string' && m.userId.trim() !== '') })),
       usersDetails: usersList.map(u => ({ id: u.id, email: u.email, displayName: u.displayName }))
     });
 

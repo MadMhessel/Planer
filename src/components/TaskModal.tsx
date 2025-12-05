@@ -43,6 +43,19 @@ export const TaskModal: React.FC<TaskModalProps> = ({
       const rawAssigneeIds = task.assigneeIds || (task.assigneeId ? [task.assigneeId] : []);
       // Фильтруем валидные ID
       const assigneeIds = rawAssigneeIds.filter(id => id && id !== undefined && id !== null && id !== '');
+      
+      logger.info('[TaskModal] Loading task data', {
+        taskId: task.id,
+        taskAssigneeId: task.assigneeId,
+        taskAssigneeIds: task.assigneeIds,
+        filteredAssigneeIds: assigneeIds,
+        availableUsers: users.map(u => ({ id: u.id, email: u.email, displayName: u.displayName })),
+        assigneeIdsInUsers: assigneeIds.map(id => {
+          const user = users.find(u => u.id === id);
+          return user ? { id, found: true, email: user.email } : { id, found: false };
+        })
+      });
+      
       setFormData({ 
           ...task,
           description: task.description || '',
@@ -52,6 +65,9 @@ export const TaskModal: React.FC<TaskModalProps> = ({
       });
     } else {
       // Reset for new task
+      logger.info('[TaskModal] Resetting form for new task', {
+        availableUsers: users.map(u => ({ id: u.id, email: u.email, displayName: u.displayName }))
+      });
       setFormData({
         title: '',
         description: '',
@@ -65,7 +81,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({
         tags: []
       });
     }
-  }, [task, isOpen, projects]);
+  }, [task, isOpen, projects, users]);
 
   if (!isOpen) return null;
 
@@ -233,12 +249,19 @@ export const TaskModal: React.FC<TaskModalProps> = ({
                   {users.length === 0 ? (
                     <p className="text-sm text-gray-500 dark:text-slate-400 text-center py-2">Нет доступных пользователей</p>
                   ) : (
-                    users.filter(user => user && user.id && typeof user.id === 'string' && user.id.trim() !== '').map(user => {
-                      // Фильтруем валидные ID для проверки
-                      const validAssigneeIds = (formData.assigneeIds || []).filter(id => id && typeof id === 'string' && id.trim() !== '');
-                      const isSelected = validAssigneeIds.includes(user.id);
-                      
-                      return (
+                    (() => {
+                      const validUsers = users.filter(user => user && user.id && typeof user.id === 'string' && user.id.trim() !== '');
+                      logger.info('[TaskModal] Rendering user list', {
+                        totalUsers: users.length,
+                        validUsers: validUsers.length,
+                        usersDetails: validUsers.map(u => ({ id: u.id, email: u.email, displayName: u.displayName }))
+                      });
+                      return validUsers.map(user => {
+                        // Фильтруем валидные ID для проверки
+                        const validAssigneeIds = (formData.assigneeIds || []).filter(id => id && typeof id === 'string' && id.trim() !== '');
+                        const isSelected = validAssigneeIds.includes(user.id);
+                        
+                        return (
                         <label
                           key={user.id}
                           htmlFor={`assignee-${user.id}`}
@@ -322,7 +345,8 @@ export const TaskModal: React.FC<TaskModalProps> = ({
                           </div>
                         </label>
                       );
-                    })
+                    });
+                    })()
                   )}
                 </div>
                 {formData.assigneeIds && formData.assigneeIds.length > 0 && (
