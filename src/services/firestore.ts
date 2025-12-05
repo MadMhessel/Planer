@@ -271,13 +271,31 @@ export const FirestoreService = {
   subscribeToMembers(workspaceId: string, callback: (members: WorkspaceMember[]) => void) {
     const membersRef = collection(db, 'workspaces', workspaceId, 'members');
     return onSnapshot(membersRef, (snapshot) => {
-      const members: WorkspaceMember[] = snapshot.docs.map(docSnap => ({
-        ...(docSnap.data() as WorkspaceMember),
-        id: docSnap.id
-      }));
+      const members: WorkspaceMember[] = snapshot.docs
+        .map(docSnap => ({
+          ...(docSnap.data() as WorkspaceMember),
+          id: docSnap.id
+        }))
+        // Фильтруем members с валидными userId
+        .filter(m => m.userId && typeof m.userId === 'string' && m.userId.trim() !== '');
       
       // Логируем информацию о members с telegramChatId для диагностики
       const membersWithTelegram = members.filter(m => m.telegramChatId);
+      const invalidMembers = snapshot.docs
+        .map(docSnap => ({
+          ...(docSnap.data() as WorkspaceMember),
+          id: docSnap.id
+        }))
+        .filter(m => !m.userId || typeof m.userId !== 'string' || m.userId.trim() === '');
+      
+      if (invalidMembers.length > 0) {
+        logger.warn('[subscribeToMembers] Found members with invalid userId', {
+          workspaceId,
+          invalidCount: invalidMembers.length,
+          invalidMembers: invalidMembers.map(m => ({ id: m.id, email: m.email, userId: m.userId }))
+        });
+      }
+      
       logger.info('[subscribeToMembers] Members updated', {
         workspaceId,
         totalMembers: members.length,
@@ -286,6 +304,11 @@ export const FirestoreService = {
           userId: m.userId,
           email: m.email,
           telegramChatId: m.telegramChatId ? `${m.telegramChatId.substring(0, 5)}...` : 'none'
+        })),
+        allMembersDetails: members.map(m => ({
+          userId: m.userId,
+          email: m.email,
+          hasTelegramChatId: !!m.telegramChatId
         }))
       });
       

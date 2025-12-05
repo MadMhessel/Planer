@@ -133,6 +133,9 @@ export const getRecipientsForTask = (
   const recipients: string[] = [];
   const recipientChatIds = new Set<string>();
   
+  // Фильтруем members с валидными userId
+  const validMembers = allMembers.filter(m => m.userId && typeof m.userId === 'string' && m.userId.trim() !== '');
+  
   // Логируем для диагностики (всегда, чтобы видеть проблему)
   logger.info('[getRecipientsForTask] Starting', {
     taskId: (task as any)?.id,
@@ -143,12 +146,15 @@ export const getRecipientsForTask = (
     assigneeIds: task.assigneeIds,
     assigneeIdsCount: task.assigneeIds?.length || 0,
     membersCount: allMembers.length,
-    membersWithTelegram: allMembers.filter(m => m.telegramChatId).length,
+    validMembersCount: validMembers.length,
+    membersWithInvalidUserId: allMembers.filter(m => !m.userId || typeof m.userId !== 'string').length,
+    membersWithTelegram: validMembers.filter(m => m.telegramChatId).length,
     allMembersDetails: allMembers.map(m => ({
       userId: m.userId,
       email: m.email,
       hasTelegramChatId: !!m.telegramChatId,
-      telegramChatId: m.telegramChatId ? `${m.telegramChatId.substring(0, 5)}...` : 'none'
+      telegramChatId: m.telegramChatId ? `${m.telegramChatId.substring(0, 5)}...` : 'none',
+      isValid: !!(m.userId && typeof m.userId === 'string' && m.userId.trim() !== '')
     })),
     creatorId
   });
@@ -158,16 +164,19 @@ export const getRecipientsForTask = (
     logger.info('[getRecipientsForTask] Processing assigneeIds', {
       assigneeIds: task.assigneeIds,
       membersCount: allMembers.length,
-      memberUserIds: allMembers.map(m => m.userId)
+      validMembersCount: validMembers.length,
+      memberUserIds: validMembers.map(m => m.userId),
+      memberEmails: validMembers.map(m => m.email)
     });
     
     task.assigneeIds.forEach(assigneeId => {
       if (assigneeId) {
-        let assignee = allMembers.find(m => m.userId === assigneeId);
+        // Ищем только среди валидных members
+        let assignee = validMembers.find(m => m.userId === assigneeId);
         
         // Если не нашли по userId, пробуем найти по email
         if (!assignee && assigneeId.includes('@')) {
-          assignee = allMembers.find(m => m.email === assigneeId);
+          assignee = validMembers.find(m => m.email === assigneeId);
           if (assignee) {
             logger.info('[getRecipientsForTask] Found assignee by email', {
               assigneeId,
@@ -196,8 +205,10 @@ export const getRecipientsForTask = (
             });
           }
         } else {
-          logger.error('[getRecipientsForTask] Assignee not found in members', { 
+          logger.error('[getRecipientsForTask] Assignee not found in valid members', { 
             assigneeId,
+            validMemberUserIds: validMembers.map(m => m.userId),
+            validMemberEmails: validMembers.map(m => m.email),
             allMemberUserIds: allMembers.map(m => m.userId),
             allMemberEmails: allMembers.map(m => m.email)
           });
@@ -209,11 +220,14 @@ export const getRecipientsForTask = (
     logger.info('[getRecipientsForTask] Looking for assignee (legacy)', {
       assigneeId: task.assigneeId,
       membersCount: allMembers.length,
-      memberUserIds: allMembers.map(m => m.userId),
-      memberEmails: allMembers.map(m => m.email)
+      validMembersCount: validMembers.length,
+      validMemberUserIds: validMembers.map(m => m.userId),
+      validMemberEmails: validMembers.map(m => m.email),
+      invalidMembers: allMembers.filter(m => !m.userId || typeof m.userId !== 'string').map(m => ({ email: m.email, userId: m.userId }))
     });
     
-    const assignee = allMembers.find(m => m.userId === task.assigneeId);
+    // Ищем только среди валидных members
+    let assignee = validMembers.find(m => m.userId === task.assigneeId);
     if (assignee) {
       logger.info('[getRecipientsForTask] Found assignee (legacy)', {
         assigneeId: task.assigneeId,
@@ -240,7 +254,7 @@ export const getRecipientsForTask = (
       
       // Если assigneeId это email, попробуем найти по email
       if (task.assigneeId.includes('@')) {
-        const assigneeByEmail = allMembers.find(m => m.email === task.assigneeId);
+        const assigneeByEmail = validMembers.find(m => m.email === task.assigneeId);
         if (assigneeByEmail) {
           logger.info('[getRecipientsForTask] Found assignee by email (legacy)', {
             assigneeId: task.assigneeId,
@@ -254,14 +268,17 @@ export const getRecipientsForTask = (
             recipientChatIds.add(assigneeByEmail.telegramChatId);
           }
         } else {
-          logger.error('[getRecipientsForTask] Assignee not found in members by email either (legacy)', { 
+          logger.error('[getRecipientsForTask] Assignee not found in valid members by email (legacy)', { 
             assigneeId: task.assigneeId,
+            validMemberEmails: validMembers.map(m => m.email),
             allMemberEmails: allMembers.map(m => m.email)
           });
         }
       } else {
-        logger.error('[getRecipientsForTask] Assignee not found in members (legacy)', { 
+        logger.error('[getRecipientsForTask] Assignee not found in valid members (legacy)', { 
           assigneeId: task.assigneeId,
+          validMemberUserIds: validMembers.map(m => m.userId),
+          validMemberEmails: validMembers.map(m => m.email),
           allMemberUserIds: allMembers.map(m => m.userId),
           allMemberEmails: allMembers.map(m => m.email)
         });
@@ -273,7 +290,8 @@ export const getRecipientsForTask = (
   if (creatorId) {
     const isCreatorAssignee = task.assigneeIds?.includes(creatorId) || task.assigneeId === creatorId;
     if (!isCreatorAssignee) {
-      const creator = allMembers.find(m => m.userId === creatorId);
+      // Ищем только среди валидных members
+      const creator = validMembers.find(m => m.userId === creatorId);
       if (creator) {
         if (process.env.NODE_ENV === 'development') {
           logger.debug('[getRecipientsForTask] Found creator', {
