@@ -541,30 +541,35 @@ app.post('/api/telegram/notify',
       
       // Всегда возвращаем детальную информацию об ошибке
       // Убеждаемся, что отправляем JSON, а не HTML
-      if (!res.headersSent) {
-        res.status(500).json({ 
-          error: 'Internal server error',
-          message: errorMessage,
-          details: {
-            name: error.name,
-            originalMessage: error.message,
-            ...(process.env.NODE_ENV === 'development' ? { stack: error.stack } : {})
+      try {
+        if (!res.headersSent) {
+          res.status(500).json({ 
+            error: 'Internal server error',
+            message: errorMessage,
+            details: {
+              name: error.name,
+              originalMessage: error.message,
+              ...(process.env.NODE_ENV === 'development' ? { stack: error.stack } : {})
+            }
+          });
+        } else {
+          // Если заголовки уже отправлены, логируем ошибку
+          console.error('[Telegram] Cannot send error response - headers already sent');
+        }
+      } catch (handlerError) {
+        // Если даже обработка ошибки не удалась
+        console.error('[Telegram] Critical error in error handler:', handlerError);
+        if (!res.headersSent) {
+          try {
+            res.status(500).json({ 
+              error: 'Critical server error',
+              message: 'An unexpected error occurred while processing the request'
+            });
+          } catch (finalError) {
+            console.error('[Telegram] Cannot send any response:', finalError);
           }
-        });
-      } else {
-        // Если заголовки уже отправлены, логируем ошибку
-        console.error('[Telegram] Cannot send error response - headers already sent');
+        }
       }
-    } catch (handlerError) {
-      // Если даже обработка ошибки не удалась
-      console.error('[Telegram] Critical error in error handler:', handlerError);
-      if (!res.headersSent) {
-        res.status(500).json({ 
-          error: 'Critical server error',
-          message: 'An unexpected error occurred while processing the request'
-        });
-      }
-    }
   }
 );
 
