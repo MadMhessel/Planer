@@ -137,4 +137,5 @@ export function getFirestoreInstance(): Firestore {
 // "Cannot access 'It' before initialization" в production сборке.
 // Все модули должны использовать getAuthInstance() и getFirestoreInstance().
 // export { auth, db }; // УДАЛЕНО для предотвращения ошибки инициализации
-export default app;
+// НЕ экспортируем app по умолчанию, так как он может быть null до инициализации
+// export default app; // УДАЛЕНО для предотвращения ошибки инициализации

@@ -3,6 +3,7 @@ import { Layout } from './components/Layout';
 import { AuthService } from './services/auth';
 import { StorageService } from './services/storage';
 import { logger } from './utils/logger';
+import { firebaseInit } from './firebase';
 
 // ===== БЕЗОПАСНАЯ ФУНКЦИЯ ДЛЯ LAZY LOADING =====
 // Предотвращает ошибку "Cannot set properties of undefined (setting 'Activity')"
@@ -171,10 +172,9 @@ const App: React.FC = () => {
     }, 10000);
     
     // Инициализируем Firebase и затем настраиваем auth listener
-    import('./firebase').then(({ firebaseInit }) => {
-      // firebaseInit теперь функция, а не промис, поэтому вызываем её явно
-      return firebaseInit();
-    }).then(() => {
+    // КРИТИЧЕСКИ ВАЖНО: Используем статический импорт firebaseInit вместо динамического,
+    // чтобы избежать ошибки "Cannot access 'It' before initialization" в production сборке
+    firebaseInit().then(() => {
       if (!mounted) return;
       
       clearTimeout(safetyTimeout);
