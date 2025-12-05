@@ -570,6 +570,7 @@ app.post('/api/telegram/notify',
           }
         }
       }
+    }
   }
 );
 
