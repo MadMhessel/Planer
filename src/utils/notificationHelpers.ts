@@ -2,6 +2,7 @@ import { Task, Project, Notification, WorkspaceMember } from '../types';
 import { NOTIFICATION_TYPES } from '../constants/notifications';
 import { getStatusLabel, getPriorityLabel } from './taskHelpers';
 import { getMoscowISOString, formatMoscowDate } from './dateUtils';
+import { logger } from './logger';
 
 export const createTaskNotification = (
   workspaceId: string,
@@ -132,23 +133,66 @@ export const getRecipientsForTask = (
   const recipients: string[] = [];
   const recipientChatIds = new Set<string>();
   
+  // Логируем для диагностики (только в development или при проблемах)
+  if (process.env.NODE_ENV === 'development') {
+    logger.debug('[getRecipientsForTask] Starting', {
+    taskId: (task as any)?.id,
+    hasAssigneeId: !!task.assigneeId,
+    hasAssigneeIds: !!task.assigneeIds,
+    assigneeIdsCount: task.assigneeIds?.length || 0,
+    membersCount: allMembers.length,
+    creatorId
+  });
+  
   // Обрабатываем assigneeIds (приоритет над assigneeId)
   if (task.assigneeIds && Array.isArray(task.assigneeIds) && task.assigneeIds.length > 0) {
     task.assigneeIds.forEach(assigneeId => {
       if (assigneeId) {
         const assignee = allMembers.find(m => m.userId === assigneeId);
-        if (assignee?.telegramChatId && !recipientChatIds.has(assignee.telegramChatId)) {
-          recipients.push(assignee.telegramChatId);
-          recipientChatIds.add(assignee.telegramChatId);
+        if (assignee) {
+          if (process.env.NODE_ENV === 'development') {
+            logger.debug('[getRecipientsForTask] Found assignee', {
+              assigneeId,
+              hasTelegramChatId: !!assignee.telegramChatId,
+              telegramChatId: assignee.telegramChatId ? `${assignee.telegramChatId.substring(0, 5)}...` : 'none'
+            });
+          }
+          if (assignee.telegramChatId && !recipientChatIds.has(assignee.telegramChatId)) {
+            recipients.push(assignee.telegramChatId);
+            recipientChatIds.add(assignee.telegramChatId);
+          } else if (!assignee.telegramChatId) {
+            logger.warn('[getRecipientsForTask] Assignee has no telegramChatId', { 
+              assigneeId,
+              assigneeEmail: assignee.email 
+            });
+          }
+        } else {
+          logger.warn('[getRecipientsForTask] Assignee not found in members', { assigneeId });
         }
       }
     });
   } else if (task.assigneeId) {
     // Обратная совместимость: используем assigneeId, если assigneeIds нет
     const assignee = allMembers.find(m => m.userId === task.assigneeId);
-    if (assignee?.telegramChatId && !recipientChatIds.has(assignee.telegramChatId)) {
-      recipients.push(assignee.telegramChatId);
-      recipientChatIds.add(assignee.telegramChatId);
+    if (assignee) {
+      if (process.env.NODE_ENV === 'development') {
+        logger.debug('[getRecipientsForTask] Found assignee (legacy)', {
+          assigneeId: task.assigneeId,
+          hasTelegramChatId: !!assignee.telegramChatId,
+          telegramChatId: assignee.telegramChatId ? `${assignee.telegramChatId.substring(0, 5)}...` : 'none'
+        });
+      }
+      if (assignee.telegramChatId && !recipientChatIds.has(assignee.telegramChatId)) {
+        recipients.push(assignee.telegramChatId);
+        recipientChatIds.add(assignee.telegramChatId);
+      } else if (!assignee.telegramChatId) {
+        logger.warn('[getRecipientsForTask] Assignee has no telegramChatId (legacy)', { 
+          assigneeId: task.assigneeId,
+          assigneeEmail: assignee.email 
+        });
+      }
+    } else {
+      logger.warn('[getRecipientsForTask] Assignee not found in members (legacy)', { assigneeId: task.assigneeId });
     }
   }
   
@@ -157,11 +201,46 @@ export const getRecipientsForTask = (
     const isCreatorAssignee = task.assigneeIds?.includes(creatorId) || task.assigneeId === creatorId;
     if (!isCreatorAssignee) {
       const creator = allMembers.find(m => m.userId === creatorId);
-      if (creator?.telegramChatId && !recipientChatIds.has(creator.telegramChatId)) {
-        recipients.push(creator.telegramChatId);
-        recipientChatIds.add(creator.telegramChatId);
+      if (creator) {
+        if (process.env.NODE_ENV === 'development') {
+          logger.debug('[getRecipientsForTask] Found creator', {
+            creatorId,
+            hasTelegramChatId: !!creator.telegramChatId,
+            telegramChatId: creator.telegramChatId ? `${creator.telegramChatId.substring(0, 5)}...` : 'none'
+          });
+        }
+        if (creator.telegramChatId && !recipientChatIds.has(creator.telegramChatId)) {
+          recipients.push(creator.telegramChatId);
+          recipientChatIds.add(creator.telegramChatId);
+        } else if (!creator.telegramChatId) {
+          logger.warn('[getRecipientsForTask] Creator has no telegramChatId', { 
+            creatorId,
+            creatorEmail: creator.email 
+          });
+        }
+      } else {
+        logger.warn('[getRecipientsForTask] Creator not found in members', { creatorId });
       }
     }
+  }
+  
+  if (process.env.NODE_ENV === 'development') {
+    logger.debug('[getRecipientsForTask] Result', {
+      recipientsCount: recipients.length,
+      recipients: recipients.map(r => `${r.substring(0, 5)}...`)
+    });
+  }
+  
+  // Логируем предупреждение, если нет получателей, но есть участники задачи
+  if (recipients.length === 0 && (task.assigneeId || (task.assigneeIds && task.assigneeIds.length > 0))) {
+    logger.warn('[getRecipientsForTask] No Telegram recipients found', {
+      taskId: (task as any)?.id,
+      hasAssigneeId: !!task.assigneeId,
+      hasAssigneeIds: !!task.assigneeIds,
+      assigneeIdsCount: task.assigneeIds?.length || 0,
+      membersWithTelegram: allMembers.filter(m => m.telegramChatId).length,
+      totalMembers: allMembers.length
+    });
   }
   
   return recipients;

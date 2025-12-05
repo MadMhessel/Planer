@@ -6,7 +6,7 @@ import { NotificationsService } from '../services/notifications';
 import { validateTask } from '../utils/validators';
 import { createTaskNotification, createTelegramMessage, getRecipientsForTask } from '../utils/notificationHelpers';
 import { logger } from '../utils/logger';
-import { getMoscowISOString } from '../utils/dateUtils';
+import { getMoscowISOString, formatMoscowDate } from '../utils/dateUtils';
 
 export const useTasks = (
   workspaceId: string | null,
@@ -115,16 +115,35 @@ export const useTasks = (
 
       // Telegram уведомление - отправляем всем участникам задачи
       const telegramRecipients = getRecipientsForTask(created, members, currentUser.id);
-      if (telegramRecipients.length > 0) {
+      if (telegramRecipients && telegramRecipients.length > 0) {
         const projectName = created.projectId ? projects.find(p => p.id === created.projectId)?.name : undefined;
         const message = createTelegramMessage('TASK_ASSIGNED', created, undefined, undefined, projectName);
-        const result = await TelegramService.sendNotification(telegramRecipients, message);
-        if (!result.success) {
-          logger.warn('Failed to send Telegram notification for task creation', { 
-            error: result.error, 
-            taskId: created.id 
-          });
+        if (message) {
+          try {
+            const result = await TelegramService.sendNotification(telegramRecipients, message);
+            if (!result.success) {
+              logger.warn('Failed to send Telegram notification for task creation', { 
+                error: result.error, 
+                taskId: created.id,
+                recipientsCount: telegramRecipients.length
+              });
+            } else {
+              logger.info('Telegram notification sent for task creation', { 
+                taskId: created.id,
+                recipientsCount: telegramRecipients.length
+              });
+            }
+          } catch (err) {
+            logger.error('Exception sending Telegram notification for task creation', err);
+          }
         }
+      } else {
+        logger.info('No Telegram recipients for task creation', { 
+          taskId: created.id,
+          hasAssigneeId: !!created.assigneeId,
+          hasAssigneeIds: !!created.assigneeIds,
+          membersCount: members.length
+        });
       }
 
       return created;
@@ -244,12 +263,34 @@ export const useTasks = (
       }
 
       // Отправляем Telegram уведомления всем участникам задачи при любых изменениях
-      if (telegramMessage && recipients.length > 0) {
-        const result = await TelegramService.sendNotification(recipients, telegramMessage);
-        if (!result.success) {
-          logger.warn('Failed to send Telegram notification for task update', { 
-            error: result.error, 
-            taskId 
+      if (telegramMessage && recipients && recipients.length > 0) {
+        try {
+          const result = await TelegramService.sendNotification(recipients, telegramMessage);
+          if (!result.success) {
+            logger.warn('Failed to send Telegram notification for task update', { 
+              error: result.error, 
+              taskId,
+              recipientsCount: recipients.length
+            });
+          } else {
+            logger.info('Telegram notification sent for task update', { 
+              taskId,
+              recipientsCount: recipients.length
+            });
+          }
+        } catch (err) {
+          logger.error('Exception sending Telegram notification for task update', err);
+        }
+      } else {
+        if (!telegramMessage) {
+          logger.debug('No Telegram message generated for task update', { taskId });
+        }
+        if (!recipients || recipients.length === 0) {
+          logger.info('No Telegram recipients for task update', { 
+            taskId,
+            hasAssigneeId: !!newTaskState.assigneeId,
+            hasAssigneeIds: !!newTaskState.assigneeIds,
+            membersCount: members.length
           });
         }
       }
@@ -311,15 +352,34 @@ export const useTasks = (
       await NotificationsService.add(workspaceId, deleteNotification);
 
       const recipients = getRecipientsForTask(taskToDelete, members, currentUser.id);
-      if (recipients.length > 0) {
+      if (recipients && recipients.length > 0) {
         const message = createTelegramMessage('TASK_DELETED', taskToDelete);
-        const result = await TelegramService.sendNotification(recipients, message);
-        if (!result.success) {
-          logger.warn('Failed to send Telegram notification for task deletion', { 
-            error: result.error, 
-            taskId 
-          });
+        if (message) {
+          try {
+            const result = await TelegramService.sendNotification(recipients, message);
+            if (!result.success) {
+              logger.warn('Failed to send Telegram notification for task deletion', { 
+                error: result.error, 
+                taskId,
+                recipientsCount: recipients.length
+              });
+            } else {
+              logger.info('Telegram notification sent for task deletion', { 
+                taskId,
+                recipientsCount: recipients.length
+              });
+            }
+          } catch (err) {
+            logger.error('Exception sending Telegram notification for task deletion', err);
+          }
         }
+      } else {
+        logger.info('No Telegram recipients for task deletion', { 
+          taskId,
+          hasAssigneeId: !!taskToDelete.assigneeId,
+          hasAssigneeIds: !!taskToDelete.assigneeIds,
+          membersCount: members.length
+        });
       }
     } catch (err) {
       const error = err instanceof Error ? err : new Error('Не удалось удалить задачу');
