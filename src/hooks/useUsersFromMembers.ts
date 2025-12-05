@@ -63,17 +63,25 @@ export const useUsersFromMembers = (
 
   // Преобразуем members в users с использованием загруженных данных
   const users = useMemo(() => {
-    const usersList: User[] = members.map(m => {
-      const userData = userDataMap[m.userId] || {};
-      return {
-        id: m.userId,
-        email: m.email,
-        displayName: userData.displayName || m.email, // Используем displayName из Firestore, если есть
-        photoURL: userData.photoURL,
-        role: m.role,
-        isActive: m.status === 'ACTIVE',
-        createdAt: m.joinedAt
-      };
+    const usersList: User[] = members
+      .filter(m => m.userId && typeof m.userId === 'string' && m.userId.trim() !== '') // Фильтруем валидные members
+      .map(m => {
+        const userData = userDataMap[m.userId] || {};
+        return {
+          id: m.userId, // ВАЖНО: используем userId из WorkspaceMember, а не из Firebase Auth
+          email: m.email,
+          displayName: userData.displayName || m.email, // Используем displayName из Firestore, если есть
+          photoURL: userData.photoURL,
+          role: m.role,
+          isActive: m.status === 'ACTIVE',
+          createdAt: m.joinedAt
+        };
+      });
+    
+    logger.info('[useUsersFromMembers] Converted members to users', {
+      membersCount: members.length,
+      validMembersCount: usersList.length,
+      usersDetails: usersList.map(u => ({ id: u.id, email: u.email, displayName: u.displayName }))
     });
 
     // Для супер-админов: если список участников пуст или содержит только текущего пользователя,

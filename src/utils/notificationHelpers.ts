@@ -274,7 +274,8 @@ export const getRecipientsForTask = (
       }
     } else {
       // Пробуем найти по email, если не нашли по userId
-      logger.warn('[getRecipientsForTask] Assignee not found in members by userId (legacy), trying to find by email', { 
+      // Это может произойти, если assigneeId - это Firebase Auth ID, а не WorkspaceMember.userId
+      logger.warn('[getRecipientsForTask] Assignee not found in members by userId (legacy), trying to find by email or currentUser', { 
         assigneeId: task.assigneeId,
         allMemberUserIds: allMembers.map(m => m.userId),
         allMemberEmails: allMembers.map(m => m.email)
@@ -303,12 +304,16 @@ export const getRecipientsForTask = (
           });
         }
       } else {
+        // Если assigneeId не найден, возможно это Firebase Auth ID
+        // Попробуем найти текущего пользователя по email из members
+        // Это временное решение - правильное решение - использовать правильный userId при создании задачи
         logger.error('[getRecipientsForTask] Assignee not found in valid members (legacy)', { 
           assigneeId: task.assigneeId,
           validMemberUserIds: validMembers.map(m => m.userId),
           validMemberEmails: validMembers.map(m => m.email),
           allMemberUserIds: allMembers.map(m => m.userId),
-          allMemberEmails: allMembers.map(m => m.email)
+          allMemberEmails: allMembers.map(m => m.email),
+          note: 'This assigneeId might be a Firebase Auth ID that does not match WorkspaceMember.userId. The task should be updated to use the correct userId from WorkspaceMember.'
         });
       }
     }

@@ -112,13 +112,26 @@ export const TaskModal: React.FC<TaskModalProps> = ({
     if (assigneeIds.length > 0) {
       taskData.assigneeIds = assigneeIds;
       taskData.assigneeId = assigneeIds[0]; // Обратная совместимость
+      
+      // Валидация: проверяем, что все assigneeIds существуют в users
+      const invalidAssigneeIds = assigneeIds.filter(id => !users.find(u => u.id === id));
+      if (invalidAssigneeIds.length > 0) {
+        logger.error('[TaskModal] Invalid assigneeIds found', {
+          invalidAssigneeIds,
+          allAssigneeIds: assigneeIds,
+          availableUserIds: users.map(u => u.id),
+          availableUserEmails: users.map(u => u.email)
+        });
+      }
+      
       logger.info('[TaskModal] Saving task with assignees', {
         assigneeIds: assigneeIds,
         assigneeId: assigneeIds[0],
         assigneeDetails: assigneeIds.map(id => {
           const user = users.find(u => u.id === id);
-          return user ? { id: user.id, email: user.email, displayName: user.displayName } : { id };
-        })
+          return user ? { id: user.id, email: user.email, displayName: user.displayName } : { id, error: 'User not found in users list' };
+        }),
+        allUsers: users.map(u => ({ id: u.id, email: u.email, displayName: u.displayName }))
       });
     } else {
       // Если нет участников, устанавливаем пустой массив для assigneeIds
