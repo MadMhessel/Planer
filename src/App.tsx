@@ -1,9 +1,7 @@
 import React, { useCallback, useEffect, useState, useMemo, lazy, Suspense } from 'react';
 import { Layout } from './components/Layout';
-import { AuthService } from './services/auth';
 import { StorageService } from './services/storage';
 import { logger } from './utils/logger';
-import { firebaseInit } from './firebase';
 
 // ===== БЕЗОПАСНАЯ ФУНКЦИЯ ДЛЯ LAZY LOADING =====
 // Предотвращает ошибку "Cannot set properties of undefined (setting 'Activity')"
@@ -49,7 +47,6 @@ import { useProjects } from './hooks/useProjects';
 import { useMembers } from './hooks/useMembers';
 import { useInvites } from './hooks/useInvites';
 import { useNotifications } from './hooks/useNotifications';
-// logger уже импортирован выше, перед createSafeLazyComponent
 import { useUsersFromMembers } from './hooks/useUsersFromMembers';
 import { MAX_CHAT_HISTORY_LENGTH } from './constants/ai';
 import toast from 'react-hot-toast';
@@ -72,28 +69,76 @@ type InviteContext = {
 
 type ThemeMode = 'light' | 'dark' | 'system';
 
+// ===== LAZY COMPONENTS - созданы на верхнем уровне модуля =====
+// КРИТИЧЕСКИ ВАЖНО: Lazy компоненты должны быть созданы на верхнем уровне модуля,
+// а не внутри компонента App, чтобы избежать ошибки "Cannot access 'It' before initialization"
+// в production сборке. Это гарантирует правильный порядок инициализации модулей.
+const CalendarView = lazy(() => import('./components/CalendarView').then(m => ({ default: m.CalendarView })));
+const GanttChart = lazy(() => import('./components/GanttChart').then(m => ({ default: m.GanttChart })));
+const Dashboard = lazy(() => import('./components/Dashboard').then(m => ({ default: m.Dashboard })));
+const TaskList = lazy(() => import('./components/TaskList').then(m => ({ default: m.TaskList })));
+const KanbanBoard = lazy(() => import('./components/KanbanBoard').then(m => ({ default: m.KanbanBoard })));
+const SettingsView = lazy(() => import('./components/SettingsView').then(m => ({ default: m.SettingsView })));
+const NotificationHistory = lazy(() => import('./components/NotificationHistory').then(m => ({ default: m.NotificationHistory })));
+const TaskModal = lazy(() => import('./components/TaskModal').then(m => ({ default: m.TaskModal })));
+const TaskProfile = lazy(() => import('./components/TaskProfile').then(m => ({ default: m.TaskProfile })));
+const ProjectModal = lazy(() => import('./components/ProjectModal').then(m => ({ default: m.ProjectModal })));
+const UserModal = lazy(() => import('./components/UserModal').then(m => ({ default: m.UserModal })));
+const ProfileModal = lazy(() => import('./components/ProfileModal').then(m => ({ default: m.ProfileModal })));
+const AuthView = lazy(() => import('./components/AuthView').then(m => ({ default: m.AuthView })));
+const AcceptInviteView = lazy(() => import('./components/AcceptInviteView').then(m => ({ default: m.AcceptInviteView })));
+const AICommandBar = lazy(() => import('./components/AICommandBar').then(m => ({ default: m.AICommandBar })));
+
+// Компонент для ленивой загрузки Toaster
+// КРИТИЧЕСКИ ВАЖНО: Определяем ToasterWrapper ПЕРЕД компонентом App,
+// чтобы избежать ошибки "Cannot access 'It' before initialization" в production сборке.
+// Это гарантирует правильный порядок инициализации модулей.
+const ToasterWrapper: React.FC = () => {
+  const [ToasterComponent, setToasterComponent] = useState<React.ComponentType<any> | null>(null);
+  
+  useEffect(() => {
+    // Загружаем Toaster только после монтирования компонента
+    import('react-hot-toast').then((module) => {
+      setToasterComponent(() => module.Toaster);
+    }).catch((error) => {
+      console.error('[ToasterWrapper] Failed to load Toaster:', error);
+    });
+  }, []);
+  
+  if (!ToasterComponent) {
+    return null;
+  }
+  
+  return (
+    <ToasterComponent
+      position="top-right"
+      toastOptions={{
+        duration: 4000,
+        style: {
+          background: 'var(--toast-bg, #fff)',
+          color: 'var(--toast-color, #000)',
+        },
+        success: {
+          iconTheme: {
+            primary: '#22c55e',
+            secondary: '#fff',
+          },
+        },
+        error: {
+          iconTheme: {
+            primary: '#ef4444',
+            secondary: '#fff',
+          },
+        },
+      }}
+    />
+  );
+};
+
 const App: React.FC = () => {
   // Диагностика: логируем начало рендеринга App
   console.log('[App] Компонент App начинает рендеринг');
   logger.info('App component rendering');
-  
-  // Упрощённый lazy loading - используем стандартный React.lazy напрямую
-  // без дополнительных обёрток, чтобы избежать проблем с инициализацией
-  const CalendarView = lazy(() => import('./components/CalendarView').then(m => ({ default: m.CalendarView })));
-  const GanttChart = lazy(() => import('./components/GanttChart').then(m => ({ default: m.GanttChart })));
-  const Dashboard = lazy(() => import('./components/Dashboard').then(m => ({ default: m.Dashboard })));
-  const TaskList = lazy(() => import('./components/TaskList').then(m => ({ default: m.TaskList })));
-  const KanbanBoard = lazy(() => import('./components/KanbanBoard').then(m => ({ default: m.KanbanBoard })));
-  const SettingsView = lazy(() => import('./components/SettingsView').then(m => ({ default: m.SettingsView })));
-  const NotificationHistory = lazy(() => import('./components/NotificationHistory').then(m => ({ default: m.NotificationHistory })));
-  const TaskModal = lazy(() => import('./components/TaskModal').then(m => ({ default: m.TaskModal })));
-  const TaskProfile = lazy(() => import('./components/TaskProfile').then(m => ({ default: m.TaskProfile })));
-  const ProjectModal = lazy(() => import('./components/ProjectModal').then(m => ({ default: m.ProjectModal })));
-  const UserModal = lazy(() => import('./components/UserModal').then(m => ({ default: m.UserModal })));
-  const ProfileModal = lazy(() => import('./components/ProfileModal').then(m => ({ default: m.ProfileModal })));
-  const AuthView = lazy(() => import('./components/AuthView').then(m => ({ default: m.AuthView })));
-  const AcceptInviteView = lazy(() => import('./components/AcceptInviteView').then(m => ({ default: m.AcceptInviteView })));
-  const AICommandBar = lazy(() => import('./components/AICommandBar').then(m => ({ default: m.AICommandBar })));
   
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
@@ -172,9 +217,10 @@ const App: React.FC = () => {
     }, 10000);
     
     // Инициализируем Firebase и затем настраиваем auth listener
-    // КРИТИЧЕСКИ ВАЖНО: Используем статический импорт firebaseInit вместо динамического,
-    // чтобы избежать ошибки "Cannot access 'It' before initialization" в production сборке
-    firebaseInit().then(() => {
+    import('./firebase').then(({ firebaseInit }) => {
+      // firebaseInit теперь функция, а не промис, поэтому вызываем её явно
+      return firebaseInit();
+    }).then(() => {
       if (!mounted) return;
       
       clearTimeout(safetyTimeout);
@@ -182,9 +228,12 @@ const App: React.FC = () => {
       console.log('[App] Firebase initialized successfully');
       
       // После инициализации Firebase настраиваем auth listener
-      try {
-        let callbackCalled = false;
-        unsubscribe = AuthService.subscribeToAuth(async (user) => {
+      // КРИТИЧЕСКИ ВАЖНО: Импортируем AuthService динамически после инициализации Firebase,
+      // чтобы избежать конфликта статического и динамического импорта firebase
+      import('./services/auth').then(({ AuthService }) => {
+        try {
+          let callbackCalled = false;
+          unsubscribe = AuthService.subscribeToAuth(async (user) => {
           callbackCalled = true;
           logger.info('Auth state changed', { hasUser: !!user, email: user?.email });
           console.log('[App] Auth state changed', { hasUser: !!user });
@@ -202,25 +251,33 @@ const App: React.FC = () => {
               }
             }
           }
-        });
-        console.log('[App] Auth subscription set up');
-        
-        // Таймаут безопасности: если callback не вызвался за 2 секунды, устанавливаем authLoading в false
-        setTimeout(() => {
-          if (mounted && !callbackCalled) {
-            console.warn('[App] Auth callback not called within 2 seconds, setting authLoading to false');
-            logger.warn('Auth callback not called within timeout');
+          });
+          console.log('[App] Auth subscription set up');
+          
+          // Таймаут безопасности: если callback не вызвался за 2 секунды, устанавливаем authLoading в false
+          setTimeout(() => {
+            if (mounted && !callbackCalled) {
+              console.warn('[App] Auth callback not called within 2 seconds, setting authLoading to false');
+              logger.warn('Auth callback not called within timeout');
+              setAuthLoading(false);
+            }
+          }, 2000);
+        } catch (error) {
+          clearTimeout(safetyTimeout);
+          logger.error('Failed to subscribe to auth', error instanceof Error ? error : undefined);
+          console.error('[App] Auth subscription error:', error);
+          if (mounted) {
             setAuthLoading(false);
           }
-        }, 2000);
-      } catch (error) {
+        }
+      }).catch((error) => {
         clearTimeout(safetyTimeout);
-        logger.error('Failed to subscribe to auth', error instanceof Error ? error : undefined);
-        console.error('[App] Auth subscription error:', error);
+        logger.error('Failed to load AuthService', error instanceof Error ? error : undefined);
+        console.error('[App] AuthService import error:', error);
         if (mounted) {
           setAuthLoading(false);
         }
-      }
+      });
     }).catch((error) => {
       clearTimeout(safetyTimeout);
       logger.error('Failed to initialize Firebase', error instanceof Error ? error : undefined);
@@ -705,6 +762,9 @@ const App: React.FC = () => {
   };
 
   const handleAuth = async (isLogin: boolean, ...args: string[]) => {
+    // КРИТИЧЕСКИ ВАЖНО: Импортируем AuthService динамически, чтобы избежать конфликта импортов
+    const { AuthService } = await import('./services/auth');
+    
     if (isLogin) {
       // Вход через email/password
       const [email, password] = args;
@@ -811,7 +871,11 @@ const App: React.FC = () => {
   return (
     <Layout
       currentUser={currentUser}
-      onLogout={AuthService.logout}
+      onLogout={async () => {
+        // КРИТИЧЕСКИ ВАЖНО: Импортируем AuthService динамически, чтобы избежать конфликта импортов
+        const { AuthService } = await import('./services/auth');
+        await AuthService.logout();
+      }}
       view={view}
       onChangeView={handleChangeView}
       workspaces={workspaces}
@@ -1170,49 +1234,6 @@ const App: React.FC = () => {
       {/* Toaster загружается внутри App после монтирования компонента */}
       <ToasterWrapper />
     </Layout>
-  );
-};
-
-// Компонент для ленивой загрузки Toaster
-const ToasterWrapper: React.FC = () => {
-  const [ToasterComponent, setToasterComponent] = useState<React.ComponentType<any> | null>(null);
-  
-  useEffect(() => {
-    // Загружаем Toaster только после монтирования компонента
-    import('react-hot-toast').then((module) => {
-      setToasterComponent(() => module.Toaster);
-    }).catch((error) => {
-      console.error('[ToasterWrapper] Failed to load Toaster:', error);
-    });
-  }, []);
-  
-  if (!ToasterComponent) {
-    return null;
-  }
-  
-  return (
-    <ToasterComponent
-      position="top-right"
-      toastOptions={{
-        duration: 4000,
-        style: {
-          background: 'var(--toast-bg, #fff)',
-          color: 'var(--toast-color, #000)',
-        },
-        success: {
-          iconTheme: {
-            primary: '#22c55e',
-            secondary: '#fff',
-          },
-        },
-        error: {
-          iconTheme: {
-            primary: '#ef4444',
-            secondary: '#fff',
-          },
-        },
-      }}
-    />
   );
 };
 

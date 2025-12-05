@@ -1,7 +1,7 @@
 import { Task, Project, Notification, WorkspaceMember } from '../types';
 import { NOTIFICATION_TYPES } from '../constants/notifications';
 import { getStatusLabel, getPriorityLabel } from './taskHelpers';
-import { getMoscowISOString } from './dateUtils';
+import { getMoscowISOString, formatMoscowDate } from './dateUtils';
 
 export const createTaskNotification = (
   workspaceId: string,
