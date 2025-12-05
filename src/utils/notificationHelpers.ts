@@ -128,7 +128,8 @@ export const createTelegramMessage = (
 export const getRecipientsForTask = (
   task: Partial<Task>,
   allMembers: WorkspaceMember[],
-  creatorId?: string
+  creatorId?: string,
+  currentUserEmail?: string
 ): string[] => {
   const recipients: string[] = [];
   const recipientChatIds = new Set<string>();
@@ -307,14 +308,60 @@ export const getRecipientsForTask = (
         // Если assigneeId не найден, возможно это Firebase Auth ID
         // Попробуем найти текущего пользователя по email из members
         // Это временное решение - правильное решение - использовать правильный userId при создании задачи
-        logger.error('[getRecipientsForTask] Assignee not found in valid members (legacy)', { 
+        logger.warn('[getRecipientsForTask] Assignee not found in valid members (legacy), trying to find by currentUserEmail', { 
           assigneeId: task.assigneeId,
+          currentUserEmail,
           validMemberUserIds: validMembers.map(m => m.userId),
           validMemberEmails: validMembers.map(m => m.email),
           allMemberUserIds: allMembers.map(m => m.userId),
-          allMemberEmails: allMembers.map(m => m.email),
-          note: 'This assigneeId might be a Firebase Auth ID that does not match WorkspaceMember.userId. The task should be updated to use the correct userId from WorkspaceMember.'
+          allMemberEmails: allMembers.map(m => m.email)
         });
+        
+        // Если есть currentUserEmail, попробуем найти по email
+        if (currentUserEmail) {
+          const assigneeByEmail = validMembers.find(m => 
+            m.email && currentUserEmail && 
+            m.email.toLowerCase() === currentUserEmail.toLowerCase()
+          );
+          if (assigneeByEmail) {
+            logger.info('[getRecipientsForTask] Found assignee by currentUserEmail (legacy fallback)', {
+              assigneeId: task.assigneeId,
+              assigneeUserId: assigneeByEmail.userId,
+              assigneeEmail: assigneeByEmail.email,
+              hasTelegramChatId: !!assigneeByEmail.telegramChatId,
+              telegramChatId: assigneeByEmail.telegramChatId ? `${assigneeByEmail.telegramChatId.substring(0, 5)}...` : 'none'
+            });
+            if (assigneeByEmail.telegramChatId && !recipientChatIds.has(assigneeByEmail.telegramChatId)) {
+              recipients.push(assigneeByEmail.telegramChatId);
+              recipientChatIds.add(assigneeByEmail.telegramChatId);
+            } else if (!assigneeByEmail.telegramChatId) {
+              logger.warn('[getRecipientsForTask] Assignee found by email but has no telegramChatId (legacy fallback)', { 
+                assigneeId: task.assigneeId,
+                assigneeUserId: assigneeByEmail.userId,
+                assigneeEmail: assigneeByEmail.email 
+              });
+            }
+          } else {
+            logger.error('[getRecipientsForTask] Assignee not found even by currentUserEmail (legacy)', { 
+              assigneeId: task.assigneeId,
+              currentUserEmail,
+              validMemberUserIds: validMembers.map(m => m.userId),
+              validMemberEmails: validMembers.map(m => m.email),
+              allMemberUserIds: allMembers.map(m => m.userId),
+              allMemberEmails: allMembers.map(m => m.email),
+              note: 'This assigneeId might be a Firebase Auth ID that does not match WorkspaceMember.userId. The task should be updated to use the correct userId from WorkspaceMember.'
+            });
+          }
+        } else {
+          logger.error('[getRecipientsForTask] Assignee not found in valid members and no currentUserEmail provided (legacy)', { 
+            assigneeId: task.assigneeId,
+            validMemberUserIds: validMembers.map(m => m.userId),
+            validMemberEmails: validMembers.map(m => m.email),
+            allMemberUserIds: allMembers.map(m => m.userId),
+            allMemberEmails: allMembers.map(m => m.email),
+            note: 'This assigneeId might be a Firebase Auth ID that does not match WorkspaceMember.userId. The task should be updated to use the correct userId from WorkspaceMember.'
+          });
+        }
       }
     }
   }

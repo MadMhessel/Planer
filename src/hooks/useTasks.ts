@@ -144,7 +144,7 @@ export const useTasks = (
         }))
       });
       
-      const telegramRecipients = getRecipientsForTask(created, members, currentUser.id);
+      const telegramRecipients = getRecipientsForTask(created, members, currentUser.id, currentUser.email);
       logger.info('[addTask] Telegram recipients determined', {
         recipientsCount: telegramRecipients.length,
         recipients: telegramRecipients.map(r => `${r.substring(0, 5)}...`)
@@ -232,7 +232,7 @@ export const useTasks = (
 
       // Уведомления
       const newTaskState = { ...oldTask, ...updates } as Task;
-      const recipients = getRecipientsForTask(newTaskState, members, currentUser.id);
+      const recipients = getRecipientsForTask(newTaskState, members, currentUser.id, currentUser.email);
       
       let notificationTitle = '';
       let notificationMessage = '';
@@ -398,7 +398,7 @@ export const useTasks = (
       
       await NotificationsService.add(workspaceId, deleteNotification);
 
-      const recipients = getRecipientsForTask(taskToDelete, members, currentUser.id);
+      const recipients = getRecipientsForTask(taskToDelete, members, currentUser.id, currentUser.email);
       if (recipients && recipients.length > 0) {
         const message = createTelegramMessage('TASK_DELETED', taskToDelete);
         if (message) {
