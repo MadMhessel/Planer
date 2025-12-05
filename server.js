@@ -137,15 +137,22 @@ app.use((req, res, next) => {
 
 // Утилита для санитизации HTML
 const sanitizeHTML = (html) => {
-    if (!html || typeof html !== 'string') {
-        return '';
+    try {
+        if (!html || typeof html !== 'string') {
+            return '';
+        }
+        const sanitized = DOMPurify.sanitize(html, {
+            ALLOWED_TAGS: ['b', 'i', 'u', 's', 'code', 'pre', 'a'],
+            ALLOWED_ATTR: ['href'],
+            ALLOW_DATA_ATTR: false,
+            ALLOW_UNKNOWN_PROTOCOLS: false
+        });
+        return sanitized || '';
+    } catch (error) {
+        console.error('[sanitizeHTML] Error sanitizing HTML:', error);
+        // В случае ошибки возвращаем текст без HTML тегов
+        return String(html || '').replace(/<[^>]*>/g, '');
     }
-    return DOMPurify.sanitize(html, {
-        ALLOWED_TAGS: ['b', 'i', 'u', 's', 'code', 'pre', 'a'],
-        ALLOWED_ATTR: ['href'],
-        ALLOW_DATA_ATTR: false,
-        ALLOW_UNKNOWN_PROTOCOLS: false
-    });
 };
 
 // --- Инициализация Gemini ---
@@ -461,13 +468,16 @@ app.post('/api/telegram/notify',
       });
     } catch (error) {
       // Обработка любых неожиданных ошибок
-      console.error('[Telegram] Unexpected error in /api/telegram/notify:', {
-        error: error.message,
+      const errorInfo = {
+        message: error.message || 'An unexpected error occurred',
+        name: error.name || 'Error',
         stack: error.stack,
-        name: error.name,
         body: req.body,
-        hasToken: !!process.env.TELEGRAM_BOT_TOKEN
-      });
+        hasToken: !!process.env.TELEGRAM_BOT_TOKEN,
+        tokenLength: process.env.TELEGRAM_BOT_TOKEN ? process.env.TELEGRAM_BOT_TOKEN.length : 0
+      };
+      
+      console.error('[Telegram] Unexpected error in /api/telegram/notify:', errorInfo);
       
       // Определяем более понятное сообщение об ошибке
       let errorMessage = error.message || 'An unexpected error occurred';
@@ -475,16 +485,19 @@ app.post('/api/telegram/notify',
         errorMessage = 'Network error: Unable to connect to Telegram API. Check server internet connection.';
       } else if (error.message?.includes('JSON')) {
         errorMessage = 'Error parsing response from Telegram API';
+      } else if (error.message?.includes('is not defined') || error.message?.includes('Cannot read')) {
+        errorMessage = `Server error: ${error.message}`;
       }
       
+      // Всегда возвращаем детальную информацию об ошибке
       res.status(500).json({ 
         error: 'Internal server error',
         message: errorMessage,
-        details: process.env.NODE_ENV === 'development' ? {
-          stack: error.stack,
+        details: {
           name: error.name,
-          originalMessage: error.message
-        } : undefined
+          originalMessage: error.message,
+          ...(process.env.NODE_ENV === 'development' ? { stack: error.stack } : {})
+        }
       });
     }
   }

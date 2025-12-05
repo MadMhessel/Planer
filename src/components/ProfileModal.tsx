@@ -89,10 +89,27 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
       } else {
         // Показываем конкретную ошибку от Telegram API
         const errorMessage = result.error || 'Не удалось отправить тестовое уведомление';
+        const details = result.details || {};
         
         // Улучшаем сообщения об ошибках для пользователя
         let userFriendlyMessage = errorMessage;
-        if (errorMessage.includes('Server configuration error') || errorMessage.includes('TELEGRAM_BOT_TOKEN')) {
+        
+        // Проверяем детали ошибки
+        if (details.error) {
+          const detailError = typeof details.error === 'string' ? details.error : JSON.stringify(details.error);
+          if (detailError.includes('TELEGRAM_BOT_TOKEN') || detailError.includes('not set')) {
+            userFriendlyMessage = 'Ошибка конфигурации сервера: Telegram бот не настроен. Обратитесь к администратору.';
+          } else if (detailError.includes('chat not found') || detailError.includes('Chat not found')) {
+            userFriendlyMessage = 'Чат не найден. Убедитесь, что вы начали диалог с ботом и указали правильный Chat ID.';
+          } else if (detailError.includes('Forbidden') || detailError.includes('bot was blocked')) {
+            userFriendlyMessage = 'Бот заблокирован. Разблокируйте бота в Telegram и попробуйте снова.';
+          } else if (detailError.includes('Invalid chatId')) {
+            userFriendlyMessage = 'Неверный формат Chat ID. Проверьте правильность введенного ID.';
+          } else {
+            // Используем детальную ошибку, если она есть
+            userFriendlyMessage = detailError.length > 200 ? detailError.substring(0, 200) + '...' : detailError;
+          }
+        } else if (errorMessage.includes('Server configuration error') || errorMessage.includes('TELEGRAM_BOT_TOKEN')) {
           userFriendlyMessage = 'Ошибка конфигурации сервера: Telegram бот не настроен. Обратитесь к администратору.';
         } else if (errorMessage.includes('chat not found') || errorMessage.includes('Chat not found')) {
           userFriendlyMessage = 'Чат не найден. Убедитесь, что вы начали диалог с ботом и указали правильный Chat ID.';
@@ -102,11 +119,24 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
           userFriendlyMessage = 'Неверный формат Chat ID. Проверьте правильность введенного ID.';
         } else if (errorMessage.includes('HTTP 500') || errorMessage.includes('Internal server error')) {
           userFriendlyMessage = 'Ошибка сервера. Возможно, Telegram бот не настроен на сервере. Обратитесь к администратору.';
+        } else if (errorMessage === 'Unknown error') {
+          userFriendlyMessage = 'Неизвестная ошибка сервера. Проверьте логи сервера или обратитесь к администратору.';
         }
+        
+        // Логируем полную информацию для отладки
+        console.error('[ProfileModal] Telegram test failed - Full details:', {
+          error: result.error,
+          details: result.details,
+          fullResult: result
+        });
         
         setError(userFriendlyMessage);
         toast.error(userFriendlyMessage);
-        logger.warn('Telegram test failed', { error: result.error, details: result.details });
+        logger.warn('Telegram test failed', { 
+          error: result.error, 
+          details: result.details,
+          fullResult: result
+        });
       }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Ошибка при отправке тестового уведомления';

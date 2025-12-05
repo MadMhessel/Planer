@@ -26,22 +26,48 @@ export const TelegramService = {
       });
 
       if (!response.ok) {
-        let errorData;
+        let errorData: any = {};
+        let errorMessage = `HTTP ${response.status}: ${response.statusText || 'Internal Server Error'}`;
+        
         try {
-          errorData = await response.json();
+          // Пытаемся получить JSON ответ
+          const contentType = response.headers.get('content-type');
+          if (contentType && contentType.includes('application/json')) {
+            errorData = await response.json();
+            errorMessage = errorData.error || errorData.message || errorMessage;
+          } else {
+            // Если не JSON, читаем как текст
+            const textError = await response.text();
+            errorData = { error: textError || errorMessage, raw: textError };
+            errorMessage = textError || errorMessage;
+          }
         } catch (parseError) {
-          // Если не удалось распарсить JSON, читаем как текст
-          const textError = await response.text().catch(() => 'Unknown error');
-          errorData = { error: textError || `HTTP ${response.status}: ${response.statusText}` };
+          // Если вообще не удалось прочитать ответ
+          logger.error('Failed to parse error response', parseError instanceof Error ? parseError : undefined);
+          errorData = { 
+            error: errorMessage,
+            parseError: parseError instanceof Error ? parseError.message : String(parseError)
+          };
         }
         
-        const errorMessage = errorData.error || errorData.message || `HTTP ${response.status}: ${response.statusText || 'Internal Server Error'}`;
-        logger.error('Failed to send notification via server', undefined, {
-          status: response.status,
-          statusText: response.statusText,
-          error: errorData
-        });
-        return { success: false, error: errorMessage, details: errorData };
+      // Детальное логирование для отладки
+      console.error('[TelegramService] Failed to send notification - Full details:', {
+        status: response.status,
+        statusText: response.statusText,
+        errorData,
+        errorMessage,
+        url: '/api/telegram/notify',
+        chatIds: chatIds.length
+      });
+      
+      logger.error('Failed to send notification via server', undefined, {
+        status: response.status,
+        statusText: response.statusText,
+        error: errorData,
+        url: '/api/telegram/notify'
+      });
+      
+      return { success: false, error: errorMessage, details: errorData };
       }
       
       const result = await response.json();
