@@ -7,7 +7,13 @@ COPY package*.json ./
 
 # 2. Ставим зависимости
 # Используем --legacy-peer-deps для разрешения конфликтов между React 19 и @testing-library/react
-RUN npm ci --legacy-peer-deps
+# Retry npm install up to 4 times in case of network/registry issues
+RUN for i in 1 2 3 4; do \
+      echo "Attempt $i: Installing dependencies..." && \
+      npm ci --legacy-peer-deps && break || \
+      (echo "Attempt $i failed, waiting before retry..." && sleep $((i * 5))); \
+    done && \
+    npm ci --legacy-peer-deps
 
 # 3. Копируем остальной код (исключая node_modules и dist, если они есть локально)
 COPY . .
