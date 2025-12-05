@@ -675,7 +675,7 @@ const App: React.FC = () => {
   }, [currentWorkspaceId, members]);
 
   // Преобразование members в users с загрузкой displayName из Firestore
-  const usersFromMembers = useUsersFromMembers(members, currentUser);
+  const usersFromMembers = useUsersFromMembers(members, currentUser, currentWorkspaceId);
 
   // Parse invite from URL
   useEffect(() => {

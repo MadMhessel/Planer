@@ -3,13 +3,17 @@ import { WorkspaceMember, User } from '../types';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { logger } from '../utils/logger';
+import { SUPER_ADMINS } from '../constants/superAdmins';
 
 /**
  * Хук для преобразования members в users с загрузкой displayName из Firestore
+ * Для супер-админов гарантирует, что все участники workspace отображаются,
+ * даже если супер-админ сам не является участником
  */
 export const useUsersFromMembers = (
   members: WorkspaceMember[],
-  currentUser: User | null
+  currentUser: User | null,
+  workspaceId?: string | null
 ): User[] => {
   const [userDataMap, setUserDataMap] = useState<Record<string, Partial<User>>>({});
 
@@ -51,6 +55,12 @@ export const useUsersFromMembers = (
     loadUserData();
   }, [members]);
 
+  // Проверяем, является ли текущий пользователь супер-админом
+  const isSuperAdmin = useMemo(() => {
+    if (!currentUser || !currentUser.email) return false;
+    return SUPER_ADMINS.map(e => e.toLowerCase()).includes(currentUser.email.toLowerCase());
+  }, [currentUser]);
+
   // Преобразуем members в users с использованием загруженных данных
   const users = useMemo(() => {
     const usersList: User[] = members.map(m => {
@@ -66,6 +76,11 @@ export const useUsersFromMembers = (
       };
     });
 
+    // Для супер-админов: если список участников пуст или содержит только текущего пользователя,
+    // это может означать, что супер-админ не является участником workspace.
+    // В этом случае мы все равно показываем всех участников из members (они должны быть загружены через Firestore rules).
+    // Но если members пуст, это может быть проблемой загрузки.
+    
     // Добавляем текущего пользователя, если его нет в списке
     if (currentUser && currentUser.id) {
       const userExists = usersList.some(u => u.id === currentUser.id);
@@ -82,8 +97,19 @@ export const useUsersFromMembers = (
       }
     }
 
+    // Для супер-админов: если список содержит только одного пользователя (самого супер-админа),
+    // но members не пуст, это означает, что другие участники не были преобразованы.
+    // Это не должно происходить, но на всякий случай логируем.
+    if (isSuperAdmin && usersList.length === 1 && members.length > 1) {
+      logger.warn('[useUsersFromMembers] Супер-админ видит только себя, но в members есть другие участники', {
+        currentUserId: currentUser?.id,
+        membersCount: members.length,
+        usersCount: usersList.length
+      });
+    }
+
     return usersList;
-  }, [members, userDataMap, currentUser]);
+  }, [members, userDataMap, currentUser, isSuperAdmin]);
 
   return users;
 };

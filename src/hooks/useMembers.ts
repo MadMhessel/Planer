@@ -20,6 +20,12 @@ export const useMembers = (workspaceId: string | null) => {
 
     try {
       const unsubscribe = FirestoreService.subscribeToMembers(workspaceId, (newMembers) => {
+        logger.info('[useMembers] Members loaded', {
+          workspaceId,
+          membersCount: newMembers.length,
+          memberIds: newMembers.map(m => m.userId),
+          memberEmails: newMembers.map(m => m.email)
+        });
         setMembers(newMembers);
         setLoading(false);
       });
