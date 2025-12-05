@@ -12,6 +12,7 @@ import { TaskModal } from './components/TaskModal';
 import { ProjectModal } from './components/ProjectModal';
 import { UserModal } from './components/UserModal';
 import { ProfileModal } from './components/ProfileModal';
+import { DayTasksModal } from './components/DayTasksModal';
 import { SettingsView } from './components/SettingsView';
 import { AuthView } from './components/AuthView';
 import { WorkspaceSelector } from './components/WorkspaceSelector';
@@ -73,6 +74,8 @@ const App: React.FC = () => {
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+  const [isDayTasksModalOpen, setIsDayTasksModalOpen] = useState(false);
+  const [selectedDate, setSelectedDate] = useState<string>('');
 
   const [inviteContext, setInviteContext] = useState<InviteContext | null>(null);
   const [isProcessingCommand, setIsProcessingCommand] = useState(false);
@@ -788,6 +791,10 @@ const App: React.FC = () => {
                   } as Task);
                   setIsTaskModalOpen(true);
                 }}
+                onDateClick={(date) => {
+                  setSelectedDate(date);
+                  setIsDayTasksModalOpen(true);
+                }}
               />
             </Suspense>
           )}
@@ -1025,6 +1032,33 @@ const App: React.FC = () => {
               }}
             />
           )}
+
+          <DayTasksModal
+            isOpen={isDayTasksModalOpen}
+            onClose={() => setIsDayTasksModalOpen(false)}
+            date={selectedDate}
+            tasks={tasks}
+            projects={projects}
+            users={usersFromMembers}
+            onTaskClick={(task) => {
+              setEditingTask(task);
+              setIsTaskModalOpen(true);
+            }}
+            onCreateTask={(date) => {
+              if (!currentWorkspaceId) return;
+              setEditingTask({
+                id: '',
+                title: '',
+                status: TaskStatus.TODO,
+                createdAt: getMoscowISOString(),
+                updatedAt: getMoscowISOString(),
+                workspaceId: currentWorkspaceId,
+                dueDate: date,
+                priority: TaskPriority.NORMAL
+              } as Task);
+              setIsTaskModalOpen(true);
+            }}
+          />
 
           <AICommandBar
             onCommand={handleCommand}

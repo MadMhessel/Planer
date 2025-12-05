@@ -7,12 +7,14 @@ type Props = {
   tasks: Task[];
   onTaskClick: (task: Task) => void;
   onCreateTask: (dateIso: string) => void;
+  onDateClick: (dateIso: string) => void;
 };
 
 export const CalendarView: React.FC<Props> = ({
   tasks,
   onTaskClick,
-  onCreateTask
+  onCreateTask,
+  onDateClick
 }) => {
   const [currentDate, setCurrentDate] = useState(() => new Date());
 
@@ -124,7 +126,7 @@ export const CalendarView: React.FC<Props> = ({
             <button
               key={day}
               type="button"
-              onClick={() => onCreateTask(iso)}
+              onClick={() => onDateClick(iso)}
               className={
                 'min-h-[60px] sm:min-h-[80px] flex flex-col items-stretch rounded-lg bg-white dark:bg-slate-800/60 backdrop-blur-sm border text-left px-1 sm:px-2 py-1 sm:py-2 text-[10px] sm:text-[11px] transition-all shadow-sm sm:shadow-md hover:shadow-lg hover:-translate-y-0.5 w-full overflow-hidden ' +
                 (isToday 
