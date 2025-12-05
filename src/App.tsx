@@ -1,44 +1,31 @@
-import React, { useCallback, useEffect, useState, useMemo, lazy, Suspense } from 'react';
+import React, { useCallback, useEffect, useState, useMemo } from 'react';
 import { Layout } from './components/Layout';
-import { StorageService } from './services/storage';
-import { logger } from './utils/logger';
-import { firebaseInit } from './firebase';
-import { AuthService } from './services/auth';
+// Code splitting для больших компонентов
+import { TaskList } from './components/TaskList';
+import { KanbanBoard } from './components/KanbanBoard';
+import { lazy, Suspense } from 'react';
 
-// ===== БЕЗОПАСНАЯ ФУНКЦИЯ ДЛЯ LAZY LOADING =====
-// Предотвращает ошибку "Cannot set properties of undefined (setting 'Activity')"
-// и "Cannot access 'It' before initialization"
-// 
-// КРИТИЧЕСКИ ВАЖНО: Эта функция НЕ использует logger на верхнем уровне,
-// чтобы избежать проблем с порядком инициализации модулей.
-// logger используется только внутри асинхронной функции lazy(), когда модули уже загружены.
-//
-// РЕШЕНИЕ: 
-// 1. Проверяем, что модуль загружен и не undefined
-// 2. Проверяем, что компонент существует в модуле
-// 3. Проверяем, что компонент является функцией
-// 4. Возвращаем fallback компонент вместо undefined при любой ошибке
-// Убрали createSafeLazyComponent - используем стандартный React.lazy напрямую
-// для избежания проблем с инициализацией модулей
-
-// КРИТИЧЕСКИ ВАЖНО: Не создаём lazy компоненты на верхнем уровне модуля,
-// чтобы избежать ошибки "Cannot access 'It' before initialization" в production сборке.
-// Вместо этого создаём их внутри компонента App или используем прямые lazy() вызовы.
-// Это гарантирует правильный порядок инициализации модулей.
-
-// ===== Синхронные импорты (легкие компоненты, используются всегда) =====
+const CalendarView = lazy(() => import('./components/CalendarView').then(m => ({ default: m.CalendarView })));
+const GanttChart = lazy(() => import('./components/GanttChart').then(m => ({ default: m.GanttChart })));
+const Dashboard = lazy(() => import('./components/Dashboard').then(m => ({ default: m.Dashboard })));
+import { TaskModal } from './components/TaskModal';
+import { ProjectModal } from './components/ProjectModal';
+import { UserModal } from './components/UserModal';
+import { ProfileModal } from './components/ProfileModal';
+import { SettingsView } from './components/SettingsView';
+import { AuthView } from './components/AuthView';
 import { WorkspaceSelector } from './components/WorkspaceSelector';
 import { NotificationCenter } from './components/NotificationCenter';
+import { NotificationHistory } from './components/NotificationHistory';
+import { AcceptInviteView } from './components/AcceptInviteView';
+import { AICommandBar } from './components/AICommandBar';
 
-// ===== Skeleton компоненты для оптимизации CLS =====
-import { 
-  KanbanSkeleton, 
-  TaskListSkeleton, 
-  CalendarSkeleton, 
-  GanttSkeleton, 
-  DashboardSkeleton, 
-  SettingsSkeleton 
-} from './components/Skeleton';
+// Spinner for Suspense fallbacks
+import { LoadingSpinner } from './components/LoadingSpinner';
+import { AuthService } from './services/auth';
+import { StorageService } from './services/storage';
+import { GeminiService } from './services/gemini';
+import { TelegramService } from './services/telegram';
 
 import { Project, Task, TaskPriority, TaskStatus, User, ViewMode, Notification } from './types';
 
@@ -49,6 +36,7 @@ import { useProjects } from './hooks/useProjects';
 import { useMembers } from './hooks/useMembers';
 import { useInvites } from './hooks/useInvites';
 import { useNotifications } from './hooks/useNotifications';
+import { logger } from './utils/logger';
 import { useUsersFromMembers } from './hooks/useUsersFromMembers';
 import { MAX_CHAT_HISTORY_LENGTH } from './constants/ai';
 import toast from 'react-hot-toast';
@@ -71,75 +59,7 @@ type InviteContext = {
 
 type ThemeMode = 'light' | 'dark' | 'system';
 
-// ===== LAZY COMPONENTS - созданы на верхнем уровне модуля =====
-// КРИТИЧЕСКИ ВАЖНО: Lazy компоненты должны быть созданы на верхнем уровне модуля,
-// а не внутри компонента App, чтобы избежать ошибки "Cannot access 'It' before initialization"
-// в production сборке. Это гарантирует правильный порядок инициализации модулей.
-const CalendarView = lazy(() => import('./components/CalendarView').then(m => ({ default: m.CalendarView })));
-const GanttChart = lazy(() => import('./components/GanttChart').then(m => ({ default: m.GanttChart })));
-const Dashboard = lazy(() => import('./components/Dashboard').then(m => ({ default: m.Dashboard })));
-const TaskList = lazy(() => import('./components/TaskList').then(m => ({ default: m.TaskList })));
-const KanbanBoard = lazy(() => import('./components/KanbanBoard').then(m => ({ default: m.KanbanBoard })));
-const SettingsView = lazy(() => import('./components/SettingsView').then(m => ({ default: m.SettingsView })));
-const NotificationHistory = lazy(() => import('./components/NotificationHistory').then(m => ({ default: m.NotificationHistory })));
-const TaskModal = lazy(() => import('./components/TaskModal').then(m => ({ default: m.TaskModal })));
-const TaskProfile = lazy(() => import('./components/TaskProfile').then(m => ({ default: m.TaskProfile })));
-const ProjectModal = lazy(() => import('./components/ProjectModal').then(m => ({ default: m.ProjectModal })));
-const UserModal = lazy(() => import('./components/UserModal').then(m => ({ default: m.UserModal })));
-const ProfileModal = lazy(() => import('./components/ProfileModal').then(m => ({ default: m.ProfileModal })));
-const AuthView = lazy(() => import('./components/AuthView').then(m => ({ default: m.AuthView })));
-const AcceptInviteView = lazy(() => import('./components/AcceptInviteView').then(m => ({ default: m.AcceptInviteView })));
-const AICommandBar = lazy(() => import('./components/AICommandBar').then(m => ({ default: m.AICommandBar })));
-
-// Компонент для ленивой загрузки Toaster
-// КРИТИЧЕСКИ ВАЖНО: Определяем ToasterWrapper ПЕРЕД компонентом App,
-// чтобы избежать ошибки "Cannot access 'It' before initialization" в production сборке.
-// Это гарантирует правильный порядок инициализации модулей.
-const ToasterWrapper: React.FC = () => {
-  const [ToasterComponent, setToasterComponent] = useState<React.ComponentType<any> | null>(null);
-  
-  useEffect(() => {
-    // Загружаем Toaster только после монтирования компонента
-    import('react-hot-toast').then((module) => {
-      setToasterComponent(() => module.Toaster);
-    }).catch((error) => {
-      console.error('[ToasterWrapper] Failed to load Toaster:', error);
-    });
-  }, []);
-  
-  if (!ToasterComponent) {
-    return null;
-  }
-  
-  return (
-    <ToasterComponent
-      position="top-right"
-      toastOptions={{
-        duration: 4000,
-        style: {
-          background: 'var(--toast-bg, #fff)',
-          color: 'var(--toast-color, #000)',
-        },
-        success: {
-          iconTheme: {
-            primary: '#22c55e',
-            secondary: '#fff',
-          },
-        },
-        error: {
-          iconTheme: {
-            primary: '#ef4444',
-            secondary: '#fff',
-          },
-        },
-      }}
-    />
-  );
-};
-
 const App: React.FC = () => {
-  // Диагностика: логируем начало рендеринга App
-  console.log('[App] Компонент App начинает рендеринг');
   logger.info('App component rendering');
   
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -148,7 +68,6 @@ const App: React.FC = () => {
   const [view, setView] = useState<AppView>('BOARD');
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
-  const [viewingTask, setViewingTask] = useState<Task | null>(null); // Задача для просмотра (профиль)
   const [isProjectModalOpen, setIsProjectModalOpen] = useState(false);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
@@ -209,78 +128,36 @@ const App: React.FC = () => {
     let mounted = true;
     let unsubscribe: (() => void) | null = null;
     
-    // Таймаут безопасности: если Firebase не инициализируется за 10 секунд, показываем UI
-    const safetyTimeout = setTimeout(() => {
-      if (mounted) {
-        logger.warn('Firebase initialization timeout - showing UI anyway');
-        console.warn('[App] Firebase initialization timeout');
-        setAuthLoading(false);
-      }
-    }, 10000);
-    
     // Инициализируем Firebase и затем настраиваем auth listener
-    // КРИТИЧЕСКИ ВАЖНО: Используем статический импорт firebaseInit вместо динамического,
-    // чтобы избежать ошибки "Cannot access 'It' before initialization" в production сборке
-    firebaseInit().then(() => {
+    import('./firebase').then(({ firebaseInit }) => {
+      return firebaseInit;
+    }).then(() => {
       if (!mounted) return;
       
-      clearTimeout(safetyTimeout);
-      logger.info('Firebase initialized, setting up auth listener');
-      console.log('[App] Firebase initialized successfully');
-      
       // После инициализации Firebase настраиваем auth listener
-      // КРИТИЧЕСКИ ВАЖНО: Используем статический импорт AuthService вместо динамического,
-      // чтобы избежать ошибки "Cannot access 'It' before initialization" в production сборке
-      try {
-        let callbackCalled = false;
-        unsubscribe = AuthService.subscribeToAuth(async (user) => {
-          callbackCalled = true;
-          logger.info('Auth state changed', { hasUser: !!user, email: user?.email });
-          console.log('[App] Auth state changed', { hasUser: !!user });
-          if (mounted) {
-            try {
-              setCurrentUser(user);
+      unsubscribe = AuthService.subscribeToAuth(async (user) => {
+        logger.info('Auth state changed', { hasUser: !!user, email: user?.email });
+        if (mounted) {
+          try {
+            setCurrentUser(user);
+            setAuthLoading(false);
+            logger.info('Auth state updated');
+          } catch (error) {
+            logger.error('Error setting user state', error instanceof Error ? error : undefined);
+            if (mounted) {
               setAuthLoading(false);
-              logger.info('Auth state updated');
-              console.log('[App] Auth loading set to false');
-            } catch (error) {
-              logger.error('Error setting user state', error instanceof Error ? error : undefined);
-              console.error('[App] Error setting user state:', error);
-              if (mounted) {
-                setAuthLoading(false);
-              }
             }
           }
-        });
-        console.log('[App] Auth subscription set up');
-        
-        // Таймаут безопасности: если callback не вызвался за 2 секунды, устанавливаем authLoading в false
-        setTimeout(() => {
-          if (mounted && !callbackCalled) {
-            console.warn('[App] Auth callback not called within 2 seconds, setting authLoading to false');
-            logger.warn('Auth callback not called within timeout');
-            setAuthLoading(false);
-          }
-        }, 2000);
-      } catch (error) {
-        clearTimeout(safetyTimeout);
-        logger.error('Failed to subscribe to auth', error instanceof Error ? error : undefined);
-        console.error('[App] Auth subscription error:', error);
-        if (mounted) {
-          setAuthLoading(false);
         }
-      }
+      });
     }).catch((error) => {
-      clearTimeout(safetyTimeout);
       logger.error('Failed to initialize Firebase', error instanceof Error ? error : undefined);
-      console.error('[App] Firebase initialization error:', error);
       if (mounted) {
         setAuthLoading(false);
       }
     });
 
     return () => {
-      clearTimeout(safetyTimeout);
       logger.info('Cleaning up auth listener');
       mounted = false;
       if (unsubscribe) {
@@ -308,7 +185,8 @@ const App: React.FC = () => {
     notifications: firestoreNotifications,
     markAllAsRead,
     markAsRead,
-    clearAll
+    clearAll,
+    deleteNotification
   } = useNotifications(currentWorkspaceId, currentUser?.id || null);
 
   // Локальные уведомления (для ошибок и системных сообщений)
@@ -649,9 +527,6 @@ const App: React.FC = () => {
       // Добавляем контекст текущих задач для поиска по названию
       const taskTitles = tasks.map(t => t.title).slice(0, 50); // Ограничиваем для промпта
 
-      // Динамическая загрузка GeminiService (загружается только при использовании AI)
-      const { GeminiService } = await import('./services/gemini');
-      
       // Получаем ответ от AI с историей
       const response = await GeminiService.suggestTasksFromCommand(command, {
         projectNames,
@@ -732,8 +607,6 @@ const App: React.FC = () => {
         });
         
         if (allRecipients.length > 0 && createdCount > 0) {
-          // Динамическая загрузка TelegramService (загружается только при отправке уведомлений)
-          const { TelegramService } = await import('./services/telegram');
           const uniqueRecipients = [...new Set(allRecipients)];
           await TelegramService.sendNotification(
             uniqueRecipients, 
@@ -754,8 +627,6 @@ const App: React.FC = () => {
   };
 
   const handleAuth = async (isLogin: boolean, ...args: string[]) => {
-    // КРИТИЧЕСКИ ВАЖНО: Используем статический импорт AuthService вместо динамического,
-    // чтобы избежать ошибки "Cannot access 'It' before initialization" в production сборке
     if (isLogin) {
       // Вход через email/password
       const [email, password] = args;
@@ -827,35 +698,19 @@ const App: React.FC = () => {
 
   if (!currentUser) {
     return (
-      <Suspense fallback={
-        <div className="min-h-screen flex items-center justify-center bg-white dark:bg-slate-900">
-          <div className="text-center">
-            <div className="animate-pulse text-lg mb-2 text-gray-900 dark:text-slate-100">Загрузка...</div>
-          </div>
-        </div>
-      }>
-        <AuthView
-          onAuth={handleAuth}
-        />
-      </Suspense>
+      <AuthView
+        onAuth={handleAuth}
+      />
     );
   }
 
   if (inviteContext) {
     return (
-      <Suspense fallback={
-        <div className="min-h-screen flex items-center justify-center bg-white dark:bg-slate-900">
-          <div className="text-center">
-            <div className="animate-pulse text-lg mb-2 text-gray-900 dark:text-slate-100">Загрузка...</div>
-          </div>
-        </div>
-      }>
-        <AcceptInviteView
-          currentUser={currentUser}
-          inviteContext={inviteContext}
-          onClose={() => setInviteContext(null)}
-        />
-      </Suspense>
+      <AcceptInviteView
+        currentUser={currentUser}
+        inviteContext={inviteContext}
+        onClose={() => setInviteContext(null)}
+      />
     );
   }
 
@@ -892,32 +747,32 @@ const App: React.FC = () => {
       {currentWorkspace && (
         <>
           {view === 'BOARD' && (
-            <Suspense fallback={<KanbanSkeleton />}>
-              <KanbanBoard
-                tasks={tasks}
-                projects={projects}
-                users={usersFromMembers}
-                onTaskClick={t => {
-                  setViewingTask(t);
-                }}
-                onStatusChange={(task, status) => handleUpdateTask(task.id, { status })}
-                onCreateTask={() => {
-                  setEditingTask(null);
-                  setIsTaskModalOpen(true);
-                }}
-                onDeleteTask={async (task) => {
-                  await handleDeleteTask(task.id);
-                }}
-              />
-            </Suspense>
+            <KanbanBoard
+              tasks={tasks}
+              projects={projects}
+              users={usersFromMembers}
+              onTaskClick={t => {
+                setEditingTask(t);
+                setIsTaskModalOpen(true);
+              }}
+              onStatusChange={(task, status) => handleUpdateTask(task.id, { status })}
+              onCreateTask={() => {
+                setEditingTask(null);
+                setIsTaskModalOpen(true);
+              }}
+              onDeleteTask={async (task) => {
+                await handleDeleteTask(task.id);
+              }}
+            />
           )}
 
           {view === 'CALENDAR' && (
-            <Suspense fallback={<CalendarSkeleton />}>
+            <Suspense fallback={<LoadingSpinner text="Загрузка календаря..." />}>
               <CalendarView
                 tasks={tasks}
                 onTaskClick={t => {
-                  setViewingTask(t);
+                  setEditingTask(t);
+                  setIsTaskModalOpen(true);
                 }}
                 onCreateTask={(date) => {
                   if (!currentWorkspaceId) return;
@@ -938,38 +793,40 @@ const App: React.FC = () => {
           )}
 
           {view === 'GANTT' && (
-            <Suspense fallback={<GanttSkeleton />}>
+            <Suspense fallback={<LoadingSpinner text="Загрузка диаграммы Ганта..." />}>
               <GanttChart
                 tasks={tasks}
                 projects={projects}
                 onTaskClick={t => {
-                  setViewingTask(t);
+                  setEditingTask(t);
+                  setIsTaskModalOpen(true);
                 }}
                 onEditTask={t => {
-                  setViewingTask(t);
+                  setEditingTask(t);
+                  setIsTaskModalOpen(true);
                 }}
               />
             </Suspense>
           )}
 
           {view === 'LIST' && (
-            <Suspense fallback={<TaskListSkeleton />}>
-              <TaskList
-                tasks={tasks}
-                projects={projects}
-                users={usersFromMembers}
-                onTaskClick={t => {
-                  setViewingTask(t);
-                }}
-                onEditTask={t => {
-                  setViewingTask(t);
-                }}
-              />
-            </Suspense>
+            <TaskList
+              tasks={tasks}
+              projects={projects}
+              users={usersFromMembers}
+              onTaskClick={t => {
+                setEditingTask(t);
+                setIsTaskModalOpen(true);
+              }}
+              onEditTask={t => {
+                setEditingTask(t);
+                setIsTaskModalOpen(true);
+              }}
+            />
           )}
 
           {view === 'DASHBOARD' && (
-            <Suspense fallback={<DashboardSkeleton />}>
+            <Suspense fallback={<LoadingSpinner text="Загрузка аналитики..." />}>
               <Dashboard
                 tasks={tasks}
                 projects={projects}
@@ -978,59 +835,58 @@ const App: React.FC = () => {
           )}
 
           {view === 'NOTIFICATIONS' && currentWorkspace && currentUser && (
-            <Suspense fallback={<div className="space-y-2"><TaskListSkeleton /></div>}>
-              <NotificationHistory
-                notifications={notifications}
-                currentUserId={currentUser.id}
-                onMarkAsRead={async (notificationId: string) => {
-                  try {
-                    if (firestoreNotifications.find(n => n.id === notificationId)) {
-                      await markAsRead(notificationId);
-                    }
-                  } catch (error) {
-                    logger.error('Failed to mark notification as read', error instanceof Error ? error : undefined);
+            <NotificationHistory
+              notifications={notifications}
+              currentUserId={currentUser.id}
+              onMarkAsRead={async (notificationId: string) => {
+                try {
+                  if (firestoreNotifications.find(n => n.id === notificationId)) {
+                    await markAsRead(notificationId);
                   }
-                }}
-                    onDelete={async (notificationId: string) => {
-                      try {
-                        // Удаляем только локальные уведомления
-                        // Firestore уведомления удаляются через clearAll или автоматически
-                        setLocalNotifications(prev => prev.filter(n => n.id !== notificationId));
-                      } catch (error) {
-                        logger.error('Failed to delete notification', error instanceof Error ? error : undefined);
-                      }
-                    }}
-              />
-            </Suspense>
+                } catch (error) {
+                  logger.error('Failed to mark notification as read', error instanceof Error ? error : undefined);
+                }
+              }}
+              onDelete={async (notificationId: string) => {
+                try {
+                  if (firestoreNotifications.find(n => n.id === notificationId)) {
+                    await deleteNotification(notificationId);
+                  } else {
+                    // Удаляем локальное уведомление
+                    setLocalNotifications(prev => prev.filter(n => n.id !== notificationId));
+                  }
+                } catch (error) {
+                  logger.error('Failed to delete notification', error instanceof Error ? error : undefined);
+                }
+              }}
+            />
           )}
 
           {view === 'SETTINGS' && currentWorkspace && (
-            <Suspense fallback={<SettingsSkeleton />}>
-              <SettingsView
-                workspace={currentWorkspace}
-                members={members}
-                invites={invites}
-                projects={projects}
-                currentUser={currentUser}
-                onCreateProject={handleAddProject}
-                onUpdateProject={handleUpdateProject}
-                onDeleteProject={handleDeleteProject}
-                onNotification={(title, message, type = 'SYSTEM') => {
-                  setLocalNotifications(prev => [
-                    {
-                      id: Date.now().toString(),
-                      workspaceId: currentWorkspace?.id || '',
-                      type,
-                      title,
-                      message,
-                      createdAt: getMoscowISOString(),
-                      readBy: []
-                    },
-                    ...prev
-                  ]);
-                }}
-              />
-            </Suspense>
+            <SettingsView
+              workspace={currentWorkspace}
+              members={members}
+              invites={invites}
+              projects={projects}
+              currentUser={currentUser}
+              onCreateProject={handleAddProject}
+              onUpdateProject={handleUpdateProject}
+              onDeleteProject={handleDeleteProject}
+              onNotification={(title, message, type = 'SYSTEM') => {
+                setLocalNotifications(prev => [
+                  {
+                    id: Date.now().toString(),
+                    workspaceId: currentWorkspace?.id || '',
+                    type,
+                    title,
+                    message,
+                    createdAt: getMoscowISOString(),
+                    readBy: []
+                  },
+                  ...prev
+                ]);
+              }}
+            />
           )}
 
           <NotificationCenter
@@ -1080,146 +936,103 @@ const App: React.FC = () => {
             currentUserId={currentUser?.id}
           />
 
-          {/* Task Profile - просмотр задачи */}
-          {viewingTask && currentUser && (
-            <Suspense fallback={null}>
-              <TaskProfile
-                task={viewingTask}
-                projects={projects}
-                users={usersFromMembers}
-                currentUser={currentUser}
-                onClose={() => setViewingTask(null)}
-                onEdit={(task) => {
-                  setViewingTask(null);
-                  setEditingTask(task);
-                  setIsTaskModalOpen(true);
-                }}
-                onDelete={async (task) => {
-                  if (task.id) {
-                    await handleDeleteTask(task.id);
+          <TaskModal
+            isOpen={isTaskModalOpen}
+            task={editingTask}
+            projects={projects}
+            users={usersFromMembers}
+            onClose={() => setIsTaskModalOpen(false)}
+            onSave={async (t) => {
+              if (!currentWorkspaceId) return;
+
+              // Проверяем, существует ли задача: если editingTask был установлен и имеет id, значит это редактирование
+              const isExistingTask = editingTask && editingTask.id && editingTask.id.trim() !== '';
+              
+              if (isExistingTask && editingTask.id) {
+                // Фильтруем undefined значения перед передачей
+                const updateData: Partial<Task> = {
+                  workspaceId: currentWorkspaceId
+                };
+                
+                // Копируем только определенные поля из задачи
+                for (const [key, value] of Object.entries(t)) {
+                  if (value !== undefined && key !== 'id' && key !== 'workspaceId') {
+                    updateData[key as keyof Task] = value as any;
                   }
-                }}
-              />
-            </Suspense>
-          )}
+                }
+                
+                await handleUpdateTask(editingTask.id, updateData);
+              } else {
+                // Для новой задачи добавляем workspaceId и убираем id
+                const { id, ...taskData } = t;
+                await handleAddTask({
+                  ...taskData,
+                  workspaceId: currentWorkspaceId
+                });
+              }
 
-          {/* Task Modal - редактирование задачи */}
-          {isTaskModalOpen && (
-            <Suspense fallback={null}>
-              <TaskModal
-                isOpen={isTaskModalOpen}
-                task={editingTask}
-                projects={projects}
-                users={usersFromMembers}
-                onClose={() => setIsTaskModalOpen(false)}
-                onSave={async (t) => {
-                  if (!currentWorkspaceId) return;
+              setIsTaskModalOpen(false);
+            }}
+            onDelete={async (t) => {
+              if (t.id) {
+                await handleDeleteTask(t.id);
+              }
+              setIsTaskModalOpen(false);
+            }}
+          />
 
-                  // Проверяем, существует ли задача: если editingTask был установлен и имеет id, значит это редактирование
-                  const isExistingTask = editingTask && editingTask.id && editingTask.id.trim() !== '';
-                  
-                  if (isExistingTask && editingTask.id) {
-                    // Фильтруем undefined значения перед передачей
-                    const updateData: Partial<Task> = {
-                      workspaceId: currentWorkspaceId
-                    };
-                    
-                    // Копируем только определенные поля из задачи
-                    for (const [key, value] of Object.entries(t)) {
-                      if (value !== undefined && key !== 'id' && key !== 'workspaceId') {
-                        updateData[key as keyof Task] = value as any;
-                      }
-                    }
-                    
-                    await handleUpdateTask(editingTask.id, updateData);
-                  } else {
-                    // Для новой задачи добавляем workspaceId и убираем id
-                    const { id, ...taskData } = t;
-                    await handleAddTask({
-                      ...taskData,
-                      workspaceId: currentWorkspaceId
-                    });
-                  }
+          <ProjectModal
+            isOpen={isProjectModalOpen}
+            project={editingProject}
+            onClose={() => setIsProjectModalOpen(false)}
+            onSave={async (p) => {
+              if (p.id) {
+                await handleUpdateProject(p.id, p);
+              } else {
+                await handleAddProject(p);
+              }
+              setIsProjectModalOpen(false);
+            }}
+            onDelete={async (projectId: string) => {
+              await handleDeleteProject(projectId);
+              setIsProjectModalOpen(false);
+            }}
+          />
 
-                  setIsTaskModalOpen(false);
-                }}
-                onDelete={async (t) => {
-                  if (t.id) {
-                    await handleDeleteTask(t.id);
-                  }
-                  setIsTaskModalOpen(false);
-                }}
-              />
-            </Suspense>
-          )}
+          <UserModal
+            isOpen={isUserModalOpen}
+            user={editingUser}
+            onClose={() => setIsUserModalOpen(false)}
+            onSave={async (u) => {
+              // Placeholder: пользовательские настройки/профиль
+              setEditingUser(null);
+              setIsUserModalOpen(false);
+            }}
+            onDelete={async (userId) => {
+              // Placeholder: удаление пользователя
+              setEditingUser(null);
+              setIsUserModalOpen(false);
+            }}
+          />
 
-          {isProjectModalOpen && (
-            <Suspense fallback={null}>
-              <ProjectModal
-                isOpen={isProjectModalOpen}
-                project={editingProject}
-                onClose={() => setIsProjectModalOpen(false)}
-                onSave={async (p) => {
-                  if (p.id) {
-                    await handleUpdateProject(p.id, p);
-                  } else {
-                    await handleAddProject(p);
-                  }
-                  setIsProjectModalOpen(false);
-                }}
-                onDelete={async (projectId: string) => {
-                  await handleDeleteProject(projectId);
-                  setIsProjectModalOpen(false);
-                }}
-              />
-            </Suspense>
-          )}
-
-          {isUserModalOpen && (
-            <Suspense fallback={null}>
-              <UserModal
-                isOpen={isUserModalOpen}
-                user={editingUser}
-                onClose={() => setIsUserModalOpen(false)}
-                onSave={async (u) => {
-                  // Placeholder: пользовательские настройки/профиль
-                  setEditingUser(null);
-                  setIsUserModalOpen(false);
-                }}
-                onDelete={async (userId) => {
-                  // Placeholder: удаление пользователя
-                  setEditingUser(null);
-                  setIsUserModalOpen(false);
-                }}
-              />
-            </Suspense>
-          )}
-
-          {currentUser && isProfileModalOpen && (
-            <Suspense fallback={null}>
-              <ProfileModal
-                isOpen={isProfileModalOpen}
-                user={currentUser}
-                onClose={() => setIsProfileModalOpen(false)}
-                onUserUpdate={(updatedUser) => {
-                  setCurrentUser(updatedUser);
-                }}
-              />
-            </Suspense>
-          )}
-
-          <Suspense fallback={null}>
-            <AICommandBar
-              onCommand={handleCommand}
-              isProcessing={isProcessingCommand}
-              chatHistory={chatHistory}
+          {currentUser && (
+            <ProfileModal
+              isOpen={isProfileModalOpen}
+              user={currentUser}
+              onClose={() => setIsProfileModalOpen(false)}
+              onUserUpdate={(updatedUser) => {
+                setCurrentUser(updatedUser);
+              }}
             />
-          </Suspense>
+          )}
+
+          <AICommandBar
+            onCommand={handleCommand}
+            isProcessing={isProcessingCommand}
+            chatHistory={chatHistory}
+          />
         </>
       )}
-      
-      {/* Toaster загружается внутри App после монтирования компонента */}
-      <ToasterWrapper />
     </Layout>
   );
 };
