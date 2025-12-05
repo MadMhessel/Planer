@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Task, Project, WorkspaceMember, User, TaskStatus, TaskPriority } from '../types';
 import { FirestoreService } from '../services/firestore';
 import { TelegramService } from '../services/telegram';
@@ -14,6 +14,21 @@ export const useTasks = (
   projects: Project[],
   currentUser: User | null
 ) => {
+  // Логируем members при изменении для диагностики
+  useEffect(() => {
+    if (members.length > 0) {
+      const membersWithTelegram = members.filter(m => m.telegramChatId);
+      logger.info('[useTasks] Members updated', {
+        totalMembers: members.length,
+        membersWithTelegram: membersWithTelegram.length,
+        membersWithTelegramDetails: membersWithTelegram.map(m => ({
+          userId: m.userId,
+          email: m.email,
+          hasTelegramChatId: !!m.telegramChatId
+        }))
+      });
+    }
+  }, [members]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
@@ -114,7 +129,27 @@ export const useTasks = (
       await NotificationsService.add(workspaceId, notification);
 
       // Telegram уведомление - отправляем всем участникам задачи
+      // Логируем для диагностики
+      logger.info('[addTask] Preparing Telegram notification', {
+        taskId: created.id,
+        taskTitle: created.title,
+        assigneeId: created.assigneeId,
+        assigneeIds: created.assigneeIds,
+        membersCount: members.length,
+        membersWithTelegram: members.filter(m => m.telegramChatId).length,
+        membersWithTelegramDetails: members.filter(m => m.telegramChatId).map(m => ({
+          userId: m.userId,
+          email: m.email,
+          hasTelegramChatId: !!m.telegramChatId
+        }))
+      });
+      
       const telegramRecipients = getRecipientsForTask(created, members, currentUser.id);
+      logger.info('[addTask] Telegram recipients determined', {
+        recipientsCount: telegramRecipients.length,
+        recipients: telegramRecipients.map(r => `${r.substring(0, 5)}...`)
+      });
+      
       if (telegramRecipients && telegramRecipients.length > 0) {
         const projectName = created.projectId ? projects.find(p => p.id === created.projectId)?.name : undefined;
         const message = createTelegramMessage('TASK_ASSIGNED', created, undefined, undefined, projectName);
@@ -262,6 +297,18 @@ export const useTasks = (
         await NotificationsService.add(workspaceId, notification);
       }
 
+      // Логируем для диагностики перед отправкой
+      logger.info('[updateTask] Preparing Telegram notification', {
+        taskId,
+        taskTitle: oldTask.title,
+        hasTelegramMessage: !!telegramMessage,
+        recipientsCount: recipients.length,
+        assigneeId: newTaskState.assigneeId,
+        assigneeIds: newTaskState.assigneeIds,
+        membersCount: members.length,
+        membersWithTelegram: members.filter(m => m.telegramChatId).length
+      });
+      
       // Отправляем Telegram уведомления всем участникам задачи при любых изменениях
       if (telegramMessage && recipients && recipients.length > 0) {
         try {

@@ -133,14 +133,23 @@ export const getRecipientsForTask = (
   const recipients: string[] = [];
   const recipientChatIds = new Set<string>();
   
-  // Логируем для диагностики (только в development или при проблемах)
-  if (process.env.NODE_ENV === 'development') {
-    logger.debug('[getRecipientsForTask] Starting', {
+  // Логируем для диагностики (всегда, чтобы видеть проблему)
+  logger.info('[getRecipientsForTask] Starting', {
     taskId: (task as any)?.id,
+    taskTitle: (task as any)?.title,
     hasAssigneeId: !!task.assigneeId,
+    assigneeId: task.assigneeId,
     hasAssigneeIds: !!task.assigneeIds,
+    assigneeIds: task.assigneeIds,
     assigneeIdsCount: task.assigneeIds?.length || 0,
     membersCount: allMembers.length,
+    membersWithTelegram: allMembers.filter(m => m.telegramChatId).length,
+    allMembersDetails: allMembers.map(m => ({
+      userId: m.userId,
+      email: m.email,
+      hasTelegramChatId: !!m.telegramChatId,
+      telegramChatId: m.telegramChatId ? `${m.telegramChatId.substring(0, 5)}...` : 'none'
+    })),
     creatorId
   });
   
@@ -231,15 +240,33 @@ export const getRecipientsForTask = (
     });
   }
   
+  // Логируем результат
+  logger.info('[getRecipientsForTask] Result', {
+    taskId: (task as any)?.id,
+    recipientsCount: recipients.length,
+    recipients: recipients.map(r => `${r.substring(0, 5)}...`),
+    hasAssigneeId: !!task.assigneeId,
+    hasAssigneeIds: !!task.assigneeIds,
+    assigneeIdsCount: task.assigneeIds?.length || 0
+  });
+  
   // Логируем предупреждение, если нет получателей, но есть участники задачи
   if (recipients.length === 0 && (task.assigneeId || (task.assigneeIds && task.assigneeIds.length > 0))) {
-    logger.warn('[getRecipientsForTask] No Telegram recipients found', {
+    logger.warn('[getRecipientsForTask] ⚠️ No Telegram recipients found despite having assignees', {
       taskId: (task as any)?.id,
+      taskTitle: (task as any)?.title,
       hasAssigneeId: !!task.assigneeId,
+      assigneeId: task.assigneeId,
       hasAssigneeIds: !!task.assigneeIds,
+      assigneeIds: task.assigneeIds,
       assigneeIdsCount: task.assigneeIds?.length || 0,
       membersWithTelegram: allMembers.filter(m => m.telegramChatId).length,
-      totalMembers: allMembers.length
+      totalMembers: allMembers.length,
+      membersDetails: allMembers.map(m => ({
+        userId: m.userId,
+        email: m.email,
+        hasTelegramChatId: !!m.telegramChatId
+      }))
     });
   }
   

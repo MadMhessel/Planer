@@ -275,6 +275,20 @@ export const FirestoreService = {
         ...(docSnap.data() as WorkspaceMember),
         id: docSnap.id
       }));
+      
+      // Логируем информацию о members с telegramChatId для диагностики
+      const membersWithTelegram = members.filter(m => m.telegramChatId);
+      logger.info('[subscribeToMembers] Members updated', {
+        workspaceId,
+        totalMembers: members.length,
+        membersWithTelegram: membersWithTelegram.length,
+        membersWithTelegramDetails: membersWithTelegram.map(m => ({
+          userId: m.userId,
+          email: m.email,
+          telegramChatId: m.telegramChatId ? `${m.telegramChatId.substring(0, 5)}...` : 'none'
+        }))
+      });
+      
       callback(members);
     }, (error) => {
       logger.error('[subscribeToMembers] Error in snapshot', { 
@@ -904,6 +918,12 @@ export const FirestoreService = {
    */
   async syncTelegramChatIdToMembers(userId: string, telegramChatId?: string): Promise<void> {
     try {
+      logger.info('[syncTelegramChatIdToMembers] Starting sync', {
+        userId,
+        telegramChatId: telegramChatId ? `${telegramChatId.substring(0, 5)}...` : 'empty',
+        telegramChatIdLength: telegramChatId?.length || 0
+      });
+      
       // Используем collection group query для поиска всех members с этим userId
       const membersQuery = query(
         collectionGroup(db, 'members'),
@@ -911,12 +931,25 @@ export const FirestoreService = {
       );
       
       const snapshot = await getDocs(membersQuery);
+      logger.info('[syncTelegramChatIdToMembers] Found members', {
+        userId,
+        membersFound: snapshot.docs.length,
+        memberPaths: snapshot.docs.map(d => d.ref.path)
+      });
+      
       const batch = writeBatch(db);
       let updateCount = 0;
 
       snapshot.docs.forEach((memberDoc) => {
         const memberRef = memberDoc.ref;
+        const memberData = memberDoc.data();
         const updateData: any = {};
+        
+        logger.debug('[syncTelegramChatIdToMembers] Processing member', {
+          memberPath: memberRef.path,
+          currentTelegramChatId: memberData.telegramChatId ? `${memberData.telegramChatId.substring(0, 5)}...` : 'none',
+          newTelegramChatId: telegramChatId ? `${telegramChatId.substring(0, 5)}...` : 'empty'
+        });
         
         if (telegramChatId) {
           updateData.telegramChatId = telegramChatId;
@@ -931,19 +964,24 @@ export const FirestoreService = {
 
       if (updateCount > 0) {
         await batch.commit();
-        logger.info('[syncTelegramChatIdToMembers] Synced telegramChatId', {
+        logger.info('[syncTelegramChatIdToMembers] Successfully synced telegramChatId', {
           userId,
-          telegramChatId,
-          membersUpdated: updateCount
+          telegramChatId: telegramChatId ? `${telegramChatId.substring(0, 5)}...` : 'empty',
+          membersUpdated: updateCount,
+          memberPaths: snapshot.docs.map(d => d.ref.path)
         });
       } else {
-        logger.info('[syncTelegramChatIdToMembers] No members found to update', { userId });
+        logger.warn('[syncTelegramChatIdToMembers] No members found to update', { 
+          userId,
+          telegramChatId: telegramChatId ? `${telegramChatId.substring(0, 5)}...` : 'empty'
+        });
       }
     } catch (error) {
       logger.error('[syncTelegramChatIdToMembers] Failed to sync', {
         userId,
-        telegramChatId,
-        error: error instanceof Error ? error.message : String(error)
+        telegramChatId: telegramChatId ? `${telegramChatId.substring(0, 5)}...` : 'empty',
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined
       });
       throw error;
     }
