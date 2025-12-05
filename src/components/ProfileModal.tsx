@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { User } from '../types';
 import { FirestoreService } from '../services/firestore';
-import { X, Save, User as UserIcon, Upload, ImageIcon } from 'lucide-react';
+import { X, Save, User as UserIcon, Upload, ImageIcon, MessageCircle, Send } from 'lucide-react';
 import { logger } from '../utils/logger';
+import { TelegramService } from '../services/telegram';
+import toast from 'react-hot-toast';
 
 interface ProfileModalProps {
   isOpen: boolean;
@@ -20,9 +22,11 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   const [formData, setFormData] = useState({
     displayName: user.displayName || '',
     photoURL: user.photoURL || '',
-    avatar: '' // Для загрузки нового аватара
+    avatar: '', // Для загрузки нового аватара
+    telegramChatId: user.telegramChatId || ''
   });
   const [loading, setLoading] = useState(false);
+  const [testingTelegram, setTestingTelegram] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -31,7 +35,8 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
       setFormData({
         displayName: user.displayName || '',
         photoURL: user.photoURL || '',
-        avatar: ''
+        avatar: '',
+        telegramChatId: user.telegramChatId || ''
       });
     }
     setError(null);
@@ -66,6 +71,35 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
     }
   };
 
+  const handleTestTelegram = async () => {
+    if (!formData.telegramChatId || !formData.telegramChatId.trim()) {
+      setError('Введите Telegram Chat ID для тестирования');
+      return;
+    }
+
+    setTestingTelegram(true);
+    setError(null);
+    setMessage(null);
+
+    try {
+      const success = await TelegramService.testConnection(formData.telegramChatId.trim());
+      if (success) {
+        setMessage('Тестовое уведомление отправлено! Проверьте ваш Telegram.');
+        toast.success('Тестовое уведомление отправлено');
+      } else {
+        setError('Не удалось отправить тестовое уведомление. Проверьте правильность Chat ID.');
+        toast.error('Ошибка отправки уведомления');
+      }
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Ошибка при отправке тестового уведомления';
+      logger.error('Failed to test Telegram connection', err);
+      setError(errorMessage);
+      toast.error('Ошибка отправки уведомления');
+    } finally {
+      setTestingTelegram(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -85,6 +119,20 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
         updates.photoURL = formData.avatar;
       }
 
+      // Обновляем telegramChatId, если изменилось
+      const newTelegramChatId = formData.telegramChatId.trim() || undefined;
+      if (newTelegramChatId !== (user.telegramChatId || '')) {
+        updates.telegramChatId = newTelegramChatId;
+        
+        // Синхронизируем telegramChatId со всеми WorkspaceMember этого пользователя
+        try {
+          await FirestoreService.syncTelegramChatIdToMembers(user.id, newTelegramChatId);
+        } catch (syncError) {
+          logger.warn('Failed to sync telegramChatId to members', syncError);
+          // Не прерываем сохранение профиля, если синхронизация не удалась
+        }
+      }
+
       // Обновляем в Firestore
       await FirestoreService.updateUser(user.id, updates);
 
@@ -96,6 +144,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
       onUserUpdate(updatedUser);
 
       setMessage('Профиль успешно обновлён');
+      toast.success('Профиль обновлён');
       setTimeout(() => {
         onClose();
       }, 1000);
@@ -103,6 +152,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
       const errorMessage = err instanceof Error ? err.message : 'Ошибка при обновлении профиля';
       logger.error('Failed to update user profile', err);
       setError(errorMessage);
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -161,6 +211,35 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                 maxLength={50}
               />
             </div>
+          </div>
+
+          {/* Telegram Chat ID */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 flex items-center gap-1">
+              <MessageCircle size={14} /> Telegram Chat ID
+            </label>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={formData.telegramChatId}
+                onChange={(e) => setFormData({...formData, telegramChatId: e.target.value})}
+                className="flex-1 px-4 py-2 border border-gray-200 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                placeholder="Введите ваш Telegram Chat ID"
+                disabled={loading || testingTelegram}
+              />
+              <button
+                type="button"
+                onClick={handleTestTelegram}
+                disabled={loading || testingTelegram || !formData.telegramChatId.trim()}
+                className="px-4 py-2 bg-sky-600 text-white rounded-lg hover:bg-sky-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 font-medium"
+              >
+                <Send size={16} />
+                {testingTelegram ? 'Отправка...' : 'Тест'}
+              </button>
+            </div>
+            <p className="text-xs text-gray-400 mt-1">
+              Уведомления о задачах будут отправляться в Telegram. Для получения Chat ID напишите боту @userinfobot
+            </p>
           </div>
 
           {/* Avatar */}

@@ -1,7 +1,7 @@
 import { Task, Project, Notification, WorkspaceMember } from '../types';
 import { NOTIFICATION_TYPES } from '../constants/notifications';
 import { getStatusLabel, getPriorityLabel } from './taskHelpers';
-import { getMoscowISOString } from './dateUtils';
+import { getMoscowISOString, formatMoscowDate } from './dateUtils';
 
 export const createTaskNotification = (
   workspaceId: string,
@@ -130,18 +130,37 @@ export const getRecipientsForTask = (
   creatorId?: string
 ): string[] => {
   const recipients: string[] = [];
+  const recipientChatIds = new Set<string>();
   
-  if (task.assigneeId) {
+  // Обрабатываем assigneeIds (приоритет над assigneeId)
+  if (task.assigneeIds && Array.isArray(task.assigneeIds) && task.assigneeIds.length > 0) {
+    task.assigneeIds.forEach(assigneeId => {
+      if (assigneeId) {
+        const assignee = allMembers.find(m => m.userId === assigneeId);
+        if (assignee?.telegramChatId && !recipientChatIds.has(assignee.telegramChatId)) {
+          recipients.push(assignee.telegramChatId);
+          recipientChatIds.add(assignee.telegramChatId);
+        }
+      }
+    });
+  } else if (task.assigneeId) {
+    // Обратная совместимость: используем assigneeId, если assigneeIds нет
     const assignee = allMembers.find(m => m.userId === task.assigneeId);
-    if (assignee?.telegramChatId) {
+    if (assignee?.telegramChatId && !recipientChatIds.has(assignee.telegramChatId)) {
       recipients.push(assignee.telegramChatId);
+      recipientChatIds.add(assignee.telegramChatId);
     }
   }
   
-  if (creatorId && creatorId !== task.assigneeId) {
-    const creator = allMembers.find(m => m.userId === creatorId);
-    if (creator?.telegramChatId && !recipients.includes(creator.telegramChatId)) {
-      recipients.push(creator.telegramChatId);
+  // Добавляем создателя, если он не является участником задачи
+  if (creatorId) {
+    const isCreatorAssignee = task.assigneeIds?.includes(creatorId) || task.assigneeId === creatorId;
+    if (!isCreatorAssignee) {
+      const creator = allMembers.find(m => m.userId === creatorId);
+      if (creator?.telegramChatId && !recipientChatIds.has(creator.telegramChatId)) {
+        recipients.push(creator.telegramChatId);
+        recipientChatIds.add(creator.telegramChatId);
+      }
     }
   }
   

@@ -897,5 +897,55 @@ export const FirestoreService = {
       ...updates,
       updatedAt: getMoscowISOString()
     });
+  },
+
+  /**
+   * Синхронизирует telegramChatId из User во все WorkspaceMember этого пользователя
+   */
+  async syncTelegramChatIdToMembers(userId: string, telegramChatId?: string): Promise<void> {
+    try {
+      // Используем collection group query для поиска всех members с этим userId
+      const membersQuery = query(
+        collectionGroup(db, 'members'),
+        where('userId', '==', userId)
+      );
+      
+      const snapshot = await getDocs(membersQuery);
+      const batch = writeBatch(db);
+      let updateCount = 0;
+
+      snapshot.docs.forEach((memberDoc) => {
+        const memberRef = memberDoc.ref;
+        const updateData: any = {};
+        
+        if (telegramChatId) {
+          updateData.telegramChatId = telegramChatId;
+        } else {
+          // Если telegramChatId пустой, удаляем поле
+          updateData.telegramChatId = deleteField();
+        }
+        
+        batch.update(memberRef, updateData);
+        updateCount++;
+      });
+
+      if (updateCount > 0) {
+        await batch.commit();
+        logger.info('[syncTelegramChatIdToMembers] Synced telegramChatId', {
+          userId,
+          telegramChatId,
+          membersUpdated: updateCount
+        });
+      } else {
+        logger.info('[syncTelegramChatIdToMembers] No members found to update', { userId });
+      }
+    } catch (error) {
+      logger.error('[syncTelegramChatIdToMembers] Failed to sync', {
+        userId,
+        telegramChatId,
+        error: error instanceof Error ? error.message : String(error)
+      });
+      throw error;
+    }
   }
 };

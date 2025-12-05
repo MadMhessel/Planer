@@ -96,9 +96,12 @@ export const useTasks = (
       const created = await FirestoreService.createTask(taskData);
       
       // Определяем получателей уведомления
-      const notificationRecipients = created.assigneeId 
-        ? [created.assigneeId] // Если есть assignee, уведомляем только его
-        : NotificationsService.getRecipients(members, undefined, true); // Иначе уведомляем админов
+      // Используем assigneeIds, если есть, иначе assigneeId
+      const notificationRecipients = created.assigneeIds && created.assigneeIds.length > 0
+        ? created.assigneeIds
+        : (created.assigneeId 
+            ? [created.assigneeId]
+            : NotificationsService.getRecipients(members, undefined, true)); // Иначе уведомляем админов
       
       // Сохраняем уведомление в Firestore
       const notification = createTaskNotification(
@@ -110,7 +113,7 @@ export const useTasks = (
       );
       await NotificationsService.add(workspaceId, notification);
 
-      // Telegram уведомление
+      // Telegram уведомление - отправляем всем участникам задачи
       const telegramRecipients = getRecipientsForTask(created, members, currentUser.id);
       if (telegramRecipients.length > 0) {
         const projectName = created.projectId ? projects.find(p => p.id === created.projectId)?.name : undefined;
@@ -176,7 +179,16 @@ export const useTasks = (
       let telegramMessage = '';
 
       // Определяем тип изменения
-      if (updates.status && updates.status !== oldTask.status) {
+      // Проверяем изменения assigneeIds
+      const oldAssigneeIds = oldTask.assigneeIds || (oldTask.assigneeId ? [oldTask.assigneeId] : []);
+      const newAssigneeIds = updates.assigneeIds || (updates.assigneeId ? [updates.assigneeId] : oldAssigneeIds);
+      const assigneeIdsChanged = JSON.stringify(oldAssigneeIds.sort()) !== JSON.stringify(newAssigneeIds.sort());
+      
+      if (assigneeIdsChanged) {
+        notificationTitle = 'Участники задачи изменены';
+        notificationMessage = `Задача "${oldTask.title}" - изменены участники`;
+        telegramMessage = createTelegramMessage('TASK_UPDATED', newTaskState, updates, oldTask);
+      } else if (updates.status && updates.status !== oldTask.status) {
         notificationTitle = 'Статус задачи изменен';
         notificationMessage = `Задача "${oldTask.title}" изменена`;
         telegramMessage = createTelegramMessage('TASK_UPDATED', newTaskState, updates, oldTask);
@@ -199,13 +211,21 @@ export const useTasks = (
         notificationTitle = 'Задача обновлена';
         notificationMessage = `Задача "${updates.title || oldTask.title}" была обновлена`;
         telegramMessage = createTelegramMessage('TASK_UPDATED', newTaskState, updates, oldTask);
+      } else if (Object.keys(updates).length > 1 || (Object.keys(updates).length === 1 && !updates.updatedAt)) {
+        // Любые другие изменения (кроме только updatedAt)
+        notificationTitle = 'Задача обновлена';
+        notificationMessage = `Задача "${oldTask.title}" была обновлена`;
+        telegramMessage = createTelegramMessage('TASK_UPDATED', newTaskState, updates, oldTask);
       }
 
       if (notificationTitle) {
         // Определяем получателей для обновления задачи
-        const notificationRecipients = newTaskState.assigneeId 
-          ? [newTaskState.assigneeId]
-          : NotificationsService.getRecipients(members, undefined, true);
+        // Используем assigneeIds, если есть, иначе assigneeId
+        const notificationRecipients = newTaskState.assigneeIds && newTaskState.assigneeIds.length > 0
+          ? newTaskState.assigneeIds
+          : (newTaskState.assigneeId 
+              ? [newTaskState.assigneeId]
+              : NotificationsService.getRecipients(members, undefined, true));
         
         const notification = createTaskNotification(
           workspaceId,
@@ -217,6 +237,7 @@ export const useTasks = (
         await NotificationsService.add(workspaceId, notification);
       }
 
+      // Отправляем Telegram уведомления всем участникам задачи при любых изменениях
       if (telegramMessage && recipients.length > 0) {
         await TelegramService.sendNotification(recipients, telegramMessage);
       }
@@ -254,9 +275,12 @@ export const useTasks = (
       await FirestoreService.deleteTask(taskId);
 
       // Уведомление об удалении
-      const notificationRecipients = taskToDelete.assigneeId 
-        ? [taskToDelete.assigneeId]
-        : NotificationsService.getRecipients(members, undefined, true);
+      // Используем assigneeIds, если есть, иначе assigneeId
+      const notificationRecipients = taskToDelete.assigneeIds && taskToDelete.assigneeIds.length > 0
+        ? taskToDelete.assigneeIds
+        : (taskToDelete.assigneeId 
+            ? [taskToDelete.assigneeId]
+            : NotificationsService.getRecipients(members, undefined, true));
       
       const deleteNotification: Omit<Notification, 'id'> = {
         workspaceId,
