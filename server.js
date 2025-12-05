@@ -94,8 +94,22 @@ app.use('/api', cors({
   optionsSuccessStatus: 200
 }));
 
-// Body parser middleware
+// Body parser middleware с обработкой ошибок
 app.use(express.json({ limit: '10mb' })); // Ограничение размера тела запроса
+
+// Обработка ошибок парсинга JSON
+app.use((err, req, res, next) => {
+  // Обработка ошибок синтаксиса JSON
+  if (err instanceof SyntaxError && err.status === 400 && 'body' in err) {
+    if (req.path.startsWith('/api/')) {
+      return res.status(400).json({ 
+        error: 'Invalid JSON', 
+        message: 'Request body contains invalid JSON'
+      });
+    }
+  }
+  next(err);
+});
 
 // Rate Limiting
 const apiLimiter = rateLimit({
@@ -113,7 +127,19 @@ const aiLimiter = rateLimit({
 });
 
 // Применяем rate limiting к API
-app.use('/api/', apiLimiter);
+// Обработка ошибок rate limiter - оборачиваем в middleware для правильной обработки ошибок
+app.use('/api/', (req, res, next) => {
+  apiLimiter(req, res, (err) => {
+    if (err) {
+      // Если rate limit превышен, возвращаем JSON ошибку
+      return res.status(429).json({ 
+        error: 'Too many requests', 
+        message: err.message || 'Слишком много запросов, попробуйте позже'
+      });
+    }
+    next();
+  });
+});
 
 // HTTPS enforcement в production
 if (process.env.NODE_ENV === 'production') {
@@ -269,13 +295,20 @@ app.post('/api/telegram/notify',
     body('chatIds.*').isString().withMessage('Each chatId must be a string'),
     body('message').isString().isLength({ min: 1, max: 4096 }).withMessage('Message must be between 1 and 4096 characters')
   ],
-  async (req, res) => {
+  async (req, res, next) => {
+    // Убеждаемся, что Content-Type установлен для JSON ответов в начале
+    res.setHeader('Content-Type', 'application/json');
+    
     try {
       console.log('[Telegram] Request received', {
         hasChatIds: !!req.body?.chatIds,
         chatIdsCount: req.body?.chatIds?.length,
         hasMessage: !!req.body?.message,
-        messageLength: req.body?.message?.length
+        messageLength: req.body?.message?.length,
+        contentType: req.headers['content-type'],
+        bodyKeys: req.body ? Object.keys(req.body) : [],
+        method: req.method,
+        path: req.path
       });
 
       // Проверка валидации
@@ -460,12 +493,17 @@ app.post('/api/telegram/notify',
         }))
       });
 
-      res.json({ 
-        success: failed === 0, // success = true только если все отправки успешны
-        results, 
-        sent: successful,
-        failed: failed
-      });
+      // Убеждаемся, что отправляем JSON
+      if (!res.headersSent) {
+        res.json({ 
+          success: failed === 0, // success = true только если все отправки успешны
+          results, 
+          sent: successful,
+          failed: failed
+        });
+      } else {
+        console.error('[Telegram] Cannot send response - headers already sent');
+      }
     } catch (error) {
       // Обработка любых неожиданных ошибок
       const errorInfo = {
@@ -490,15 +528,30 @@ app.post('/api/telegram/notify',
       }
       
       // Всегда возвращаем детальную информацию об ошибке
-      res.status(500).json({ 
-        error: 'Internal server error',
-        message: errorMessage,
-        details: {
-          name: error.name,
-          originalMessage: error.message,
-          ...(process.env.NODE_ENV === 'development' ? { stack: error.stack } : {})
-        }
-      });
+      // Убеждаемся, что отправляем JSON, а не HTML
+      if (!res.headersSent) {
+        res.status(500).json({ 
+          error: 'Internal server error',
+          message: errorMessage,
+          details: {
+            name: error.name,
+            originalMessage: error.message,
+            ...(process.env.NODE_ENV === 'development' ? { stack: error.stack } : {})
+          }
+        });
+      } else {
+        // Если заголовки уже отправлены, логируем ошибку
+        console.error('[Telegram] Cannot send error response - headers already sent');
+      }
+    } catch (handlerError) {
+      // Если даже обработка ошибки не удалась
+      console.error('[Telegram] Critical error in error handler:', handlerError);
+      if (!res.headersSent) {
+        res.status(500).json({ 
+          error: 'Critical server error',
+          message: 'An unexpected error occurred while processing the request'
+        });
+      }
     }
   }
 );
@@ -780,6 +833,34 @@ app.post('/api/push/send',
     }
   }
 );
+
+// Error handler middleware - должен быть перед SPA fallback
+app.use((err, req, res, next) => {
+  // Если это API маршрут, возвращаем JSON ошибку
+  if (req.path.startsWith('/api/')) {
+    console.error('[Express Error Handler] API error:', {
+      path: req.path,
+      method: req.method,
+      error: err.message,
+      stack: err.stack
+    });
+    
+    if (!res.headersSent) {
+      res.status(err.status || 500).json({
+        error: err.message || 'Internal server error',
+        message: err.message || 'An unexpected error occurred',
+        details: process.env.NODE_ENV === 'development' ? {
+          stack: err.stack,
+          name: err.name
+        } : undefined
+      });
+    }
+    return;
+  }
+  
+  // Для не-API маршрутов передаем дальше
+  next(err);
+});
 
 // SPA Fallback - для всех остальных маршрутов возвращаем index.html
 // В Express 5.x используем middleware вместо wildcard маршрута

@@ -119,8 +119,10 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
           userFriendlyMessage = 'Неверный формат Chat ID. Проверьте правильность введенного ID.';
         } else if (errorMessage.includes('HTTP 500') || errorMessage.includes('Internal server error')) {
           userFriendlyMessage = 'Ошибка сервера. Возможно, Telegram бот не настроен на сервере. Обратитесь к администратору.';
-        } else if (errorMessage === 'Unknown error') {
-          userFriendlyMessage = 'Неизвестная ошибка сервера. Проверьте логи сервера или обратитесь к администратору.';
+        } else if (errorMessage.includes('HTML вместо JSON') || errorMessage.includes('Сервер вернул HTML')) {
+          userFriendlyMessage = 'Ошибка сервера: сервер вернул HTML вместо JSON. Проверьте логи сервера или обратитесь к администратору.';
+        } else if (errorMessage === 'Unknown error' || errorMessage.includes('<!DOCTYPE html>')) {
+          userFriendlyMessage = 'Критическая ошибка сервера. Проверьте логи сервера или обратитесь к администратору.';
         }
         
         // Логируем полную информацию для отладки

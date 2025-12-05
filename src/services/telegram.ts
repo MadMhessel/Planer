@@ -35,12 +35,23 @@ export const TelegramService = {
           if (contentType && contentType.includes('application/json')) {
             errorData = await response.json();
             errorMessage = errorData.error || errorData.message || errorMessage;
+        } else {
+          // Если не JSON, читаем как текст
+          const textError = await response.text();
+          
+          // Проверяем, является ли ответ HTML (ошибка Express)
+          if (textError.includes('<!DOCTYPE html>') || textError.includes('<html')) {
+            errorMessage = 'Сервер вернул HTML вместо JSON. Возможно, произошла ошибка на сервере до обработки запроса.';
+            errorData = { 
+              error: errorMessage,
+              raw: textError.substring(0, 500), // Ограничиваем размер
+              isHtml: true
+            };
           } else {
-            // Если не JSON, читаем как текст
-            const textError = await response.text();
             errorData = { error: textError || errorMessage, raw: textError };
             errorMessage = textError || errorMessage;
           }
+        }
         } catch (parseError) {
           // Если вообще не удалось прочитать ответ
           logger.error('Failed to parse error response', parseError instanceof Error ? parseError : undefined);
