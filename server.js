@@ -94,22 +94,8 @@ app.use('/api', cors({
   optionsSuccessStatus: 200
 }));
 
-// Body parser middleware с обработкой ошибок
+// Body parser middleware
 app.use(express.json({ limit: '10mb' })); // Ограничение размера тела запроса
-
-// Обработка ошибок парсинга JSON
-app.use((err, req, res, next) => {
-  // Обработка ошибок синтаксиса JSON
-  if (err instanceof SyntaxError && err.status === 400 && 'body' in err) {
-    if (req.path.startsWith('/api/')) {
-      return res.status(400).json({ 
-        error: 'Invalid JSON', 
-        message: 'Request body contains invalid JSON'
-      });
-    }
-  }
-  next(err);
-});
 
 // Rate Limiting
 const apiLimiter = rateLimit({
@@ -127,19 +113,7 @@ const aiLimiter = rateLimit({
 });
 
 // Применяем rate limiting к API
-// Обработка ошибок rate limiter - оборачиваем в middleware для правильной обработки ошибок
-app.use('/api/', (req, res, next) => {
-  apiLimiter(req, res, (err) => {
-    if (err) {
-      // Если rate limit превышен, возвращаем JSON ошибку
-      return res.status(429).json({ 
-        error: 'Too many requests', 
-        message: err.message || 'Слишком много запросов, попробуйте позже'
-      });
-    }
-    next();
-  });
-});
+app.use('/api/', apiLimiter);
 
 // HTTPS enforcement в production
 if (process.env.NODE_ENV === 'production') {
@@ -835,7 +809,18 @@ app.post('/api/push/send',
 );
 
 // Error handler middleware - должен быть перед SPA fallback
+// Обрабатывает все ошибки, включая ошибки парсинга JSON
 app.use((err, req, res, next) => {
+  // Обработка ошибок синтаксиса JSON
+  if (err instanceof SyntaxError && err.status === 400 && 'body' in err) {
+    if (req.path.startsWith('/api/')) {
+      return res.status(400).json({ 
+        error: 'Invalid JSON', 
+        message: 'Request body contains invalid JSON'
+      });
+    }
+  }
+  
   // Если это API маршрут, возвращаем JSON ошибку
   if (req.path.startsWith('/api/')) {
     console.error('[Express Error Handler] API error:', {
@@ -898,11 +883,14 @@ if (!telegramToken) {
   console.log(`✓ Telegram bot token configured (${telegramToken.substring(0, 10)}...)`);
 }
 
+// Запуск сервера с обработкой ошибок
 const server = app.listen(PORT, "0.0.0.0", () => {
   console.log(`✓ Server running on port ${PORT}`);
+  console.log(`✓ Listening on 0.0.0.0:${PORT}`);
   if (process.env.NODE_ENV === 'development') {
     console.log(`✓ Health check: http://0.0.0.0:${PORT}/api/health`);
   }
+  console.log('✓ Server is ready to accept connections');
 });
 
 // Обработка ошибок при запуске
