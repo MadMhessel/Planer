@@ -10,6 +10,12 @@ const DOMPurify = createDOMPurify();
 const webpush = require('web-push');
 require('dotenv').config();
 
+// Проверка доступности fetch (Node.js 18+)
+if (typeof fetch === 'undefined') {
+  console.error('ERROR: fetch is not available. Node.js version must be 18+ or install node-fetch');
+  process.exit(1);
+}
+
 const app = express();
 const PORT = process.env.PORT || 8080;
 
@@ -258,9 +264,17 @@ app.post('/api/telegram/notify',
   ],
   async (req, res) => {
     try {
+      console.log('[Telegram] Request received', {
+        hasChatIds: !!req.body?.chatIds,
+        chatIdsCount: req.body?.chatIds?.length,
+        hasMessage: !!req.body?.message,
+        messageLength: req.body?.message?.length
+      });
+
       // Проверка валидации
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
+        console.error('[Telegram] Validation failed', errors.array());
         return res.status(400).json({ 
           error: 'Validation failed', 
           details: errors.array() 
@@ -270,8 +284,14 @@ app.post('/api/telegram/notify',
       const { chatIds, message } = req.body;
       const token = process.env.TELEGRAM_BOT_TOKEN;
 
+      console.log('[Telegram] Configuration check', {
+        hasToken: !!token,
+        tokenLength: token ? token.length : 0,
+        tokenPrefix: token ? token.substring(0, 10) + '...' : 'none'
+      });
+
       if (!token) {
-        console.error('TELEGRAM_BOT_TOKEN is not set');
+        console.error('[Telegram] TELEGRAM_BOT_TOKEN is not set');
         return res.status(500).json({ 
           error: 'Server configuration error: TELEGRAM_BOT_TOKEN is not set',
           message: 'Telegram bot token is not configured on the server'
@@ -282,74 +302,133 @@ app.post('/api/telegram/notify',
       let sanitizedMessage;
       try {
         sanitizedMessage = sanitizeHTML(message);
+        console.log('[Telegram] Message sanitized', {
+          originalLength: message?.length,
+          sanitizedLength: sanitizedMessage?.length
+        });
       } catch (sanitizeError) {
-        console.error('Error sanitizing HTML message:', sanitizeError);
+        console.error('[Telegram] Error sanitizing HTML message:', sanitizeError);
         // Если санитизация не удалась, используем оригинальное сообщение без HTML
         sanitizedMessage = String(message || '').replace(/<[^>]*>/g, '');
       }
 
-    // Helper to send a single message
-    const sendOne = async (chatId) => {
-      try {
-        // Валидация chatId
-        if (!chatId || typeof chatId !== 'string') {
-          return { chatId, success: false, error: 'Invalid chatId format' };
-        }
+      // Helper to send a single message
+      const sendOne = async (chatId) => {
+        try {
+          // Валидация chatId
+          if (!chatId || typeof chatId !== 'string') {
+            console.error('[Telegram] Invalid chatId format', { chatId, type: typeof chatId });
+            return { chatId, success: false, error: 'Invalid chatId format' };
+          }
 
-        // Очищаем chatId от пробелов
-        const cleanChatId = chatId.trim();
+          // Очищаем chatId от пробелов
+          const cleanChatId = chatId.trim();
+          
+          if (!cleanChatId) {
+            console.error('[Telegram] Empty chatId after trim', { original: chatId });
+            return { chatId: chatId || 'empty', success: false, error: 'Empty chatId' };
+          }
 
-        const url = `https://api.telegram.org/bot${token}/sendMessage`;
-        const response = await fetch(url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
+          const url = `https://api.telegram.org/bot${token}/sendMessage`;
+          const requestBody = {
             chat_id: cleanChatId,
             text: sanitizedMessage,
             parse_mode: 'HTML',
-          }),
-        });
-        
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}));
-          const errorCode = errorData.error_code;
-          const errorDescription = errorData.description || 'Unknown error';
+          };
           
-          // Логируем ошибки для отладки
-          console.error(`Telegram API error for chatId ${cleanChatId}:`, {
-            code: errorCode,
-            description: errorDescription,
-            fullError: errorData
+          console.log('[Telegram] Sending message', {
+            chatId: cleanChatId,
+            messageLength: sanitizedMessage.length,
+            url: url.replace(token, 'TOKEN_HIDDEN')
           });
           
-          return { 
-            chatId: cleanChatId, 
-            success: false, 
-            error: errorDescription,
-            errorCode: errorCode
-          };
-        }
-
-        const data = await response.json();
-        if (!data.ok) {
-          return { 
-            chatId: cleanChatId, 
-            success: false, 
-            error: data.description || 'Unknown error',
-            errorCode: data.error_code
-          };
-        }
+          const response = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(requestBody),
+          });
         
-        return { chatId: cleanChatId, success: true };
-      } catch (err) {
-        console.error(`Failed to send to ${chatId}:`, err);
-        return { 
-          chatId: chatId?.trim() || 'unknown', 
-          success: false, 
-          error: err.message || 'Network error'
-        };
-      }
-    };
+          if (!response.ok) {
+            const statusText = response.statusText || 'Unknown';
+            let errorData;
+            try {
+              errorData = await response.json();
+            } catch (parseError) {
+              const textError = await response.text().catch(() => '');
+              console.error('[Telegram] Failed to parse error response', {
+                status: response.status,
+                statusText,
+                textError
+              });
+              errorData = { description: `HTTP ${response.status}: ${statusText}` };
+            }
+            
+            const errorCode = errorData.error_code;
+            const errorDescription = errorData.description || `HTTP ${response.status}: ${statusText}`;
+            
+            // Логируем ошибки для отладки
+            console.error(`[Telegram] API error for chatId ${cleanChatId}:`, {
+              status: response.status,
+              statusText,
+              code: errorCode,
+              description: errorDescription,
+              fullError: errorData
+            });
+            
+            return { 
+              chatId: cleanChatId, 
+              success: false, 
+              error: errorDescription,
+              errorCode: errorCode
+            };
+          }
+
+          let data;
+          try {
+            data = await response.json();
+          } catch (jsonError) {
+            const textResponse = await response.text().catch(() => '');
+            console.error('[Telegram] Failed to parse success response', {
+              chatId: cleanChatId,
+              status: response.status,
+              textResponse,
+              jsonError: jsonError.message
+            });
+            return {
+              chatId: cleanChatId,
+              success: false,
+              error: `Invalid response from Telegram API: ${textResponse.substring(0, 100)}`
+            };
+          }
+          
+          if (!data.ok) {
+            console.error('[Telegram] Telegram API returned ok=false', {
+              chatId: cleanChatId,
+              data
+            });
+            return { 
+              chatId: cleanChatId, 
+              success: false, 
+              error: data.description || 'Unknown error',
+              errorCode: data.error_code
+            };
+          }
+          
+          console.log('[Telegram] Message sent successfully', { chatId: cleanChatId });
+          return { chatId: cleanChatId, success: true };
+        } catch (err) {
+          console.error(`[Telegram] Exception sending to ${chatId}:`, {
+            error: err.message,
+            stack: err.stack,
+            chatId
+          });
+          return { 
+            chatId: chatId?.trim() || 'unknown', 
+            success: false, 
+            error: err.message || 'Network error'
+          };
+        }
+      };
 
       // Send to all recipients in parallel (с ограничением на количество)
       const maxRecipients = 50; // Ограничение для предотвращения злоупотребления
@@ -362,7 +441,7 @@ app.post('/api/telegram/notify',
       const failed = results.filter(r => !r.success).length;
       
       // Логируем результаты (всегда, для отладки)
-      console.log('Telegram notification results:', {
+      console.log('[Telegram] Notification results:', {
         total: results.length,
         successful,
         failed,
@@ -382,16 +461,30 @@ app.post('/api/telegram/notify',
       });
     } catch (error) {
       // Обработка любых неожиданных ошибок
-      console.error('Unexpected error in /api/telegram/notify:', {
+      console.error('[Telegram] Unexpected error in /api/telegram/notify:', {
         error: error.message,
         stack: error.stack,
-        body: req.body
+        name: error.name,
+        body: req.body,
+        hasToken: !!process.env.TELEGRAM_BOT_TOKEN
       });
+      
+      // Определяем более понятное сообщение об ошибке
+      let errorMessage = error.message || 'An unexpected error occurred';
+      if (error.message?.includes('fetch')) {
+        errorMessage = 'Network error: Unable to connect to Telegram API. Check server internet connection.';
+      } else if (error.message?.includes('JSON')) {
+        errorMessage = 'Error parsing response from Telegram API';
+      }
       
       res.status(500).json({ 
         error: 'Internal server error',
-        message: error.message || 'An unexpected error occurred',
-        details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+        message: errorMessage,
+        details: process.env.NODE_ENV === 'development' ? {
+          stack: error.stack,
+          name: error.name,
+          originalMessage: error.message
+        } : undefined
       });
     }
   }
