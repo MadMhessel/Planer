@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Bell, X } from 'lucide-react';
 import { Notification } from '../types';
 import { formatMoscowDate } from '../utils/dateUtils';
+import { logger } from '../utils/logger';
 
 type Props = {
   notifications: Notification[];
@@ -32,14 +33,22 @@ export const NotificationCenter: React.FC<Props> = ({
 
   // Автоматически помечаем все уведомления как прочитанные при открытии панели
   useEffect(() => {
-    if (open && unread.length > 0 && onMarkAllAsRead) {
+    if (open && unread.length > 0 && onMarkAllAsRead && currentUserId) {
       // Используем setTimeout, чтобы избежать проблем с обновлением состояния
-      const timer = setTimeout(() => {
-        onMarkAllAsRead();
-      }, 100);
+      const timer = setTimeout(async () => {
+        try {
+          await onMarkAllAsRead();
+          logger.info('[NotificationCenter] Marked all notifications as read', {
+            unreadCount: unread.length,
+            currentUserId
+          });
+        } catch (error) {
+          logger.error('[NotificationCenter] Failed to mark all as read', error);
+        }
+      }, 200); // Увеличена задержка для надежности
       return () => clearTimeout(timer);
     }
-  }, [open, unread.length, onMarkAllAsRead]);
+  }, [open, unread.length, onMarkAllAsRead, currentUserId]);
 
   return (
     <>
@@ -96,10 +105,18 @@ export const NotificationCenter: React.FC<Props> = ({
                 return (
                 <div
                   key={n.id}
-                  onClick={() => {
+                  onClick={async () => {
                     // Всегда вызываем markAsRead при клике, если функция предоставлена
-                    if (onMarkAsRead && n.id && !isRead) {
-                      onMarkAsRead(n.id);
+                    if (onMarkAsRead && n.id && !isRead && currentUserId) {
+                      try {
+                        await onMarkAsRead(n.id);
+                        logger.info('[NotificationCenter] Marked notification as read', {
+                          notificationId: n.id,
+                          currentUserId
+                        });
+                      } catch (error) {
+                        logger.error('[NotificationCenter] Failed to mark notification as read', error);
+                      }
                     }
                   }}
                   className={`px-3 sm:px-4 py-2.5 sm:py-3 border-b border-gray-200 dark:border-slate-800 last:border-b-0 hover:bg-gray-50 dark:hover:bg-slate-800/30 transition-all cursor-pointer ${!isRead ? 'bg-blue-50 dark:bg-slate-800/20' : ''}`}

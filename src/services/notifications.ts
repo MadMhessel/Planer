@@ -97,24 +97,38 @@ export class NotificationsService {
 
   /**
    * Mark all notifications as read for a user
+   * Uses the same filtering logic as subscribe() to only mark notifications visible to the user
    */
   static async markAllAsRead(workspaceId: string, userId: string) {
     try {
-      const q = query(this.workspaceCollection(workspaceId));
+      const q = query(this.workspaceCollection(workspaceId), orderBy('createdAt', 'desc'));
       const snapshot = await getDocs(q);
       
       const batch = writeBatch(db);
+      let markedCount = 0;
+      
       snapshot.docs.forEach(docSnap => {
         const data = docSnap.data() as Notification;
-        if (!data.readBy?.includes(userId)) {
+        
+        // Используем ту же логику фильтрации, что и в subscribe()
+        // If no recipients specified, show to everyone (mark as read)
+        // Otherwise only mark if user is in recipients list
+        const shouldMark = !data.recipients || data.recipients.length === 0 || data.recipients.includes(userId);
+        
+        if (shouldMark && !data.readBy?.includes(userId)) {
           batch.update(docSnap.ref, {
             readBy: arrayUnion(userId)
           });
+          markedCount++;
         }
       });
       
-      await batch.commit();
-      logger.info('All notifications marked as read', { workspaceId, userId });
+      if (markedCount > 0) {
+        await batch.commit();
+        logger.info('All notifications marked as read', { workspaceId, userId, count: markedCount });
+      } else {
+        logger.info('No notifications to mark as read', { workspaceId, userId });
+      }
     } catch (error) {
       logger.error('Failed to mark all notifications as read', error);
       throw error;
