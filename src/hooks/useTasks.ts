@@ -118,7 +118,13 @@ export const useTasks = (
       if (telegramRecipients.length > 0) {
         const projectName = created.projectId ? projects.find(p => p.id === created.projectId)?.name : undefined;
         const message = createTelegramMessage('TASK_ASSIGNED', created, undefined, undefined, projectName);
-        await TelegramService.sendNotification(telegramRecipients, message);
+        const result = await TelegramService.sendNotification(telegramRecipients, message);
+        if (!result.success) {
+          logger.warn('Failed to send Telegram notification for task creation', { 
+            error: result.error, 
+            taskId: created.id 
+          });
+        }
       }
 
       return created;
@@ -239,7 +245,13 @@ export const useTasks = (
 
       // Отправляем Telegram уведомления всем участникам задачи при любых изменениях
       if (telegramMessage && recipients.length > 0) {
-        await TelegramService.sendNotification(recipients, telegramMessage);
+        const result = await TelegramService.sendNotification(recipients, telegramMessage);
+        if (!result.success) {
+          logger.warn('Failed to send Telegram notification for task update', { 
+            error: result.error, 
+            taskId 
+          });
+        }
       }
     } catch (err) {
       // Откат при ошибке
@@ -301,7 +313,13 @@ export const useTasks = (
       const recipients = getRecipientsForTask(taskToDelete, members, currentUser.id);
       if (recipients.length > 0) {
         const message = createTelegramMessage('TASK_DELETED', taskToDelete);
-        await TelegramService.sendNotification(recipients, message);
+        const result = await TelegramService.sendNotification(recipients, message);
+        if (!result.success) {
+          logger.warn('Failed to send Telegram notification for task deletion', { 
+            error: result.error, 
+            taskId 
+          });
+        }
       }
     } catch (err) {
       const error = err instanceof Error ? err : new Error('Не удалось удалить задачу');

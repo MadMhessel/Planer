@@ -82,13 +82,27 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
     setMessage(null);
 
     try {
-      const success = await TelegramService.testConnection(formData.telegramChatId.trim());
-      if (success) {
+      const result = await TelegramService.testConnection(formData.telegramChatId.trim());
+      if (result.success) {
         setMessage('Тестовое уведомление отправлено! Проверьте ваш Telegram.');
         toast.success('Тестовое уведомление отправлено');
       } else {
-        setError('Не удалось отправить тестовое уведомление. Проверьте правильность Chat ID.');
-        toast.error('Ошибка отправки уведомления');
+        // Показываем конкретную ошибку от Telegram API
+        const errorMessage = result.error || 'Не удалось отправить тестовое уведомление';
+        
+        // Улучшаем сообщения об ошибках для пользователя
+        let userFriendlyMessage = errorMessage;
+        if (errorMessage.includes('chat not found') || errorMessage.includes('Chat not found')) {
+          userFriendlyMessage = 'Чат не найден. Убедитесь, что вы начали диалог с ботом и указали правильный Chat ID.';
+        } else if (errorMessage.includes('Forbidden') || errorMessage.includes('bot was blocked')) {
+          userFriendlyMessage = 'Бот заблокирован. Разблокируйте бота в Telegram и попробуйте снова.';
+        } else if (errorMessage.includes('Invalid chatId')) {
+          userFriendlyMessage = 'Неверный формат Chat ID. Проверьте правильность введенного ID.';
+        }
+        
+        setError(userFriendlyMessage);
+        toast.error(userFriendlyMessage);
+        logger.warn('Telegram test failed', { error: result.error, details: result.details });
       }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Ошибка при отправке тестового уведомления';
@@ -238,8 +252,22 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
               </button>
             </div>
             <p className="text-xs text-gray-400 mt-1">
-              Уведомления о задачах будут отправляться в Telegram. Для получения Chat ID напишите боту @userinfobot
+              Уведомления о задачах будут отправляться в Telegram. 
             </p>
+            <details className="text-xs text-gray-500 mt-1">
+              <summary className="cursor-pointer hover:text-gray-600 dark:hover:text-gray-300">
+                Как получить Chat ID?
+              </summary>
+              <div className="mt-2 space-y-1 pl-2">
+                <p>1. Найдите бота <code className="bg-gray-100 dark:bg-gray-700 px-1 rounded">@userinfobot</code> в Telegram</p>
+                <p>2. Начните диалог с ботом (отправьте /start)</p>
+                <p>3. Бот отправит вам ваш Chat ID (число, например: 123456789)</p>
+                <p>4. Скопируйте это число и вставьте в поле выше</p>
+                <p className="text-orange-600 dark:text-orange-400 mt-2">
+                  ⚠️ Важно: Перед тестированием убедитесь, что вы начали диалог с вашим Telegram ботом!
+                </p>
+              </div>
+            </details>
           </div>
 
           {/* Avatar */}

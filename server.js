@@ -285,27 +285,58 @@ app.post('/api/telegram/notify',
           return { chatId, success: false, error: 'Invalid chatId format' };
         }
 
+        // Очищаем chatId от пробелов
+        const cleanChatId = chatId.trim();
+
         const url = `https://api.telegram.org/bot${token}/sendMessage`;
         const response = await fetch(url, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            chat_id: chatId,
+            chat_id: cleanChatId,
             text: sanitizedMessage,
             parse_mode: 'HTML',
           }),
         });
         
         if (!response.ok) {
-          const errorData = await response.json();
-          return { chatId, success: false, error: errorData.description || 'Unknown error' };
+          const errorData = await response.json().catch(() => ({}));
+          const errorCode = errorData.error_code;
+          const errorDescription = errorData.description || 'Unknown error';
+          
+          // Логируем ошибки для отладки
+          console.error(`Telegram API error for chatId ${cleanChatId}:`, {
+            code: errorCode,
+            description: errorDescription,
+            fullError: errorData
+          });
+          
+          return { 
+            chatId: cleanChatId, 
+            success: false, 
+            error: errorDescription,
+            errorCode: errorCode
+          };
         }
 
         const data = await response.json();
-        return { chatId, success: data.ok, error: data.description };
+        if (!data.ok) {
+          return { 
+            chatId: cleanChatId, 
+            success: false, 
+            error: data.description || 'Unknown error',
+            errorCode: data.error_code
+          };
+        }
+        
+        return { chatId: cleanChatId, success: true };
       } catch (err) {
         console.error(`Failed to send to ${chatId}:`, err);
-        return { chatId, success: false, error: err.message };
+        return { 
+          chatId: chatId?.trim() || 'unknown', 
+          success: false, 
+          error: err.message || 'Network error'
+        };
       }
     };
 
@@ -315,12 +346,29 @@ app.post('/api/telegram/notify',
     
     const results = await Promise.all(limitedChatIds.map(sendOne));
   
-    // Log results только в development
-    if (process.env.NODE_ENV === 'development') {
-      console.log('Notification results:', results);
-    }
+    // Подсчитываем успешные и неудачные отправки
+    const successful = results.filter(r => r.success).length;
+    const failed = results.filter(r => !r.success).length;
+    
+    // Логируем результаты (всегда, для отладки)
+    console.log('Telegram notification results:', {
+      total: results.length,
+      successful,
+      failed,
+      results: results.map(r => ({
+        chatId: r.chatId,
+        success: r.success,
+        error: r.error,
+        errorCode: r.errorCode
+      }))
+    });
 
-    res.json({ success: true, results, sent: results.length });
+    res.json({ 
+      success: failed === 0, // success = true только если все отправки успешны
+      results, 
+      sent: successful,
+      failed: failed
+    });
   }
 );
 
