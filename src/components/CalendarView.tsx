@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect } from 'react';
-import { Task } from '../types';
-import { ChevronLeft, ChevronRight, Play, Flag } from 'lucide-react';
+import { Task, TaskStatus } from '../types';
+import { ChevronLeft, ChevronRight, Play, Flag, CheckCircle2 } from 'lucide-react';
 import { getMoscowDateString, formatMoscowDate } from '../utils/dateUtils';
 
 type Props = {
@@ -148,13 +148,21 @@ export const CalendarView: React.FC<Props> = ({
 
               <div className="mt-0.5 sm:mt-1.5 space-y-0.5 sm:space-y-1 flex-1 min-h-0 overflow-hidden">
                 {dayTasks.slice(0, (typeof window !== 'undefined' && window.innerWidth < 768) ? 2 : 3).map(({ task, isStart, isEnd }) => {
+                  const isDone = task.status === TaskStatus.DONE;
+                  
                   // Определяем стиль в зависимости от типа даты
                   let bgColor = 'bg-sky-50 dark:bg-slate-800/80';
                   let borderColor = 'border-sky-200 dark:border-slate-700/50';
                   let icon = null;
                   let iconColor = 'text-sky-600 dark:text-sky-400';
                   
-                  if (isStart && isEnd) {
+                  if (isDone) {
+                    // Задача выполнена - зеленый цвет
+                    bgColor = 'bg-green-50 dark:bg-green-900/30';
+                    borderColor = 'border-green-300 dark:border-green-700/50';
+                    icon = <CheckCircle2 className="w-2.5 h-2.5 sm:w-3 sm:h-3" />;
+                    iconColor = 'text-green-600 dark:text-green-400';
+                  } else if (isStart && isEnd) {
                     // Задача начинается и заканчивается в один день
                     bgColor = 'bg-gradient-to-r from-emerald-50 to-sky-50 dark:from-emerald-900/30 dark:to-sky-900/30';
                     borderColor = 'border-emerald-300 dark:border-emerald-700/50';
@@ -180,11 +188,15 @@ export const CalendarView: React.FC<Props> = ({
                         e.stopPropagation();
                         onTaskClick(task);
                       }}
-                      className={`truncate px-1 sm:px-2 py-0.5 sm:py-1 rounded-md ${bgColor} backdrop-blur-sm border ${borderColor} text-[9px] sm:text-[10px] text-gray-900 dark:text-slate-100 font-medium hover:opacity-80 cursor-pointer transition-all shadow-sm flex items-center gap-1`}
-                      title={`${task.title}${isStart ? ' (начало)' : ''}${isEnd ? ' (окончание)' : ''}`}
+                      className={`truncate px-1 sm:px-2 py-0.5 sm:py-1 rounded-md ${bgColor} backdrop-blur-sm border ${borderColor} text-[9px] sm:text-[10px] font-medium hover:opacity-80 cursor-pointer transition-all shadow-sm flex items-center gap-1 ${
+                        isDone ? 'opacity-75' : ''
+                      }`}
+                      title={`${task.title}${isStart ? ' (начало)' : ''}${isEnd ? ' (окончание)' : ''}${isDone ? ' ✓ Готово' : ''}`}
                     >
                       {icon && <span className={`${iconColor} flex-shrink-0`}>{icon}</span>}
-                      <span className="truncate flex-1">{task.title}</span>
+                      <span className={`truncate flex-1 ${isDone ? 'line-through text-gray-500 dark:text-slate-400' : 'text-gray-900 dark:text-slate-100'}`}>
+                        {task.title}
+                      </span>
                     </div>
                   );
                 })}

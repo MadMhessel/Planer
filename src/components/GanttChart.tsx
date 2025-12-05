@@ -1,7 +1,7 @@
 
 import React, { useMemo, useState, useEffect } from 'react';
-import { Task, Project } from '../types';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { Task, Project, TaskStatus } from '../types';
+import { ChevronLeft, ChevronRight, CheckCircle2 } from 'lucide-react';
 import { formatMoscowDate } from '../utils/dateUtils';
 
 interface GanttChartProps {
@@ -188,11 +188,16 @@ export const GanttChart: React.FC<GanttChartProps> = ({ tasks, projects, onTaskC
       'LOW': '#10b981',
     };
 
+    const isDone = task.status === TaskStatus.DONE;
+    const baseColor = project?.color || priorityColors[task.priority] || '#6b7280';
+
     return {
       left: `${left}px`,
       width: `${Math.min(width, maxLeft - left)}px`,
-      backgroundColor: project?.color || priorityColors[task.priority] || '#6b7280',
+      backgroundColor: isDone ? '#10b981' : baseColor,
       minWidth: '20px', // Минимальная ширина для видимости
+      opacity: isDone ? 0.7 : 1,
+      textDecoration: isDone ? 'line-through' : 'none',
     };
   };
 
@@ -244,16 +249,22 @@ export const GanttChart: React.FC<GanttChartProps> = ({ tasks, projects, onTaskC
             <div className="h-10 border-b border-gray-200 bg-gray-50 font-semibold text-xs text-gray-500 flex items-center px-3">
                 Задача
             </div>
-            {sortedTasks.map(task => (
-                <div 
-                    key={task.id} 
-                    onClick={() => onEditTask(task)}
-                    className="h-12 border-b border-gray-50 flex items-center px-3 text-xs md:text-sm text-gray-700 font-medium truncate bg-white cursor-pointer hover:bg-gray-50 transition-colors" 
-                    title={task.title}
-                >
-                    <span className="truncate">{task.title}</span>
-                </div>
-            ))}
+            {sortedTasks.map(task => {
+                const isDone = task.status === TaskStatus.DONE;
+                return (
+                    <div 
+                        key={task.id} 
+                        onClick={() => onEditTask(task)}
+                        className={`h-12 border-b border-gray-50 flex items-center px-3 text-xs md:text-sm font-medium truncate bg-white cursor-pointer hover:bg-gray-50 transition-colors ${
+                            isDone ? 'text-gray-400 line-through' : 'text-gray-700'
+                        }`}
+                        title={task.title}
+                    >
+                        {isDone && <CheckCircle2 className="w-4 h-4 text-green-500 mr-2 flex-shrink-0" />}
+                        <span className="truncate">{task.title}</span>
+                    </div>
+                );
+            })}
         </div>
 
         {/* Timeline Area */}
@@ -329,13 +340,18 @@ export const GanttChart: React.FC<GanttChartProps> = ({ tasks, projects, onTaskC
                               <div key={task.id} className="h-12 border-b border-gray-50 relative flex items-center group">
                                   <div 
                                       onClick={() => onEditTask(task)}
-                                      className="absolute h-6 rounded-md shadow-sm text-[10px] text-white flex items-center px-2 whitespace-nowrap overflow-hidden cursor-pointer hover:brightness-110 hover:shadow-md transition-all z-10"
+                                      className={`absolute h-6 rounded-md shadow-sm text-[10px] text-white flex items-center px-2 whitespace-nowrap overflow-hidden cursor-pointer hover:brightness-110 hover:shadow-md transition-all z-10 ${
+                                          task.status === TaskStatus.DONE ? 'opacity-75' : ''
+                                      }`}
                                       style={style}
-                                      title={`${task.title}${task.startDate ? ` (${formatMoscowDate(task.startDate)}` : ''}${task.dueDate ? ` - ${formatMoscowDate(task.dueDate)})` : ''}`}
+                                      title={`${task.title}${task.startDate ? ` (${formatMoscowDate(task.startDate)}` : ''}${task.dueDate ? ` - ${formatMoscowDate(task.dueDate)})` : ''}${task.status === TaskStatus.DONE ? ' ✓ Готово' : ''}`}
                                   >
-                                      {!isMobile && <span className="truncate font-medium">{task.title}</span>}
+                                      {task.status === TaskStatus.DONE && (
+                                          <CheckCircle2 className="w-3 h-3 mr-1 flex-shrink-0" />
+                                      )}
+                                      {!isMobile && <span className={`truncate font-medium ${task.status === TaskStatus.DONE ? 'line-through' : ''}`}>{task.title}</span>}
                                       {isMobile && style.width && parseFloat(style.width as string) > 40 && (
-                                        <span className="truncate font-medium">{task.title}</span>
+                                        <span className={`truncate font-medium ${task.status === TaskStatus.DONE ? 'line-through' : ''}`}>{task.title}</span>
                                       )}
                                   </div>
                               </div>

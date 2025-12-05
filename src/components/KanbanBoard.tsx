@@ -213,14 +213,21 @@ export const KanbanBoard: React.FC<Props> = ({
 
         {/* Tasks List for Current Column */}
         <div className="space-y-2.5 pb-4 w-full max-w-full">
-          {currentTasks.length > 0 ? currentTasks.map(task => (
+              {currentTasks.length > 0 ? currentTasks.map(task => {
+                const isDone = task.status === TaskStatus.DONE;
+                return (
             <div
               key={task.id}
-              className="rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-2.5 sm:px-3 py-2 sm:py-2.5 text-xs shadow-sm hover:shadow-md transition-all cursor-pointer active:scale-[0.98] w-full max-w-full overflow-hidden"
+              className={`rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-2.5 sm:px-3 py-2 sm:py-2.5 text-xs shadow-sm hover:shadow-md transition-all cursor-pointer active:scale-[0.98] w-full max-w-full overflow-hidden ${
+                isDone ? 'opacity-75 bg-green-50/30 dark:bg-green-900/10 border-green-200 dark:border-green-800' : ''
+              }`}
               onClick={() => onTaskClick(task)}
             >
               <div className="flex items-start justify-between gap-1">
-                <div className="font-medium text-gray-900 dark:text-slate-100 line-clamp-2 flex-1">
+                <div className={`font-medium line-clamp-2 flex-1 ${
+                  isDone ? 'text-gray-500 dark:text-slate-400 line-through' : 'text-gray-900 dark:text-slate-100'
+                }`}>
+                  {isDone && <span className="text-green-500 mr-1">✓</span>}
                   {task.title}
                 </div>
                 <div className="relative shrink-0">
@@ -315,7 +322,8 @@ export const KanbanBoard: React.FC<Props> = ({
                 </select>
               </div>
             </div>
-          )) : (
+          );
+          }) : (
             <div className="text-center py-8 bg-gray-50 dark:bg-slate-900/50 rounded-lg border border-gray-200 dark:border-slate-700">
               <p className="text-sm text-gray-500 dark:text-slate-400 mb-1">Нет задач</p>
               <p className="text-xs text-gray-400 dark:text-slate-500">В этой колонке пока нет задач</p>
@@ -354,11 +362,16 @@ export const KanbanBoard: React.FC<Props> = ({
             </div>
 
             <div className="flex-1 p-3 space-y-2.5 overflow-y-auto">
-              {tasksByStatus[col.id].map(task => (
+              {tasksByStatus[col.id].map(task => {
+                const isDone = task.status === TaskStatus.DONE;
+                return (
                 <div
                   key={task.id}
                   className={
-                    'rounded-lg border border-gray-200 dark:border-slate-700 px-3 py-2.5 text-xs bg-white dark:bg-slate-800 cursor-pointer transition-all shadow-sm hover:shadow-md ' +
+                    'rounded-lg border border-gray-200 dark:border-slate-700 px-3 py-2.5 text-xs cursor-pointer transition-all shadow-sm hover:shadow-md ' +
+                    (isDone 
+                      ? 'bg-green-50/30 dark:bg-green-900/10 border-green-200 dark:border-green-800 opacity-75 '
+                      : 'bg-white dark:bg-slate-800 ') +
                     (draggedTaskId === task.id && !isTouchDevice
                       ? 'opacity-60 scale-95'
                       : 'hover:border-sky-500/70 hover:bg-gray-50 dark:hover:bg-slate-800/80 hover:-translate-y-0.5')
@@ -369,7 +382,10 @@ export const KanbanBoard: React.FC<Props> = ({
                   onClick={() => onTaskClick(task)}
                 >
                   <div className="flex items-start justify-between gap-1">
-                    <div className="font-medium text-gray-900 dark:text-slate-100 line-clamp-2">
+                    <div className={`font-medium line-clamp-2 ${
+                      isDone ? 'text-gray-500 dark:text-slate-400 line-through' : 'text-gray-900 dark:text-slate-100'
+                    }`}>
+                      {isDone && <span className="text-green-500 mr-1">✓</span>}
                       {task.title}
                     </div>
                     <div className="relative shrink-0">
@@ -443,7 +459,8 @@ export const KanbanBoard: React.FC<Props> = ({
                     </span>
                   </div>
                 </div>
-              ))}
+              );
+              })}
 
               {tasksByStatus[col.id].length === 0 && (
                 <div className="text-[11px] text-gray-500 dark:text-slate-400 text-center py-3">

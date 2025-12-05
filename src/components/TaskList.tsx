@@ -35,11 +35,16 @@ interface TaskCardProps {
 const TaskCard: React.FC<TaskCardProps> = ({ task, projects, users, onTaskClick }) => {
   const project = projects.find(p => p.id === task.projectId);
   const user = users.find(u => u.id === task.assigneeId);
+  const isDone = task.status === TaskStatus.DONE;
   
   return (
     <div 
       onClick={() => onTaskClick(task)}
-      className="bg-white dark:bg-slate-800/80 backdrop-blur-sm p-2.5 sm:p-3 md:p-4 rounded-xl shadow-md border border-gray-100 dark:border-slate-700/50 mb-2 sm:mb-3 active:scale-[0.98] transition-all hover:shadow-lg hover:-translate-y-0.5 cursor-pointer w-full max-w-full overflow-hidden touch-manipulation"
+      className={`bg-white dark:bg-slate-800/80 backdrop-blur-sm p-2.5 sm:p-3 md:p-4 rounded-xl shadow-md border mb-2 sm:mb-3 active:scale-[0.98] transition-all hover:shadow-lg hover:-translate-y-0.5 cursor-pointer w-full max-w-full overflow-hidden touch-manipulation ${
+        isDone 
+          ? 'border-green-200 dark:border-green-800 bg-green-50/20 dark:bg-green-900/10 opacity-75' 
+          : 'border-gray-100 dark:border-slate-700/50'
+      }`}
     >
       <div className="flex justify-between items-start mb-2 gap-2">
           {project ? (
@@ -52,7 +57,12 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, projects, users, onTaskClick 
           </span>
       </div>
       
-      <h3 className="font-semibold text-sm sm:text-base text-gray-900 dark:text-slate-100 mb-1 leading-snug line-clamp-2">{task.title}</h3>
+      <h3 className={`font-semibold text-sm sm:text-base mb-1 leading-snug line-clamp-2 ${
+        isDone ? 'text-gray-500 dark:text-slate-400 line-through' : 'text-gray-900 dark:text-slate-100'
+      }`}>
+        {isDone && <span className="text-green-500 mr-1">✓</span>}
+        {task.title}
+      </h3>
       
       {task.tags && task.tags.length > 0 && (
         <div className="flex flex-wrap gap-1 mb-3 overflow-hidden">
@@ -213,15 +223,23 @@ export const TaskList: React.FC<TaskListProps> = ({ tasks, projects, users, onTa
                 {sortedTasks.map((task) => {
                     const project = projects.find(p => p.id === task.projectId);
                     const user = users.find(u => u.id === task.assigneeId);
+                    const isDone = task.status === TaskStatus.DONE;
                     
                     return (
                     <tr 
                         key={task.id} 
                         onClick={() => onEditTask(task)}
-                        className="hover:bg-indigo-50/30 dark:hover:bg-slate-800/60 cursor-pointer transition-all group"
+                        className={`hover:bg-indigo-50/30 dark:hover:bg-slate-800/60 cursor-pointer transition-all group ${
+                            isDone ? 'bg-green-50/20 dark:bg-green-900/10 opacity-75' : ''
+                        }`}
                     >
                         <td className="px-6 py-4">
-                            <div className="text-sm font-semibold text-gray-900 dark:text-slate-100 group-hover:text-indigo-600 dark:group-hover:text-sky-400 transition-colors">{task.title}</div>
+                            <div className={`text-sm font-semibold group-hover:text-indigo-600 dark:group-hover:text-sky-400 transition-colors ${
+                                isDone ? 'text-gray-500 dark:text-slate-400 line-through' : 'text-gray-900 dark:text-slate-100'
+                            }`}>
+                                {isDone && <span className="text-green-500 mr-1">✓</span>}
+                                {task.title}
+                            </div>
                             {task.tags && task.tags.length > 0 && (
                                 <div className="flex gap-1.5 mt-2">
                                     {task.tags.map(t => (
