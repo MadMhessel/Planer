@@ -155,42 +155,72 @@ export const getRecipientsForTask = (
   
   // Обрабатываем assigneeIds (приоритет над assigneeId)
   if (task.assigneeIds && Array.isArray(task.assigneeIds) && task.assigneeIds.length > 0) {
+    logger.info('[getRecipientsForTask] Processing assigneeIds', {
+      assigneeIds: task.assigneeIds,
+      membersCount: allMembers.length,
+      memberUserIds: allMembers.map(m => m.userId)
+    });
+    
     task.assigneeIds.forEach(assigneeId => {
       if (assigneeId) {
-        const assignee = allMembers.find(m => m.userId === assigneeId);
-        if (assignee) {
-          if (process.env.NODE_ENV === 'development') {
-            logger.debug('[getRecipientsForTask] Found assignee', {
+        let assignee = allMembers.find(m => m.userId === assigneeId);
+        
+        // Если не нашли по userId, пробуем найти по email
+        if (!assignee && assigneeId.includes('@')) {
+          assignee = allMembers.find(m => m.email === assigneeId);
+          if (assignee) {
+            logger.info('[getRecipientsForTask] Found assignee by email', {
               assigneeId,
-              hasTelegramChatId: !!assignee.telegramChatId,
-              telegramChatId: assignee.telegramChatId ? `${assignee.telegramChatId.substring(0, 5)}...` : 'none'
+              assigneeUserId: assignee.userId,
+              assigneeEmail: assignee.email
             });
           }
+        }
+        
+        if (assignee) {
+          logger.info('[getRecipientsForTask] Found assignee', {
+            assigneeId,
+            assigneeUserId: assignee.userId,
+            assigneeEmail: assignee.email,
+            hasTelegramChatId: !!assignee.telegramChatId,
+            telegramChatId: assignee.telegramChatId ? `${assignee.telegramChatId.substring(0, 5)}...` : 'none'
+          });
           if (assignee.telegramChatId && !recipientChatIds.has(assignee.telegramChatId)) {
             recipients.push(assignee.telegramChatId);
             recipientChatIds.add(assignee.telegramChatId);
           } else if (!assignee.telegramChatId) {
             logger.warn('[getRecipientsForTask] Assignee has no telegramChatId', { 
               assigneeId,
+              assigneeUserId: assignee.userId,
               assigneeEmail: assignee.email 
             });
           }
         } else {
-          logger.warn('[getRecipientsForTask] Assignee not found in members', { assigneeId });
+          logger.error('[getRecipientsForTask] Assignee not found in members', { 
+            assigneeId,
+            allMemberUserIds: allMembers.map(m => m.userId),
+            allMemberEmails: allMembers.map(m => m.email)
+          });
         }
       }
     });
   } else if (task.assigneeId) {
     // Обратная совместимость: используем assigneeId, если assigneeIds нет
+    logger.info('[getRecipientsForTask] Looking for assignee (legacy)', {
+      assigneeId: task.assigneeId,
+      membersCount: allMembers.length,
+      memberUserIds: allMembers.map(m => m.userId),
+      memberEmails: allMembers.map(m => m.email)
+    });
+    
     const assignee = allMembers.find(m => m.userId === task.assigneeId);
     if (assignee) {
-      if (process.env.NODE_ENV === 'development') {
-        logger.debug('[getRecipientsForTask] Found assignee (legacy)', {
-          assigneeId: task.assigneeId,
-          hasTelegramChatId: !!assignee.telegramChatId,
-          telegramChatId: assignee.telegramChatId ? `${assignee.telegramChatId.substring(0, 5)}...` : 'none'
-        });
-      }
+      logger.info('[getRecipientsForTask] Found assignee (legacy)', {
+        assigneeId: task.assigneeId,
+        assigneeEmail: assignee.email,
+        hasTelegramChatId: !!assignee.telegramChatId,
+        telegramChatId: assignee.telegramChatId ? `${assignee.telegramChatId.substring(0, 5)}...` : 'none'
+      });
       if (assignee.telegramChatId && !recipientChatIds.has(assignee.telegramChatId)) {
         recipients.push(assignee.telegramChatId);
         recipientChatIds.add(assignee.telegramChatId);
@@ -201,7 +231,41 @@ export const getRecipientsForTask = (
         });
       }
     } else {
-      logger.warn('[getRecipientsForTask] Assignee not found in members (legacy)', { assigneeId: task.assigneeId });
+      // Пробуем найти по email, если не нашли по userId
+      logger.warn('[getRecipientsForTask] Assignee not found in members by userId (legacy), trying to find by email', { 
+        assigneeId: task.assigneeId,
+        allMemberUserIds: allMembers.map(m => m.userId),
+        allMemberEmails: allMembers.map(m => m.email)
+      });
+      
+      // Если assigneeId это email, попробуем найти по email
+      if (task.assigneeId.includes('@')) {
+        const assigneeByEmail = allMembers.find(m => m.email === task.assigneeId);
+        if (assigneeByEmail) {
+          logger.info('[getRecipientsForTask] Found assignee by email (legacy)', {
+            assigneeId: task.assigneeId,
+            assigneeUserId: assigneeByEmail.userId,
+            assigneeEmail: assigneeByEmail.email,
+            hasTelegramChatId: !!assigneeByEmail.telegramChatId,
+            telegramChatId: assigneeByEmail.telegramChatId ? `${assigneeByEmail.telegramChatId.substring(0, 5)}...` : 'none'
+          });
+          if (assigneeByEmail.telegramChatId && !recipientChatIds.has(assigneeByEmail.telegramChatId)) {
+            recipients.push(assigneeByEmail.telegramChatId);
+            recipientChatIds.add(assigneeByEmail.telegramChatId);
+          }
+        } else {
+          logger.error('[getRecipientsForTask] Assignee not found in members by email either (legacy)', { 
+            assigneeId: task.assigneeId,
+            allMemberEmails: allMembers.map(m => m.email)
+          });
+        }
+      } else {
+        logger.error('[getRecipientsForTask] Assignee not found in members (legacy)', { 
+          assigneeId: task.assigneeId,
+          allMemberUserIds: allMembers.map(m => m.userId),
+          allMemberEmails: allMembers.map(m => m.email)
+        });
+      }
     }
   }
   
