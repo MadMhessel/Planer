@@ -1,14 +1,31 @@
-const express = require('express');
-const path = require('path');
-const fs = require('fs');
-const { GoogleGenerativeAI } = require("@google/generative-ai");
-const cors = require('cors');
-const rateLimit = require('express-rate-limit');
-const { body, validationResult } = require('express-validator');
-const createDOMPurify = require('isomorphic-dompurify');
-const DOMPurify = createDOMPurify();
-const webpush = require('web-push');
-require('dotenv').config();
+// Логирование начала загрузки модулей
+console.log('[Server] Starting server initialization...');
+console.log('[Server] Node version:', process.version);
+console.log('[Server] Platform:', process.platform);
+
+// Загрузка зависимостей с обработкой ошибок
+let express, path, fs, GoogleGenerativeAI, cors, rateLimit, body, validationResult, createDOMPurify, DOMPurify, webpush;
+
+try {
+  console.log('[Server] Loading dependencies...');
+  express = require('express');
+  path = require('path');
+  fs = require('fs');
+  GoogleGenerativeAI = require("@google/generative-ai");
+  cors = require('cors');
+  rateLimit = require('express-rate-limit');
+  const expressValidator = require('express-validator');
+  body = expressValidator.body;
+  validationResult = expressValidator.validationResult;
+  createDOMPurify = require('isomorphic-dompurify');
+  DOMPurify = createDOMPurify();
+  webpush = require('web-push');
+  require('dotenv').config();
+  console.log('[Server] ✓ All dependencies loaded successfully');
+} catch (error) {
+  console.error('[Server] ✗ Failed to load dependencies:', error);
+  process.exit(1);
+}
 
 // Проверка доступности fetch (Node.js 18+)
 if (typeof fetch === 'undefined') {
@@ -884,23 +901,45 @@ if (!telegramToken) {
 }
 
 // Запуск сервера с обработкой ошибок
-const server = app.listen(PORT, "0.0.0.0", () => {
-  console.log(`✓ Server running on port ${PORT}`);
-  console.log(`✓ Listening on 0.0.0.0:${PORT}`);
-  if (process.env.NODE_ENV === 'development') {
-    console.log(`✓ Health check: http://0.0.0.0:${PORT}/api/health`);
-  }
-  console.log('✓ Server is ready to accept connections');
-});
+console.log('[Server] Preparing to start server...');
+console.log('[Server] PORT:', PORT);
+console.log('[Server] NODE_ENV:', process.env.NODE_ENV || 'not set');
 
-// Обработка ошибок при запуске
-server.on('error', (err) => {
-  console.error('✗ Server startup error:', err);
-  if (err.code === 'EADDRINUSE') {
-    console.error(`Port ${PORT} is already in use`);
-  }
+try {
+  console.log('[Server] Starting HTTP server...');
+  const server = app.listen(PORT, "0.0.0.0", () => {
+    console.log(`✓ Server running on port ${PORT}`);
+    console.log(`✓ Listening on 0.0.0.0:${PORT}`);
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`✓ Health check: http://0.0.0.0:${PORT}/api/health`);
+    }
+    console.log('✓ Server is ready to accept connections');
+    console.log('[Server] ✓ Server startup completed successfully');
+  });
+  
+  // Обработка ошибок при запуске
+  server.on('error', (err) => {
+    console.error('✗ Server startup error:', err);
+    if (err.code === 'EADDRINUSE') {
+      console.error(`Port ${PORT} is already in use`);
+    }
+    process.exit(1);
+  });
+  
+  // Проверка, что сервер действительно слушает
+  server.on('listening', () => {
+    const addr = server.address();
+    console.log(`[Server] ✓ Server is listening on ${addr.address}:${addr.port}`);
+  });
+} catch (error) {
+  console.error('[Server] ✗ Failed to start server:', error);
+  console.error('[Server] Error details:', {
+    message: error.message,
+    stack: error.stack,
+    name: error.name
+  });
   process.exit(1);
-});
+}
 
 // Graceful shutdown
 process.on('SIGTERM', () => {
