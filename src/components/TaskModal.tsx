@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Task, Project, User, TaskStatus, TaskPriority } from '../types';
 import { X, Save, Trash2, Calendar, User as UserIcon, Tag } from 'lucide-react';
 import { getMoscowDateString, getMoscowDatePlusDays, getMoscowISOString } from '../utils/dateUtils';
+import { logger } from '../utils/logger';
 
 interface TaskModalProps {
   isOpen: boolean;
@@ -111,9 +112,18 @@ export const TaskModal: React.FC<TaskModalProps> = ({
     if (assigneeIds.length > 0) {
       taskData.assigneeIds = assigneeIds;
       taskData.assigneeId = assigneeIds[0]; // Обратная совместимость
+      logger.info('[TaskModal] Saving task with assignees', {
+        assigneeIds: assigneeIds,
+        assigneeId: assigneeIds[0],
+        assigneeDetails: assigneeIds.map(id => {
+          const user = users.find(u => u.id === id);
+          return user ? { id: user.id, email: user.email, displayName: user.displayName } : { id };
+        })
+      });
     } else {
       // Если нет участников, устанавливаем пустой массив для assigneeIds
       taskData.assigneeIds = [];
+      logger.info('[TaskModal] Saving task without assignees');
     }
     
     // Добавляем опциональные числовые поля
@@ -227,11 +237,12 @@ export const TaskModal: React.FC<TaskModalProps> = ({
                             checked={isSelected}
                             onChange={(e) => {
                               e.stopPropagation();
-                              console.log('[TaskModal] Checkbox changed', {
+                              logger.info('[TaskModal] Checkbox changed', {
                                 userId: user.id,
+                                userEmail: user.email,
+                                userDisplayName: user.displayName,
                                 checked: e.target.checked,
-                                currentAssigneeIds: formData.assigneeIds,
-                                userObject: user
+                                currentAssigneeIds: formData.assigneeIds
                               });
                               
                               // Получаем текущие валидные ID
@@ -241,15 +252,22 @@ export const TaskModal: React.FC<TaskModalProps> = ({
                                 // Проверяем, что user.id валидный и его еще нет в массиве
                                 if (user.id && typeof user.id === 'string' && user.id.trim() !== '' && !currentIds.includes(user.id)) {
                                   const newAssigneeIds = [...currentIds, user.id];
-                                  console.log('[TaskModal] Adding assignee', { userId: user.id, newAssigneeIds });
+                                  logger.info('[TaskModal] Adding assignee', { 
+                                    userId: user.id, 
+                                    userEmail: user.email,
+                                    userDisplayName: user.displayName,
+                                    newAssigneeIds 
+                                  });
                                   setFormData(prev => ({
                                     ...prev,
                                     assigneeIds: newAssigneeIds,
                                     assigneeId: currentIds.length === 0 ? user.id : prev.assigneeId // Обратная совместимость
                                   }));
                                 } else {
-                                  console.warn('[TaskModal] Cannot add assignee', {
+                                  logger.warn('[TaskModal] Cannot add assignee', {
                                     userId: user.id,
+                                    userEmail: user.email,
+                                    userDisplayName: user.displayName,
                                     userIdType: typeof user.id,
                                     alreadyIncluded: currentIds.includes(user.id || ''),
                                     currentIds
@@ -258,7 +276,12 @@ export const TaskModal: React.FC<TaskModalProps> = ({
                               } else {
                                 // Удаляем user.id из массива
                                 const newIds = currentIds.filter(id => id !== user.id);
-                                console.log('[TaskModal] Removing assignee', { userId: user.id, newIds });
+                                logger.info('[TaskModal] Removing assignee', { 
+                                  userId: user.id, 
+                                  userEmail: user.email,
+                                  userDisplayName: user.displayName,
+                                  newIds 
+                                });
                                 setFormData(prev => ({
                                   ...prev,
                                   assigneeIds: newIds,

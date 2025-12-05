@@ -82,18 +82,54 @@ export const useUsersFromMembers = (
     // Но если members пуст, это может быть проблемой загрузки.
     
     // Добавляем текущего пользователя, если его нет в списке
-    if (currentUser && currentUser.id) {
-      const userExists = usersList.some(u => u.id === currentUser.id);
-      if (!userExists) {
-        usersList.push({
-          id: currentUser.id,
-          email: currentUser.email || '',
-          displayName: currentUser.displayName || currentUser.email || '',
-          photoURL: currentUser.photoURL,
-          role: currentUser.role || 'MEMBER',
-          isActive: currentUser.isActive !== false,
-          createdAt: currentUser.createdAt
-        });
+    // ВАЖНО: Используем userId из WorkspaceMember, а не currentUser.id из Firebase Auth
+    // Это гарантирует, что ID совпадает с тем, что используется в members
+    if (currentUser && currentUser.email) {
+      // Сначала пытаемся найти текущего пользователя в members по email
+      const currentUserMember = members.find(m => 
+        m.email && currentUser.email && 
+        m.email.toLowerCase() === currentUser.email.toLowerCase()
+      );
+      
+      if (currentUserMember) {
+        // Если нашли в members, используем userId из WorkspaceMember
+        const userExists = usersList.some(u => u.id === currentUserMember.userId);
+        if (!userExists) {
+          const userData = userDataMap[currentUserMember.userId] || {};
+          usersList.push({
+            id: currentUserMember.userId, // Используем userId из WorkspaceMember!
+            email: currentUserMember.email,
+            displayName: userData.displayName || currentUserMember.email,
+            photoURL: userData.photoURL,
+            role: currentUserMember.role,
+            isActive: currentUserMember.status === 'ACTIVE',
+            createdAt: currentUserMember.joinedAt
+          });
+          logger.info('[useUsersFromMembers] Added current user from members', {
+            userId: currentUserMember.userId,
+            email: currentUserMember.email,
+            currentUserAuthId: currentUser.id
+          });
+        }
+      } else if (currentUser.id) {
+        // Если не нашли в members, добавляем с currentUser.id (для обратной совместимости)
+        const userExists = usersList.some(u => u.id === currentUser.id);
+        if (!userExists) {
+          logger.warn('[useUsersFromMembers] Current user not found in members, using Firebase Auth ID', {
+            currentUserAuthId: currentUser.id,
+            currentUserEmail: currentUser.email,
+            membersEmails: members.map(m => m.email)
+          });
+          usersList.push({
+            id: currentUser.id,
+            email: currentUser.email || '',
+            displayName: currentUser.displayName || currentUser.email || '',
+            photoURL: currentUser.photoURL,
+            role: currentUser.role || 'MEMBER',
+            isActive: currentUser.isActive !== false,
+            createdAt: currentUser.createdAt
+          });
+        }
       }
     }
 
