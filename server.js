@@ -257,25 +257,36 @@ app.post('/api/telegram/notify',
     body('message').isString().isLength({ min: 1, max: 4096 }).withMessage('Message must be between 1 and 4096 characters')
   ],
   async (req, res) => {
-    // Проверка валидации
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ 
-        error: 'Validation failed', 
-        details: errors.array() 
-      });
-    }
+    try {
+      // Проверка валидации
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ 
+          error: 'Validation failed', 
+          details: errors.array() 
+        });
+      }
 
-    const { chatIds, message } = req.body;
-    const token = process.env.TELEGRAM_BOT_TOKEN;
+      const { chatIds, message } = req.body;
+      const token = process.env.TELEGRAM_BOT_TOKEN;
 
-    if (!token) {
-      console.error('TELEGRAM_BOT_TOKEN is not set');
-      return res.status(500).json({ error: 'Server configuration error' });
-    }
+      if (!token) {
+        console.error('TELEGRAM_BOT_TOKEN is not set');
+        return res.status(500).json({ 
+          error: 'Server configuration error: TELEGRAM_BOT_TOKEN is not set',
+          message: 'Telegram bot token is not configured on the server'
+        });
+      }
 
-    // Санитизация HTML сообщения
-    const sanitizedMessage = sanitizeHTML(message);
+      // Санитизация HTML сообщения
+      let sanitizedMessage;
+      try {
+        sanitizedMessage = sanitizeHTML(message);
+      } catch (sanitizeError) {
+        console.error('Error sanitizing HTML message:', sanitizeError);
+        // Если санитизация не удалась, используем оригинальное сообщение без HTML
+        sanitizedMessage = String(message || '').replace(/<[^>]*>/g, '');
+      }
 
     // Helper to send a single message
     const sendOne = async (chatId) => {
@@ -340,35 +351,49 @@ app.post('/api/telegram/notify',
       }
     };
 
-    // Send to all recipients in parallel (с ограничением на количество)
-    const maxRecipients = 50; // Ограничение для предотвращения злоупотребления
-    const limitedChatIds = chatIds.slice(0, maxRecipients);
+      // Send to all recipients in parallel (с ограничением на количество)
+      const maxRecipients = 50; // Ограничение для предотвращения злоупотребления
+      const limitedChatIds = chatIds.slice(0, maxRecipients);
+      
+      const results = await Promise.all(limitedChatIds.map(sendOne));
     
-    const results = await Promise.all(limitedChatIds.map(sendOne));
-  
-    // Подсчитываем успешные и неудачные отправки
-    const successful = results.filter(r => r.success).length;
-    const failed = results.filter(r => !r.success).length;
-    
-    // Логируем результаты (всегда, для отладки)
-    console.log('Telegram notification results:', {
-      total: results.length,
-      successful,
-      failed,
-      results: results.map(r => ({
-        chatId: r.chatId,
-        success: r.success,
-        error: r.error,
-        errorCode: r.errorCode
-      }))
-    });
+      // Подсчитываем успешные и неудачные отправки
+      const successful = results.filter(r => r.success).length;
+      const failed = results.filter(r => !r.success).length;
+      
+      // Логируем результаты (всегда, для отладки)
+      console.log('Telegram notification results:', {
+        total: results.length,
+        successful,
+        failed,
+        results: results.map(r => ({
+          chatId: r.chatId,
+          success: r.success,
+          error: r.error,
+          errorCode: r.errorCode
+        }))
+      });
 
-    res.json({ 
-      success: failed === 0, // success = true только если все отправки успешны
-      results, 
-      sent: successful,
-      failed: failed
-    });
+      res.json({ 
+        success: failed === 0, // success = true только если все отправки успешны
+        results, 
+        sent: successful,
+        failed: failed
+      });
+    } catch (error) {
+      // Обработка любых неожиданных ошибок
+      console.error('Unexpected error in /api/telegram/notify:', {
+        error: error.message,
+        stack: error.stack,
+        body: req.body
+      });
+      
+      res.status(500).json({ 
+        error: 'Internal server error',
+        message: error.message || 'An unexpected error occurred',
+        details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      });
+    }
   }
 );
 
@@ -677,6 +702,15 @@ app.use((req, res, next) => {
 });
 
 // Запуск сервера с обработкой ошибок
+// Проверка конфигурации при старте
+const telegramToken = process.env.TELEGRAM_BOT_TOKEN;
+if (!telegramToken) {
+  console.warn('⚠️  WARNING: TELEGRAM_BOT_TOKEN is not set. Telegram notifications will not work.');
+  console.warn('   Set TELEGRAM_BOT_TOKEN environment variable to enable Telegram notifications.');
+} else {
+  console.log(`✓ Telegram bot token configured (${telegramToken.substring(0, 10)}...)`);
+}
+
 const server = app.listen(PORT, "0.0.0.0", () => {
   console.log(`✓ Server running on port ${PORT}`);
   if (process.env.NODE_ENV === 'development') {

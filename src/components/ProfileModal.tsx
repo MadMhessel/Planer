@@ -92,12 +92,16 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
         
         // Улучшаем сообщения об ошибках для пользователя
         let userFriendlyMessage = errorMessage;
-        if (errorMessage.includes('chat not found') || errorMessage.includes('Chat not found')) {
+        if (errorMessage.includes('Server configuration error') || errorMessage.includes('TELEGRAM_BOT_TOKEN')) {
+          userFriendlyMessage = 'Ошибка конфигурации сервера: Telegram бот не настроен. Обратитесь к администратору.';
+        } else if (errorMessage.includes('chat not found') || errorMessage.includes('Chat not found')) {
           userFriendlyMessage = 'Чат не найден. Убедитесь, что вы начали диалог с ботом и указали правильный Chat ID.';
         } else if (errorMessage.includes('Forbidden') || errorMessage.includes('bot was blocked')) {
           userFriendlyMessage = 'Бот заблокирован. Разблокируйте бота в Telegram и попробуйте снова.';
         } else if (errorMessage.includes('Invalid chatId')) {
           userFriendlyMessage = 'Неверный формат Chat ID. Проверьте правильность введенного ID.';
+        } else if (errorMessage.includes('HTTP 500') || errorMessage.includes('Internal server error')) {
+          userFriendlyMessage = 'Ошибка сервера. Возможно, Telegram бот не настроен на сервере. Обратитесь к администратору.';
         }
         
         setError(userFriendlyMessage);

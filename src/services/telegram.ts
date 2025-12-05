@@ -26,9 +26,21 @@ export const TelegramService = {
       });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        const errorMessage = errorData.error || `HTTP ${response.status}: ${response.statusText}`;
-        logger.error('Failed to send notification via server', undefined, errorData);
+        let errorData;
+        try {
+          errorData = await response.json();
+        } catch (parseError) {
+          // Если не удалось распарсить JSON, читаем как текст
+          const textError = await response.text().catch(() => 'Unknown error');
+          errorData = { error: textError || `HTTP ${response.status}: ${response.statusText}` };
+        }
+        
+        const errorMessage = errorData.error || errorData.message || `HTTP ${response.status}: ${response.statusText || 'Internal Server Error'}`;
+        logger.error('Failed to send notification via server', undefined, {
+          status: response.status,
+          statusText: response.statusText,
+          error: errorData
+        });
         return { success: false, error: errorMessage, details: errorData };
       }
       
