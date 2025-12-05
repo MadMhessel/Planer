@@ -213,25 +213,29 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   const currentAvatar = formData.photoURL || formData.avatar || '';
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
-      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col transition-colors">
-        <div className="flex justify-between items-center px-6 py-4 border-b border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
-          <h2 className="text-xl font-bold text-gray-800 dark:text-white">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+      <div className="bg-white dark:bg-gray-800 rounded-none sm:rounded-2xl shadow-2xl w-full h-full sm:h-auto sm:max-w-md sm:max-h-[90vh] overflow-hidden flex flex-col transition-colors">
+        {/* Header - фиксированный */}
+        <div className="flex justify-between items-center px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 flex-shrink-0">
+          <h2 className="text-lg sm:text-xl font-bold text-gray-800 dark:text-white">
             Редактировать профиль
           </h2>
           <button 
             onClick={onClose} 
-            className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-full transition-colors text-gray-500 dark:text-gray-400"
+            className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-full transition-colors text-gray-500 dark:text-gray-400 touch-manipulation"
             disabled={loading}
+            aria-label="Закрыть"
           >
             <X size={20} />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        {/* Scrollable content */}
+        <div className="flex-1 overflow-y-auto overscroll-contain">
+          <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-4 sm:space-y-4">
           {/* Email (read-only) */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Email
             </label>
             <div className="relative">
@@ -239,15 +243,15 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                 type="email"
                 value={user.email}
                 disabled
-                className="w-full px-4 py-2 border border-gray-200 dark:border-gray-600 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 cursor-not-allowed"
+                className="w-full px-4 py-3 sm:py-2 border border-gray-200 dark:border-gray-600 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 cursor-not-allowed text-base sm:text-sm"
               />
             </div>
-            <p className="text-xs text-gray-400 mt-1">Email нельзя изменить</p>
+            <p className="text-xs text-gray-400 mt-1.5">Email нельзя изменить</p>
           </div>
 
           {/* Display Name */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Имя пользователя
             </label>
             <div className="relative">
@@ -256,7 +260,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                 type="text"
                 value={formData.displayName}
                 onChange={(e) => setFormData({...formData, displayName: e.target.value})}
-                className="w-full pl-10 px-4 py-2 border border-gray-200 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                className="w-full pl-10 pr-4 py-3 sm:py-2 border border-gray-200 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-base sm:text-sm touch-manipulation"
                 placeholder="Ваше имя"
                 maxLength={50}
               />
@@ -265,15 +269,15 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
 
           {/* Telegram Chat ID */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 flex items-center gap-1">
-              <MessageCircle size={14} /> Telegram Chat ID
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 flex items-center gap-1.5">
+              <MessageCircle size={16} /> Telegram Chat ID
             </label>
-            <div className="flex gap-2">
+            <div className="flex flex-col sm:flex-row gap-2">
               <input
                 type="text"
                 value={formData.telegramChatId}
                 onChange={(e) => setFormData({...formData, telegramChatId: e.target.value})}
-                className="flex-1 px-4 py-2 border border-gray-200 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                className="flex-1 px-4 py-3 sm:py-2 border border-gray-200 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-base sm:text-sm touch-manipulation"
                 placeholder="Введите ваш Telegram Chat ID"
                 disabled={loading || testingTelegram}
               />
@@ -281,25 +285,25 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                 type="button"
                 onClick={handleTestTelegram}
                 disabled={loading || testingTelegram || !formData.telegramChatId.trim()}
-                className="px-4 py-2 bg-sky-600 text-white rounded-lg hover:bg-sky-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 font-medium"
+                className="px-4 py-3 sm:py-2 bg-sky-600 text-white rounded-lg hover:bg-sky-700 active:bg-sky-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 font-medium text-base sm:text-sm touch-manipulation min-h-[44px] sm:min-h-0"
               >
                 <Send size={16} />
-                {testingTelegram ? 'Отправка...' : 'Тест'}
+                <span className="whitespace-nowrap">{testingTelegram ? 'Отправка...' : 'Тест'}</span>
               </button>
             </div>
             <p className="text-xs text-gray-400 mt-1">
               Уведомления о задачах будут отправляться в Telegram. 
             </p>
-            <details className="text-xs text-gray-500 mt-1">
-              <summary className="cursor-pointer hover:text-gray-600 dark:hover:text-gray-300">
+            <details className="text-xs text-gray-500 mt-2">
+              <summary className="cursor-pointer hover:text-gray-600 dark:hover:text-gray-300 py-1 touch-manipulation">
                 Как получить Chat ID?
               </summary>
-              <div className="mt-2 space-y-1 pl-2">
-                <p>1. Найдите бота <code className="bg-gray-100 dark:bg-gray-700 px-1 rounded">@userinfobot</code> в Telegram</p>
+              <div className="mt-2 space-y-1.5 pl-2 pb-2">
+                <p>1. Найдите бота <code className="bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded text-xs">@userinfobot</code> в Telegram</p>
                 <p>2. Начните диалог с ботом (отправьте /start)</p>
                 <p>3. Бот отправит вам ваш Chat ID (число, например: 123456789)</p>
                 <p>4. Скопируйте это число и вставьте в поле выше</p>
-                <p className="text-orange-600 dark:text-orange-400 mt-2">
+                <p className="text-orange-600 dark:text-orange-400 mt-2 font-medium">
                   ⚠️ Важно: Перед тестированием убедитесь, что вы начали диалог с вашим Telegram ботом!
                 </p>
               </div>
@@ -308,22 +312,22 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
 
           {/* Avatar */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Аватар
             </label>
-            <div className="flex items-center gap-4">
-              <div className="w-16 h-16 rounded-full bg-gray-100 dark:bg-gray-700 border-2 border-gray-200 dark:border-gray-600 flex items-center justify-center overflow-hidden flex-shrink-0">
+            <div className="flex items-center gap-3 sm:gap-4">
+              <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-gray-100 dark:bg-gray-700 border-2 border-gray-200 dark:border-gray-600 flex items-center justify-center overflow-hidden flex-shrink-0">
                 {currentAvatar ? (
                   <img src={currentAvatar} alt="Avatar" className="w-full h-full object-cover" />
                 ) : (
-                  <div className="w-full h-full bg-gradient-to-br from-sky-500 to-indigo-600 flex items-center justify-center text-white font-bold text-lg">
+                  <div className="w-full h-full bg-gradient-to-br from-sky-500 to-indigo-600 flex items-center justify-center text-white font-bold text-lg sm:text-xl">
                     {formData.displayName?.[0]?.toUpperCase() || user.email[0].toUpperCase()}
                   </div>
                 )}
               </div>
               <label className="flex-1 cursor-pointer">
-                <div className="w-full px-4 py-2 border border-dashed border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors flex items-center justify-center gap-2 text-sm text-gray-600 dark:text-gray-300">
-                  <Upload size={16} />
+                <div className="w-full px-4 py-3 sm:py-2 border border-dashed border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50 active:bg-gray-100 dark:active:bg-gray-700 transition-colors flex items-center justify-center gap-2 text-sm text-gray-600 dark:text-gray-300 touch-manipulation min-h-[44px] sm:min-h-0">
+                  <Upload size={18} />
                   <span>Загрузить фото</span>
                 </div>
                 <input 
@@ -335,41 +339,42 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                 />
               </label>
             </div>
-            <p className="text-xs text-gray-400 mt-1">PNG, JPG до 1MB</p>
+            <p className="text-xs text-gray-400 mt-1.5">PNG, JPG до 1MB</p>
           </div>
 
           {/* Error/Message */}
           {error && (
-            <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-600 dark:text-red-400">
+            <div className="p-3 sm:p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-600 dark:text-red-400">
               {error}
             </div>
           )}
           {message && (
-            <div className="p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg text-sm text-green-600 dark:text-green-400">
+            <div className="p-3 sm:p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg text-sm text-green-600 dark:text-green-400">
               {message}
             </div>
           )}
 
-          {/* Actions */}
-          <div className="flex justify-end gap-3 pt-4">
+          {/* Actions - фиксированные внизу на мобильных */}
+          <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 sm:gap-3 pt-4 sm:pt-4 pb-2 sm:pb-0 border-t border-gray-100 dark:border-gray-700 sm:border-t-0 mt-4 sm:mt-0">
             <button
               type="button"
               onClick={onClose}
               disabled={loading}
-              className="px-4 py-2 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full sm:w-auto px-4 py-3 sm:py-2 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 active:bg-gray-300 dark:active:bg-gray-600 rounded-lg transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation min-h-[44px] sm:min-h-0 text-base sm:text-sm"
             >
               Отмена
             </button>
             <button
               type="submit"
               disabled={loading}
-              className="flex items-center gap-2 px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors shadow-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3 sm:py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 active:bg-indigo-800 transition-colors shadow-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation min-h-[44px] sm:min-h-0 text-base sm:text-sm"
             >
               <Save size={18} />
-              {loading ? 'Сохранение...' : 'Сохранить'}
+              <span>{loading ? 'Сохранение...' : 'Сохранить'}</span>
             </button>
           </div>
-        </form>
+          </form>
+        </div>
       </div>
     </div>
   );
