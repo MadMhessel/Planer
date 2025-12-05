@@ -137,6 +137,14 @@ export const getRecipientsForTask = (
   // Фильтруем members с валидными userId
   const validMembers = allMembers.filter(m => m.userId && typeof m.userId === 'string' && m.userId.trim() !== '');
   
+  // Создаем Map для быстрого поиска по email
+  const membersByEmail = new Map<string, WorkspaceMember>();
+  allMembers.forEach(m => {
+    if (m.email) {
+      membersByEmail.set(m.email.toLowerCase(), m);
+    }
+  });
+  
   // Логируем для диагностики (всегда, чтобы видеть проблему)
   logger.info('[getRecipientsForTask] Starting', {
     taskId: (task as any)?.id,
@@ -172,12 +180,32 @@ export const getRecipientsForTask = (
     
     task.assigneeIds.forEach(assigneeId => {
       if (assigneeId) {
-        // Ищем только среди валидных members
-        let assignee = validMembers.find(m => m.userId === assigneeId);
+        // Стратегия поиска assignee:
+        // 1. По userId в validMembers
+        // 2. По userId во всех members
+        // 3. По email (если assigneeId содержит @)
+        // 4. По email из currentUserEmail (если assigneeId может быть Firebase Auth ID)
+        let assignee: WorkspaceMember | undefined = undefined;
         
-        // Если не нашли по userId, пробуем найти по email
+        // 1. Ищем по userId в validMembers
+        assignee = validMembers.find(m => m.userId === assigneeId);
+        
+        // 2. Если не нашли, ищем во всех members
+        if (!assignee) {
+          assignee = allMembers.find(m => m.userId === assigneeId);
+          if (assignee) {
+            logger.warn('[getRecipientsForTask] Found assignee in invalid members (should fix data)', {
+              assigneeId,
+              assigneeUserId: assignee.userId,
+              assigneeEmail: assignee.email,
+              isValid: !!(assignee.userId && typeof assignee.userId === 'string' && assignee.userId.trim() !== '')
+            });
+          }
+        }
+        
+        // 3. Если не нашли и assigneeId это email, ищем по email
         if (!assignee && assigneeId.includes('@')) {
-          assignee = validMembers.find(m => m.email === assigneeId);
+          assignee = membersByEmail.get(assigneeId.toLowerCase());
           if (assignee) {
             logger.info('[getRecipientsForTask] Found assignee by email', {
               assigneeId,
@@ -187,16 +215,16 @@ export const getRecipientsForTask = (
           }
         }
         
-        // Если все еще не нашли, пробуем найти среди всех members (включая невалидные)
-        // Это может помочь, если assigneeId не совпадает с userId в members
-        if (!assignee) {
-          assignee = allMembers.find(m => m.userId === assigneeId);
+        // 4. Если assigneeId может быть Firebase Auth ID, ищем по email текущего пользователя
+        // Это fallback для случаев, когда assigneeId не совпадает с WorkspaceMember.userId
+        if (!assignee && currentUserEmail) {
+          assignee = membersByEmail.get(currentUserEmail.toLowerCase());
           if (assignee) {
-            logger.warn('[getRecipientsForTask] Found assignee in invalid members (should fix data)', {
+            logger.info('[getRecipientsForTask] Found assignee by currentUserEmail (fallback for Firebase Auth ID mismatch)', {
               assigneeId,
+              currentUserEmail,
               assigneeUserId: assignee.userId,
-              assigneeEmail: assignee.email,
-              isValid: !!(assignee.userId && typeof assignee.userId === 'string' && assignee.userId.trim() !== '')
+              assigneeEmail: assignee.email
             });
           }
         }
@@ -216,16 +244,19 @@ export const getRecipientsForTask = (
             logger.warn('[getRecipientsForTask] Assignee has no telegramChatId', { 
               assigneeId,
               assigneeUserId: assignee.userId,
-              assigneeEmail: assignee.email 
+              assigneeEmail: assignee.email,
+              note: 'User needs to set telegramChatId in their profile and sync it to WorkspaceMember'
             });
           }
         } else {
-          logger.error('[getRecipientsForTask] Assignee not found in valid members', { 
+          logger.error('[getRecipientsForTask] Assignee not found by any method', { 
             assigneeId,
+            currentUserEmail,
             validMemberUserIds: validMembers.map(m => m.userId),
             validMemberEmails: validMembers.map(m => m.email),
             allMemberUserIds: allMembers.map(m => m.userId),
-            allMemberEmails: allMembers.map(m => m.email)
+            allMemberEmails: allMembers.map(m => m.email),
+            note: 'This assigneeId might be a Firebase Auth ID that does not match WorkspaceMember.userId. The task should be updated to use the correct userId from WorkspaceMember.'
           });
         }
       }
@@ -305,10 +336,8 @@ export const getRecipientsForTask = (
           });
         }
       } else {
-        // Если assigneeId не найден, возможно это Firebase Auth ID
-        // Попробуем найти текущего пользователя по email из members
-        // Это временное решение - правильное решение - использовать правильный userId при создании задачи
-        logger.warn('[getRecipientsForTask] Assignee not found in valid members (legacy), trying to find by currentUserEmail', { 
+        // Если assigneeId не найден, используем расширенный поиск
+        logger.warn('[getRecipientsForTask] Assignee not found in valid members (legacy), trying extended search', { 
           assigneeId: task.assigneeId,
           currentUserEmail,
           validMemberUserIds: validMembers.map(m => m.userId),
@@ -317,44 +346,58 @@ export const getRecipientsForTask = (
           allMemberEmails: allMembers.map(m => m.email)
         });
         
-        // Если есть currentUserEmail, попробуем найти по email
-        if (currentUserEmail) {
-          const assigneeByEmail = validMembers.find(m => 
-            m.email && currentUserEmail && 
-            m.email.toLowerCase() === currentUserEmail.toLowerCase()
-          );
-          if (assigneeByEmail) {
+        let assignee: WorkspaceMember | undefined = undefined;
+        
+        // 1. Ищем во всех members по userId
+        assignee = allMembers.find(m => m.userId === task.assigneeId);
+        
+        // 2. Если не нашли и assigneeId это email, ищем по email
+        if (!assignee && task.assigneeId.includes('@')) {
+          assignee = membersByEmail.get(task.assigneeId.toLowerCase());
+          if (assignee) {
+            logger.info('[getRecipientsForTask] Found assignee by email (legacy)', {
+              assigneeId: task.assigneeId,
+              assigneeUserId: assignee.userId,
+              assigneeEmail: assignee.email
+            });
+          }
+        }
+        
+        // 3. Если assigneeId может быть Firebase Auth ID, ищем по email текущего пользователя
+        if (!assignee && currentUserEmail) {
+          assignee = membersByEmail.get(currentUserEmail.toLowerCase());
+          if (assignee) {
             logger.info('[getRecipientsForTask] Found assignee by currentUserEmail (legacy fallback)', {
               assigneeId: task.assigneeId,
-              assigneeUserId: assigneeByEmail.userId,
-              assigneeEmail: assigneeByEmail.email,
-              hasTelegramChatId: !!assigneeByEmail.telegramChatId,
-              telegramChatId: assigneeByEmail.telegramChatId ? `${assigneeByEmail.telegramChatId.substring(0, 5)}...` : 'none'
-            });
-            if (assigneeByEmail.telegramChatId && !recipientChatIds.has(assigneeByEmail.telegramChatId)) {
-              recipients.push(assigneeByEmail.telegramChatId);
-              recipientChatIds.add(assigneeByEmail.telegramChatId);
-            } else if (!assigneeByEmail.telegramChatId) {
-              logger.warn('[getRecipientsForTask] Assignee found by email but has no telegramChatId (legacy fallback)', { 
-                assigneeId: task.assigneeId,
-                assigneeUserId: assigneeByEmail.userId,
-                assigneeEmail: assigneeByEmail.email 
-              });
-            }
-          } else {
-            logger.error('[getRecipientsForTask] Assignee not found even by currentUserEmail (legacy)', { 
-              assigneeId: task.assigneeId,
               currentUserEmail,
-              validMemberUserIds: validMembers.map(m => m.userId),
-              validMemberEmails: validMembers.map(m => m.email),
-              allMemberUserIds: allMembers.map(m => m.userId),
-              allMemberEmails: allMembers.map(m => m.email),
-              note: 'This assigneeId might be a Firebase Auth ID that does not match WorkspaceMember.userId. The task should be updated to use the correct userId from WorkspaceMember.'
+              assigneeUserId: assignee.userId,
+              assigneeEmail: assignee.email
+            });
+          }
+        }
+        
+        if (assignee) {
+          logger.info('[getRecipientsForTask] Found assignee (legacy)', {
+            assigneeId: task.assigneeId,
+            assigneeEmail: assignee.email,
+            hasTelegramChatId: !!assignee.telegramChatId,
+            telegramChatId: assignee.telegramChatId ? `${assignee.telegramChatId.substring(0, 5)}...` : 'none'
+          });
+          if (assignee.telegramChatId && !recipientChatIds.has(assignee.telegramChatId)) {
+            recipients.push(assignee.telegramChatId);
+            recipientChatIds.add(assignee.telegramChatId);
+          } else if (!assignee.telegramChatId) {
+            logger.warn('[getRecipientsForTask] Assignee found but has no telegramChatId (legacy)', { 
+              assigneeId: task.assigneeId,
+              assigneeUserId: assignee.userId,
+              assigneeEmail: assignee.email,
+              note: 'User needs to set telegramChatId in their profile and sync it to WorkspaceMember'
             });
           }
         } else {
-          logger.error('[getRecipientsForTask] Assignee not found in valid members and no currentUserEmail provided (legacy)', { 
+          logger.error('[getRecipientsForTask] Assignee not found by any method (legacy)', { 
             assigneeId: task.assigneeId,
+            currentUserEmail,
             validMemberUserIds: validMembers.map(m => m.userId),
             validMemberEmails: validMembers.map(m => m.email),
             allMemberUserIds: allMembers.map(m => m.userId),

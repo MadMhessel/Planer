@@ -175,8 +175,9 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
         updates.telegramChatId = newTelegramChatId;
         
         // Синхронизируем telegramChatId со всеми WorkspaceMember этого пользователя
+        // Передаем email как fallback для случаев, когда userId не совпадает
         try {
-          await FirestoreService.syncTelegramChatIdToMembers(user.id, newTelegramChatId);
+          await FirestoreService.syncTelegramChatIdToMembers(user.id, newTelegramChatId, user.email);
         } catch (syncError) {
           logger.warn('Failed to sync telegramChatId to members', syncError);
           // Не прерываем сохранение профиля, если синхронизация не удалась

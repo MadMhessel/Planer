@@ -939,10 +939,11 @@ export const FirestoreService = {
   /**
    * Синхронизирует telegramChatId из User во все WorkspaceMember этого пользователя
    */
-  async syncTelegramChatIdToMembers(userId: string, telegramChatId?: string): Promise<void> {
+  async syncTelegramChatIdToMembers(userId: string, telegramChatId?: string, userEmail?: string): Promise<void> {
     try {
       logger.info('[syncTelegramChatIdToMembers] Starting sync', {
         userId,
+        userEmail,
         telegramChatId: telegramChatId ? `${telegramChatId.substring(0, 5)}...` : 'empty',
         telegramChatIdLength: telegramChatId?.length || 0
       });
@@ -953,7 +954,7 @@ export const FirestoreService = {
         where('userId', '==', userId)
       );
       
-      const snapshot = await getDocs(membersQuery);
+      let snapshot = await getDocs(membersQuery);
       logger.info('[syncTelegramChatIdToMembers] Found members', {
         userId,
         membersFound: snapshot.docs.length,
@@ -985,18 +986,71 @@ export const FirestoreService = {
         updateCount++;
       });
 
+      // Если не нашли по userId и есть email, пробуем найти по email
+      if (updateCount === 0 && userEmail) {
+        logger.info('[syncTelegramChatIdToMembers] No members found by userId, trying to find by email', {
+          userId,
+          userEmail
+        });
+        
+        const membersByEmailQuery = query(
+          collectionGroup(db, 'members'),
+          where('email', '==', userEmail)
+        );
+        
+        const emailSnapshot = await getDocs(membersByEmailQuery);
+        logger.info('[syncTelegramChatIdToMembers] Found members by email', {
+          userId,
+          userEmail,
+          membersFound: emailSnapshot.docs.length,
+          memberPaths: emailSnapshot.docs.map(d => d.ref.path)
+        });
+        
+        if (emailSnapshot.docs.length > 0) {
+          const emailBatch = writeBatch(db);
+          let emailUpdateCount = 0;
+          
+          emailSnapshot.docs.forEach((memberDoc) => {
+            const memberRef = memberDoc.ref;
+            const updateData: any = {};
+            
+            if (telegramChatId) {
+              updateData.telegramChatId = telegramChatId;
+            } else {
+              updateData.telegramChatId = deleteField();
+            }
+            
+            emailBatch.update(memberRef, updateData);
+            emailUpdateCount++;
+          });
+          
+          if (emailUpdateCount > 0) {
+            await emailBatch.commit();
+            logger.info('[syncTelegramChatIdToMembers] Successfully synced telegramChatId by email', {
+              userId,
+              userEmail,
+              telegramChatId: telegramChatId ? `${telegramChatId.substring(0, 5)}...` : 'empty',
+              membersUpdated: emailUpdateCount,
+              memberPaths: emailSnapshot.docs.map(d => d.ref.path)
+            });
+            updateCount = emailUpdateCount;
+          }
+        }
+      }
+      
       if (updateCount > 0) {
-        await batch.commit();
         logger.info('[syncTelegramChatIdToMembers] Successfully synced telegramChatId', {
           userId,
+          userEmail,
           telegramChatId: telegramChatId ? `${telegramChatId.substring(0, 5)}...` : 'empty',
-          membersUpdated: updateCount,
-          memberPaths: snapshot.docs.map(d => d.ref.path)
+          membersUpdated: updateCount
         });
       } else {
         logger.warn('[syncTelegramChatIdToMembers] No members found to update', { 
           userId,
-          telegramChatId: telegramChatId ? `${telegramChatId.substring(0, 5)}...` : 'empty'
+          userEmail,
+          telegramChatId: telegramChatId ? `${telegramChatId.substring(0, 5)}...` : 'empty',
+          note: 'Make sure the user is a member of at least one workspace'
         });
       }
     } catch (error) {
