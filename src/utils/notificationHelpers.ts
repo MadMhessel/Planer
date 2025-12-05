@@ -186,6 +186,20 @@ export const getRecipientsForTask = (
           }
         }
         
+        // Если все еще не нашли, пробуем найти среди всех members (включая невалидные)
+        // Это может помочь, если assigneeId не совпадает с userId в members
+        if (!assignee) {
+          assignee = allMembers.find(m => m.userId === assigneeId);
+          if (assignee) {
+            logger.warn('[getRecipientsForTask] Found assignee in invalid members (should fix data)', {
+              assigneeId,
+              assigneeUserId: assignee.userId,
+              assigneeEmail: assignee.email,
+              isValid: !!(assignee.userId && typeof assignee.userId === 'string' && assignee.userId.trim() !== '')
+            });
+          }
+        }
+        
         if (assignee) {
           logger.info('[getRecipientsForTask] Found assignee', {
             assigneeId,
@@ -228,6 +242,20 @@ export const getRecipientsForTask = (
     
     // Ищем только среди валидных members
     let assignee = validMembers.find(m => m.userId === task.assigneeId);
+    
+    // Если не нашли в валидных, пробуем найти среди всех members
+    if (!assignee) {
+      assignee = allMembers.find(m => m.userId === task.assigneeId);
+      if (assignee) {
+        logger.warn('[getRecipientsForTask] Found assignee in invalid members (legacy, should fix data)', {
+          assigneeId: task.assigneeId,
+          assigneeUserId: assignee.userId,
+          assigneeEmail: assignee.email,
+          isValid: !!(assignee.userId && typeof assignee.userId === 'string' && assignee.userId.trim() !== '')
+        });
+      }
+    }
+    
     if (assignee) {
       logger.info('[getRecipientsForTask] Found assignee (legacy)', {
         assigneeId: task.assigneeId,
