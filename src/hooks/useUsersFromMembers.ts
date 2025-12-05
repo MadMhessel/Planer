@@ -1,11 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { WorkspaceMember, User } from '../types';
 import { doc, getDoc } from 'firebase/firestore';
-// КРИТИЧЕСКИ ВАЖНО: Не импортируем db напрямую, чтобы избежать ошибки
-// "Cannot access 'It' before initialization" в production сборке.
-// Вместо этого используем функцию getFirestoreInstance(),
-// которая гарантирует, что Firebase инициализирован перед использованием.
-import { getFirestoreInstance } from '../firebase';
+import { db } from '../firebase';
 import { logger } from '../utils/logger';
 
 /**
@@ -33,7 +29,6 @@ export const useUsersFromMembers = (
       await Promise.all(
         uniqueUserIds.map(async (userId) => {
           try {
-            const db = getFirestoreInstance();
             const userRef = doc(db, 'users', userId);
             const userSnap = await getDoc(userRef);
             

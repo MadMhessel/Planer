@@ -1,5 +1,6 @@
-import React, { useState, useEffect, Suspense } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Task, Project, User, TaskStatus } from '../types';
+import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip } from 'recharts';
 import { AlertCircle, CheckCircle2, Clock, Users } from 'lucide-react';
 
 interface DashboardProps {
@@ -52,124 +53,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ tasks, projects, users = [
       </div>
     </div>
   );
-
-  // Компонент для графиков с динамической загрузкой recharts
-  const ChartsContent: React.FC<{
-    statusData: Array<{ name: string; value: number; color: string }>;
-    projectData: Array<{ name: string; tasks: number }>;
-    isMobile: boolean;
-  }> = ({ statusData, projectData, isMobile }) => {
-    const [Recharts, setRecharts] = useState<any>(null);
-
-    useEffect(() => {
-      // Загружаем recharts только когда компонент монтируется
-      import('recharts').then((recharts) => {
-        setRecharts({
-          PieChart: recharts.PieChart,
-          Pie: recharts.Pie,
-          Cell: recharts.Cell,
-          ResponsiveContainer: recharts.ResponsiveContainer,
-          BarChart: recharts.BarChart,
-          Bar: recharts.Bar,
-          XAxis: recharts.XAxis,
-          YAxis: recharts.YAxis,
-          Tooltip: recharts.Tooltip,
-        });
-      });
-    }, []);
-
-    if (!Recharts) {
-      return (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-          <div className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 p-4 sm:p-6 rounded-xl shadow-sm h-[300px] sm:h-[350px] md:h-[400px]">
-            <div className="h-full w-full bg-gray-100 dark:bg-slate-800 animate-pulse rounded" />
-          </div>
-          <div className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 p-4 sm:p-6 rounded-xl shadow-sm h-[300px] sm:h-[350px] md:h-[400px]">
-            <div className="h-full w-full bg-gray-100 dark:bg-slate-800 animate-pulse rounded" />
-          </div>
-        </div>
-      );
-    }
-
-    const { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip } = Recharts;
-
-    return (
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-        <div className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 p-4 sm:p-6 rounded-xl shadow-sm flex flex-col h-[300px] sm:h-[350px] md:h-[400px]">
-          <h4 className="text-base sm:text-lg font-bold text-gray-800 dark:text-white mb-4 sm:mb-6">Статус задач</h4>
-          <div className="flex-1 w-full min-h-0">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={statusData}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={isMobile ? 40 : 60}
-                  outerRadius={isMobile ? 70 : 90}
-                  paddingAngle={5}
-                  dataKey="value"
-                >
-                  {statusData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
-                  ))}
-                </Pie>
-                <Tooltip 
-                  contentStyle={{ 
-                    borderRadius: '8px', 
-                    border: 'none', 
-                    boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
-                    backgroundColor: 'white',
-                    color: '#1f2937'
-                  }}
-                />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-          {/* Custom Legend */}
-          <div className="flex flex-wrap justify-center gap-2 sm:gap-3 mt-3 sm:mt-4">
-            {statusData.map((s, i) => (
-              <div key={i} className="flex items-center text-xs text-gray-600 dark:text-slate-300">
-                <div className="w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full mr-1 sm:mr-1.5" style={{ background: s.color }} />
-                {s.name} ({s.value})
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 p-4 sm:p-6 rounded-xl shadow-sm flex flex-col h-[300px] sm:h-[350px] md:h-[400px]">
-          <h4 className="text-base sm:text-lg font-bold text-gray-800 dark:text-white mb-4 sm:mb-6">Задачи по проектам</h4>
-          <div className="flex-1 w-full min-h-0">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={projectData} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
-                <XAxis 
-                  dataKey="name" 
-                  fontSize={isMobile ? 9 : 11} 
-                  tickLine={false} 
-                  axisLine={false} 
-                  tickMargin={10} 
-                  stroke="#9ca3af"
-                  angle={isMobile ? -45 : 0}
-                  textAnchor={isMobile ? 'end' : 'middle'}
-                />
-                <YAxis fontSize={isMobile ? 9 : 11} tickLine={false} axisLine={false} stroke="#9ca3af" />
-                <Tooltip 
-                  cursor={{fill: 'rgba(243, 244, 246, 0.5)'}} 
-                  contentStyle={{ 
-                    borderRadius: '8px', 
-                    border: 'none', 
-                    boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
-                    backgroundColor: 'white',
-                    color: '#1f2937'
-                  }} 
-                />
-                <Bar dataKey="tasks" fill="#6366f1" radius={[4, 4, 0, 0]} barSize={isMobile ? 30 : 40} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-      </div>
-    );
-  };
 
   return (
     <div className="space-y-4 sm:space-y-6 pb-20 md:pb-0">
@@ -233,22 +116,80 @@ export const Dashboard: React.FC<DashboardProps> = ({ tasks, projects, users = [
 
       {/* Charts Grid - Always visible on desktop, toggleable on mobile */}
       {(activeTab === 'charts' || !isMobile) && (
-        <Suspense fallback={
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-            <div className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 p-4 sm:p-6 rounded-xl shadow-sm h-[300px] sm:h-[350px] md:h-[400px]">
-              <div className="h-full w-full bg-gray-100 dark:bg-slate-800 animate-pulse rounded" />
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+          <div className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 p-4 sm:p-6 rounded-xl shadow-sm flex flex-col h-[300px] sm:h-[350px] md:h-[400px]">
+            <h4 className="text-base sm:text-lg font-bold text-gray-800 dark:text-white mb-4 sm:mb-6">Статус задач</h4>
+            <div className="flex-1 w-full min-h-0">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={statusData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={isMobile ? 40 : 60}
+                    outerRadius={isMobile ? 70 : 90}
+                    paddingAngle={5}
+                    dataKey="value"
+                  >
+                    {statusData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip 
+                    contentStyle={{ 
+                      borderRadius: '8px', 
+                      border: 'none', 
+                      boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
+                      backgroundColor: 'white',
+                      color: '#1f2937'
+                    }}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
             </div>
-            <div className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 p-4 sm:p-6 rounded-xl shadow-sm h-[300px] sm:h-[350px] md:h-[400px]">
-              <div className="h-full w-full bg-gray-100 dark:bg-slate-800 animate-pulse rounded" />
+            {/* Custom Legend */}
+            <div className="flex flex-wrap justify-center gap-2 sm:gap-3 mt-3 sm:mt-4">
+              {statusData.map((s, i) => (
+                <div key={i} className="flex items-center text-xs text-gray-600 dark:text-slate-300">
+                  <div className="w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full mr-1 sm:mr-1.5" style={{ background: s.color }} />
+                  {s.name} ({s.value})
+                </div>
+              ))}
             </div>
           </div>
-        }>
-          <ChartsContent 
-            statusData={statusData} 
-            projectData={projectData} 
-            isMobile={isMobile} 
-          />
-        </Suspense>
+
+          <div className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 p-4 sm:p-6 rounded-xl shadow-sm flex flex-col h-[300px] sm:h-[350px] md:h-[400px]">
+            <h4 className="text-base sm:text-lg font-bold text-gray-800 dark:text-white mb-4 sm:mb-6">Задачи по проектам</h4>
+            <div className="flex-1 w-full min-h-0">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={projectData} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
+                  <XAxis 
+                    dataKey="name" 
+                    fontSize={isMobile ? 9 : 11} 
+                    tickLine={false} 
+                    axisLine={false} 
+                    tickMargin={10} 
+                    stroke="#9ca3af"
+                    angle={isMobile ? -45 : 0}
+                    textAnchor={isMobile ? 'end' : 'middle'}
+                  />
+                  <YAxis fontSize={isMobile ? 9 : 11} tickLine={false} axisLine={false} stroke="#9ca3af" />
+                  <Tooltip 
+                    cursor={{fill: 'rgba(243, 244, 246, 0.5)'}} 
+                    contentStyle={{ 
+                      borderRadius: '8px', 
+                      border: 'none', 
+                      boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
+                      backgroundColor: 'white',
+                      color: '#1f2937'
+                    }} 
+                  />
+                  <Bar dataKey="tasks" fill="#6366f1" radius={[4, 4, 0, 0]} barSize={isMobile ? 30 : 40} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

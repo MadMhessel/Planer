@@ -165,33 +165,8 @@ export const KanbanBoard: React.FC<Props> = ({
     }
   };
 
-  // Обработчик клавиатуры для карточек задач
-  const handleTaskKeyDown = (task: Task, e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      onTaskClick(task);
-    } else if (e.key === 'ArrowLeft' && !isTouchDevice) {
-      e.preventDefault();
-      // Переместить задачу в предыдущую колонку
-      const currentColIndex = columns.findIndex(c => c.id === task.status);
-      if (currentColIndex > 0) {
-        onStatusChange(task, columns[currentColIndex - 1].id);
-      }
-    } else if (e.key === 'ArrowRight' && !isTouchDevice) {
-      e.preventDefault();
-      // Переместить задачу в следующую колонку
-      const currentColIndex = columns.findIndex(c => c.id === task.status);
-      if (currentColIndex < columns.length - 1) {
-        onStatusChange(task, columns[currentColIndex + 1].id);
-      }
-    }
-  };
-
   return (
-    <div className="flex flex-col gap-4" role="main" aria-label="Канбан-доска задач">
-      {/* ARIA live region для объявлений об изменениях */}
-      <div aria-live="polite" aria-atomic="true" className="sr-only" id="kanban-announcements" />
-      
+    <div className="flex flex-col gap-4">
       {/* Header - Hidden on mobile, shown on desktop */}
       <div className="hidden md:flex items-center justify-between gap-2">
         <h2 className="text-lg font-bold text-gray-900 dark:text-white bg-gradient-to-r from-sky-500 to-indigo-600 dark:from-sky-400 dark:to-indigo-400 bg-clip-text text-transparent">
@@ -199,10 +174,9 @@ export const KanbanBoard: React.FC<Props> = ({
         </h2>
         <button
           onClick={onCreateTask}
-          className="flex items-center gap-1.5 px-4 py-2 text-sm rounded-lg bg-gradient-to-r from-sky-500 to-indigo-600 text-white font-semibold hover:from-sky-600 hover:to-indigo-700 shadow-lg shadow-sky-500/30 transition-all hover:shadow-xl hover:shadow-sky-500/40 hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2 dark:focus:ring-offset-slate-900"
-          aria-label="Создать новую задачу"
+          className="flex items-center gap-1.5 px-4 py-2 text-sm rounded-lg bg-gradient-to-r from-sky-500 to-indigo-600 text-white font-semibold hover:from-sky-600 hover:to-indigo-700 shadow-lg shadow-sky-500/30 transition-all hover:shadow-xl hover:shadow-sky-500/40 hover:-translate-y-0.5"
         >
-          <Plus className="w-4 h-4" aria-hidden="true" />
+          <Plus className="w-4 h-4" />
           <span>Новая задача</span>
         </button>
       </div>
@@ -238,17 +212,12 @@ export const KanbanBoard: React.FC<Props> = ({
         </div>
 
         {/* Tasks List for Current Column */}
-        <div className="space-y-2.5 pb-4 w-full max-w-full" role="list" aria-label={`Задачи в колонке ${currentColumn.title}`}>
-          {currentTasks.length > 0 ? currentTasks.map((task, index) => (
-            <button
+        <div className="space-y-2.5 pb-4 w-full max-w-full">
+          {currentTasks.length > 0 ? currentTasks.map(task => (
+            <div
               key={task.id}
-              type="button"
-              className="rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-2.5 sm:px-3 py-2 sm:py-2.5 text-xs shadow-sm hover:shadow-md transition-all cursor-pointer active:scale-[0.98] w-full max-w-full overflow-hidden text-left focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2 dark:focus:ring-offset-slate-900"
+              className="rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-2.5 sm:px-3 py-2 sm:py-2.5 text-xs shadow-sm hover:shadow-md transition-all cursor-pointer active:scale-[0.98] w-full max-w-full overflow-hidden"
               onClick={() => onTaskClick(task)}
-              onKeyDown={(e) => handleTaskKeyDown(task, e)}
-              aria-label={`Задача: ${task.title}. Статус: ${currentColumn.title}. Приоритет: ${getPriorityLabel(task.priority)}${task.description ? `. ${task.description}` : ''}`}
-              aria-describedby={`task-${task.id}-meta`}
-              role="listitem"
             >
               <div className="flex items-start justify-between gap-1">
                 <div className="font-medium text-gray-900 dark:text-slate-100 line-clamp-2 flex-1">
@@ -258,33 +227,15 @@ export const KanbanBoard: React.FC<Props> = ({
                   <button
                     type="button"
                     onClick={(e) => handleMenuToggle(task.id, e)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Escape' && openMenuId === task.id) {
-                        setOpenMenuId(null);
-                      }
-                    }}
-                    className="p-1 hover:bg-gray-100 dark:hover:bg-slate-800 rounded transition-colors focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-1 dark:focus:ring-offset-slate-900"
-                    aria-label={`Дополнительные действия для задачи ${task.title}`}
-                    aria-expanded={openMenuId === task.id}
-                    aria-haspopup="true"
+                    className="p-1 hover:bg-gray-100 dark:hover:bg-slate-800 rounded transition-colors"
                   >
-                    <MoreHorizontal className="w-4 h-4 text-gray-500 dark:text-slate-400" aria-hidden="true" />
+                    <MoreHorizontal className="w-4 h-4 text-gray-500 dark:text-slate-400" />
                   </button>
                   {openMenuId === task.id && (
                     <div
                       ref={(el) => menuRefs.current[task.id] = el}
                       className="absolute right-0 top-8 z-50 w-40 bg-white dark:bg-slate-800 rounded-lg shadow-lg border border-gray-200 dark:border-slate-700 py-1"
                       onClick={(e) => e.stopPropagation()}
-                      role="menu"
-                      aria-label="Действия с задачей"
-                      onKeyDown={(e) => {
-                        if (e.key === 'Escape') {
-                          setOpenMenuId(null);
-                          // Возвращаем фокус на кнопку меню
-                          const menuButton = e.currentTarget.previousElementSibling as HTMLElement;
-                          menuButton?.focus();
-                        }
-                      }}
                     >
                       <button
                         type="button"
@@ -293,21 +244,17 @@ export const KanbanBoard: React.FC<Props> = ({
                           setOpenMenuId(null);
                           onTaskClick(task);
                         }}
-                        className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-700 flex items-center gap-2 focus:outline-none focus:bg-gray-100 dark:focus:bg-slate-700"
-                        role="menuitem"
-                        aria-label={`Редактировать задачу ${task.title}`}
+                        className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-700 flex items-center gap-2"
                       >
-                        <Edit size={14} aria-hidden="true" /> Редактировать
+                        <Edit size={14} /> Редактировать
                       </button>
                       {onDeleteTask && (
                         <button
                           type="button"
                           onClick={(e) => handleDeleteTask(task, e)}
-                          className="w-full px-4 py-2 text-left text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2 focus:outline-none focus:bg-red-50 dark:focus:bg-red-900/20"
-                          role="menuitem"
-                          aria-label={`Удалить задачу ${task.title}`}
+                          className="w-full px-4 py-2 text-left text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2"
                         >
-                          <Trash2 size={14} aria-hidden="true" /> Удалить
+                          <Trash2 size={14} /> Удалить
                         </button>
                       )}
                     </div>
@@ -321,7 +268,7 @@ export const KanbanBoard: React.FC<Props> = ({
                 </p>
               )}
 
-              <div id={`task-${task.id}-meta`} className="mt-2 flex flex-wrap items-center gap-1" aria-label="Метаданные задачи">
+              <div className="mt-2 flex flex-wrap items-center gap-1">
                 {task.projectId && (
                   <span className="px-2 py-0.5 rounded-full bg-gray-100 dark:bg-slate-800 text-[10px] text-gray-700 dark:text-slate-200">
                     {getProjectName(task.projectId)}
@@ -348,24 +295,17 @@ export const KanbanBoard: React.FC<Props> = ({
 
               {/* Status Selector for Mobile */}
               <div className="mt-2 pt-2 border-t border-gray-100 dark:border-slate-800">
-                <label htmlFor={`status-select-${task.id}`} className="text-[10px] text-gray-500 dark:text-slate-400 mb-1 block">
+                <label className="text-[10px] text-gray-500 dark:text-slate-400 mb-1 block">
                   Статус:
                 </label>
                 <select
-                  id={`status-select-${task.id}`}
                   value={task.status}
                   onChange={e => {
                     e.stopPropagation();
                     onStatusChange(task, e.target.value as TaskStatus);
-                    // Объявляем изменение через aria-live
-                    const announcement = document.getElementById('kanban-announcements');
-                    if (announcement) {
-                      announcement.textContent = `Задача "${task.title}" перемещена в колонку ${columns.find(c => c.id === e.target.value)?.title}`;
-                    }
                   }}
-                  className="w-full px-2 py-1 rounded-md bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-[11px] text-gray-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500"
+                  className="w-full px-2 py-1 rounded-md bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-[11px] text-gray-900 dark:text-slate-100"
                   onClick={(e) => e.stopPropagation()}
-                  aria-label={`Изменить статус задачи ${task.title}`}
                 >
                   {columns.map(c => (
                     <option key={c.id} value={c.id}>
@@ -374,15 +314,14 @@ export const KanbanBoard: React.FC<Props> = ({
                   ))}
                 </select>
               </div>
-            </button>
+            </div>
           )) : (
             <div className="text-center py-8 bg-gray-50 dark:bg-slate-900/50 rounded-lg border border-gray-200 dark:border-slate-700">
               <p className="text-sm text-gray-500 dark:text-slate-400 mb-1">Нет задач</p>
               <p className="text-xs text-gray-400 dark:text-slate-500">В этой колонке пока нет задач</p>
               <button
                 onClick={onCreateTask}
-                className="mt-3 px-4 py-2 text-xs rounded-lg bg-gradient-to-r from-sky-500 to-indigo-600 text-white font-medium hover:from-sky-600 hover:to-indigo-700 transition-all shadow-sm focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2 dark:focus:ring-offset-slate-900"
-                aria-label="Создать новую задачу в колонке"
+                className="mt-3 px-4 py-2 text-xs rounded-lg bg-gradient-to-r from-sky-500 to-indigo-600 text-white font-medium hover:from-sky-600 hover:to-indigo-700 transition-all shadow-sm"
               >
                 Создать задачу
               </button>
@@ -392,9 +331,9 @@ export const KanbanBoard: React.FC<Props> = ({
       </div>
 
       {/* Desktop: Full Grid View */}
-      <div className="hidden md:grid grid-cols-5 gap-3 md:gap-4" role="group" aria-label="Колонки канбан-доски">
+      <div className="hidden md:grid grid-cols-5 gap-3 md:gap-4">
         {columns.map(col => (
-          <section
+          <div
             key={col.id}
             className={
               'flex flex-col rounded-xl bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 min-h-[200px] shadow-sm transition-all ' +
@@ -404,38 +343,30 @@ export const KanbanBoard: React.FC<Props> = ({
             }
             onDragOver={handleDragOver(col.id)}
             onDrop={handleDrop(col.id)}
-            aria-label={`Колонка ${col.title}`}
-            aria-describedby={`column-${col.id}-count`}
           >
             <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800/50 rounded-t-xl">
-              <h3 className="font-bold text-sm text-gray-900 dark:text-slate-100">
+              <span className="font-bold text-sm text-gray-900 dark:text-slate-100">
                 {col.title}
-              </h3>
-              <span id={`column-${col.id}-count`} className="text-xs font-semibold px-2 py-0.5 rounded-full bg-gray-200 dark:bg-slate-700 text-gray-700 dark:text-slate-300" aria-label={`${tasksByStatus[col.id].length} задач`}>
+              </span>
+              <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-gray-200 dark:bg-slate-700 text-gray-700 dark:text-slate-300">
                 {tasksByStatus[col.id].length}
               </span>
             </div>
 
-            <div className="flex-1 p-3 space-y-2.5 overflow-y-auto" role="list" aria-label={`Задачи в колонке ${col.title}`}>
-              {tasksByStatus[col.id].map((task, index) => (
-                <button
+            <div className="flex-1 p-3 space-y-2.5 overflow-y-auto">
+              {tasksByStatus[col.id].map(task => (
+                <div
                   key={task.id}
-                  type="button"
                   className={
-                    'rounded-lg border border-gray-200 dark:border-slate-700 px-3 py-2.5 text-xs bg-white dark:bg-slate-800 cursor-pointer transition-all shadow-sm hover:shadow-md text-left w-full ' +
+                    'rounded-lg border border-gray-200 dark:border-slate-700 px-3 py-2.5 text-xs bg-white dark:bg-slate-800 cursor-pointer transition-all shadow-sm hover:shadow-md ' +
                     (draggedTaskId === task.id && !isTouchDevice
                       ? 'opacity-60 scale-95'
-                      : 'hover:border-sky-500/70 hover:bg-gray-50 dark:hover:bg-slate-800/80 hover:-translate-y-0.5') +
-                    ' focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2 dark:focus:ring-offset-slate-900'
+                      : 'hover:border-sky-500/70 hover:bg-gray-50 dark:hover:bg-slate-800/80 hover:-translate-y-0.5')
                   }
                   draggable={!isTouchDevice}
                   onDragStart={handleDragStart(task.id)}
                   onDragEnd={handleDragEnd}
                   onClick={() => onTaskClick(task)}
-                  onKeyDown={(e) => handleTaskKeyDown(task, e)}
-                  aria-label={`Задача: ${task.title}. Статус: ${col.title}. Приоритет: ${getPriorityLabel(task.priority)}${task.description ? `. ${task.description}` : ''}`}
-                  aria-describedby={`task-${task.id}-meta-desktop`}
-                  role="listitem"
                 >
                   <div className="flex items-start justify-between gap-1">
                     <div className="font-medium text-gray-900 dark:text-slate-100 line-clamp-2">
@@ -445,33 +376,16 @@ export const KanbanBoard: React.FC<Props> = ({
                       <button
                         type="button"
                         onClick={(e) => handleMenuToggle(task.id, e)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Escape' && openMenuId === task.id) {
-                            setOpenMenuId(null);
-                          }
-                        }}
-                        className="p-1 hover:bg-gray-100 dark:hover:bg-slate-700 rounded transition-colors focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-1 dark:focus:ring-offset-slate-900"
+                        className="p-1 hover:bg-gray-100 dark:hover:bg-slate-700 rounded transition-colors"
                         title="Дополнительные действия"
-                        aria-label={`Дополнительные действия для задачи ${task.title}`}
-                        aria-expanded={openMenuId === task.id}
-                        aria-haspopup="true"
                       >
-                        <MoreHorizontal className="w-4 h-4 text-gray-500 dark:text-slate-400" aria-hidden="true" />
+                        <MoreHorizontal className="w-4 h-4 text-gray-500 dark:text-slate-400" />
                       </button>
                       {openMenuId === task.id && (
                         <div
                           ref={(el) => menuRefs.current[task.id] = el}
                           className="absolute right-0 top-8 z-50 w-40 bg-white dark:bg-slate-800 rounded-lg shadow-lg border border-gray-200 dark:border-slate-700 py-1"
                           onClick={(e) => e.stopPropagation()}
-                          role="menu"
-                          aria-label="Действия с задачей"
-                          onKeyDown={(e) => {
-                            if (e.key === 'Escape') {
-                              setOpenMenuId(null);
-                              const menuButton = e.currentTarget.previousElementSibling as HTMLElement;
-                              menuButton?.focus();
-                            }
-                          }}
                         >
                           <button
                             type="button"
@@ -480,21 +394,17 @@ export const KanbanBoard: React.FC<Props> = ({
                               setOpenMenuId(null);
                               onTaskClick(task);
                             }}
-                            className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-700 flex items-center gap-2 focus:outline-none focus:bg-gray-100 dark:focus:bg-slate-700"
-                            role="menuitem"
-                            aria-label={`Редактировать задачу ${task.title}`}
+                            className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-700 flex items-center gap-2"
                           >
-                            <Edit size={14} aria-hidden="true" /> Редактировать
+                            <Edit size={14} /> Редактировать
                           </button>
                           {onDeleteTask && (
                             <button
                               type="button"
                               onClick={(e) => handleDeleteTask(task, e)}
-                              className="w-full px-4 py-2 text-left text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2 focus:outline-none focus:bg-red-50 dark:focus:bg-red-900/20"
-                              role="menuitem"
-                              aria-label={`Удалить задачу ${task.title}`}
+                              className="w-full px-4 py-2 text-left text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2"
                             >
-                              <Trash2 size={14} aria-hidden="true" /> Удалить
+                              <Trash2 size={14} /> Удалить
                             </button>
                           )}
                         </div>
@@ -508,7 +418,7 @@ export const KanbanBoard: React.FC<Props> = ({
                     </p>
                   )}
 
-                  <div id={`task-${task.id}-meta-desktop`} className="mt-2 flex flex-wrap items-center gap-1" aria-label="Метаданные задачи">
+                  <div className="mt-2 flex flex-wrap items-center gap-1">
                     {task.projectId && (
                       <span className="px-2 py-0.5 rounded-full bg-gray-100 dark:bg-slate-800 text-[10px] text-gray-700 dark:text-slate-200">
                         {getProjectName(task.projectId)}
@@ -532,16 +442,16 @@ export const KanbanBoard: React.FC<Props> = ({
                       {getPriorityLabel(task.priority)}
                     </span>
                   </div>
-                </button>
+                </div>
               ))}
 
               {tasksByStatus[col.id].length === 0 && (
-                <div className="text-[11px] text-gray-500 dark:text-slate-400 text-center py-3" role="status" aria-live="polite">
+                <div className="text-[11px] text-gray-500 dark:text-slate-400 text-center py-3">
                   Нет задач
                 </div>
               )}
             </div>
-          </section>
+          </div>
         ))}
       </div>
     </div>

@@ -1,99 +1,17 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    
-    <!-- Primary Meta Tags -->
-    <title>Command Task Planner — Управление задачами с AI-помощником</title>
-    <meta name="title" content="Command Task Planner — Управление задачами с AI-помощником" />
-    <meta name="description" content="Командное управление задачами: Kanban-доска, календарь, диаграмма Ганта, аналитика. Интеграция с Gemini AI для автоматизации планирования." />
-    <meta name="keywords" content="управление задачами, kanban, гант, календарь задач, планировщик, команда, AI, Gemini, таск-менеджер" />
-    <meta name="author" content="Command Task Planner" />
-    <meta name="robots" content="index, follow" />
-    <meta name="language" content="Russian" />
-    <meta name="revisit-after" content="7 days" />
-    
-    <!-- Open Graph / Facebook -->
-    <meta property="og:type" content="website" />
-    <meta property="og:url" content="https://commandtaskplanner.com/" />
-    <meta property="og:title" content="Command Task Planner — Управление задачами с AI-помощником" />
-    <meta property="og:description" content="Командное управление задачами: Kanban-доска, календарь, диаграмма Ганта, аналитика. Интеграция с Gemini AI для автоматизации планирования." />
-    <meta property="og:image" content="/logo.svg" />
-    <meta property="og:locale" content="ru_RU" />
-    <meta property="og:site_name" content="Command Task Planner" />
-    
-    <!-- Twitter -->
-    <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:url" content="https://commandtaskplanner.com/" />
-    <meta name="twitter:title" content="Command Task Planner — Управление задачами с AI-помощником" />
-    <meta name="twitter:description" content="Командное управление задачами: Kanban-доска, календарь, диаграмма Ганта, аналитика. Интеграция с Gemini AI для автоматизации планирования." />
-    <meta name="twitter:image" content="/logo.svg" />
-    
-    <!-- Favicons -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Command Task Planner</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="alternate icon" href="/favicon.ico" />
     <link rel="apple-touch-icon" href="/logo.svg" />
-    <link rel="manifest" href="/manifest.json" />
-    
-    <!-- Performance: Preconnect to external domains -->
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link rel="dns-prefetch" href="https://fonts.googleapis.com" />
-    <link rel="dns-prefetch" href="https://fonts.gstatic.com" />
-    
-    <!-- Performance: Preload critical resources for LCP optimization -->
-    <!-- Note: logo.svg preload removed as it's not used immediately in the app -->
-    <link rel="preload" href="/index.css" as="style" />
-    
-    <!-- Performance: Optimize font loading with font-display: swap -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
-    
-    <!-- Styles -->
-    <link rel="stylesheet" href="/index.css" />
-    
-    <!-- Structured Data (JSON-LD) -->
-    <script type="application/ld+json">
-    {
-      "@context": "https://schema.org",
-      "@type": "WebApplication",
-      "name": "Command Task Planner",
-      "description": "Командное управление задачами с поддержкой Kanban-доски, календаря, диаграммы Ганта и AI-помощника на базе Gemini",
-      "url": "https://commandtaskplanner.com",
-      "applicationCategory": "ProductivityApplication",
-      "operatingSystem": "Web",
-      "offers": {
-        "@type": "Offer",
-        "price": "0",
-        "priceCurrency": "USD"
-      },
-      "featureList": [
-        "Kanban-доска",
-        "Календарь задач",
-        "Диаграмма Ганта",
-        "Аналитика и отчеты",
-        "AI-помощник (Gemini)",
-        "Командная работа",
-        "Уведомления"
-      ],
-      "author": {
-        "@type": "Organization",
-        "name": "Command Task Planner"
-      }
-    }
-    </script>
-    
-    <!-- Theme Color -->
-    <meta name="theme-color" content="#0f172a" media="(prefers-color-scheme: dark)" />
-    <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
-    
-    <!-- Security -->
-    <!-- Note: X-Frame-Options, X-Content-Type-Options, and X-XSS-Protection should be set via HTTP headers, not meta tags -->
-    <!-- These are configured in server.js -->
-    <meta name="referrer" content="strict-origin-when-cross-origin" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/index.css">
   </head>
   <body>
-    <div id="root" role="main" aria-label="Главное приложение Command Task Planner"></div>
+    <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

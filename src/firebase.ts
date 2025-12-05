@@ -110,32 +110,25 @@ async function initializeFirebase(): Promise<void> {
   return initPromise;
 }
 
-// КРИТИЧЕСКИ ВАЖНО: Не вызываем initializeFirebase() на верхнем уровне модуля,
-// чтобы избежать ошибки "Cannot access 'It' before initialization" в production сборке.
-// Вместо этого экспортируем функцию, которая будет вызвана явно в App.tsx.
-// Это гарантирует правильный порядок инициализации модулей.
-export function firebaseInit(): Promise<void> {
-  return initializeFirebase();
-}
+// Экспортируем промис инициализации для использования в компонентах
+export const firebaseInit = initializeFirebase();
 
 // Экспортируем объекты (будут доступны после инициализации)
 export function getAuthInstance(): Auth {
   if (!auth) {
-    throw new Error('Firebase Auth not initialized. Await firebaseInit() first.');
+    throw new Error('Firebase Auth not initialized. Await firebaseInit first.');
   }
   return auth;
 }
 
 export function getFirestoreInstance(): Firestore {
   if (!db) {
-    throw new Error('Firestore not initialized. Await firebaseInit() first.');
+    throw new Error('Firestore not initialized. Await firebaseInit first.');
   }
   return db;
 }
 
-// НЕ экспортируем auth и db напрямую, чтобы избежать ошибки
-// "Cannot access 'It' before initialization" в production сборке.
-// Все модули должны использовать getAuthInstance() и getFirestoreInstance().
-// export { auth, db }; // УДАЛЕНО для предотвращения ошибки инициализации
-// НЕ экспортируем app по умолчанию, так как он может быть null до инициализации
-// export default app; // УДАЛЕНО для предотвращения ошибки инициализации
+// Для обратной совместимости - экспортируем напрямую
+// ВНИМАНИЕ: эти объекты будут null до завершения firebaseInit
+export { auth, db };
+export default app;

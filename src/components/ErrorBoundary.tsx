@@ -21,12 +21,6 @@ class ErrorBoundary extends Component<Props, State> {
   }
 
   static getDerivedStateFromError(error: Error): State {
-    // Обрабатываем специфическую ошибку "Cannot set properties of undefined (setting 'Activity')"
-    // которая возникает при проблемах с lazy loading компонентов
-    if (error.message && error.message.includes('Activity')) {
-      console.error('Lazy loading error detected:', error);
-    }
-    
     return {
       hasError: true,
       error,

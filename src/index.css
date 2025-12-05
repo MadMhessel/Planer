@@ -101,21 +101,6 @@
   }
 }
 
-@keyframes slideInRight {
-  from {
-    opacity: 0;
-    transform: translateX(100%);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
-}
-
-.animate-slide-in-right {
-  animation: slideInRight 0.3s ease-out;
-}
-
 /* Glass morphism effect */
 .glass {
   @apply bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-white/20 dark:border-slate-700/50;
@@ -148,40 +133,4 @@
 /* Safe area for mobile bottom nav */
 .safe-area-bottom {
   padding-bottom: env(safe-area-inset-bottom, 0);
-}
-
-/* Screen reader only - скрывает элемент визуально, но оставляет доступным для скрин-ридеров */
-.sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border-width: 0;
-}
-
-/* Улучшенные focus styles для доступности */
-*:focus-visible {
-  outline: 2px solid #0ea5e9;
-  outline-offset: 2px;
-}
-
-/* Улучшенный контраст для текста (WCAG AA) */
-.text-gray-500 {
-  color: #6b7280; /* Контраст 4.5:1 на белом */
-}
-
-.dark .text-gray-500 {
-  color: #9ca3af; /* Контраст 4.5:1 на темном */
-}
-
-.text-gray-400 {
-  color: #9ca3af; /* Контраст 3.5:1 на белом - может быть на грани, но используется для второстепенного текста */
-}
-
-.dark .text-gray-400 {
-  color: #cbd5e1; /* Контраст 4.5:1 на темном */
 }
