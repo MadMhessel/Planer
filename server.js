@@ -1,4 +1,5 @@
 // Логирование начала загрузки модулей
+// Server initialization with improved error handling
 console.log('[Server] Starting server initialization...');
 console.log('[Server] Node version:', process.version);
 console.log('[Server] Platform:', process.platform);
