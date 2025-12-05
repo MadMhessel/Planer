@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { WorkspaceInvite } from '../types';
-import { FirestoreService } from '../services/firestore';
+import { memberRepository } from '../infrastructure/firestore/MemberRepository';
 import { logger } from '../utils/logger';
 
 export const useInvites = (workspaceId: string | null) => {
@@ -19,7 +19,7 @@ export const useInvites = (workspaceId: string | null) => {
     setError(null);
 
     try {
-      const unsubscribe = FirestoreService.subscribeToInvites(workspaceId, (newInvites) => {
+      const unsubscribe = memberRepository.subscribeToInvites(workspaceId, (newInvites) => {
         setInvites(newInvites);
         setLoading(false);
       });

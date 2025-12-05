@@ -1,12 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Project, WorkspaceMember, User } from '../types';
-import { FirestoreService } from '../services/firestore';
-import { TelegramService } from '../services/telegram';
-import { NotificationsService } from '../services/notifications';
+import { projectRepository } from '../infrastructure/firestore/ProjectRepository';
+import { ProjectNotificationsService } from '../infrastructure/notifications/ProjectNotificationsService';
 import { validateProject } from '../utils/validators';
-import { createTelegramMessage, getAllTelegramRecipients } from '../utils/notificationHelpers';
 import { logger } from '../utils/logger';
-import { getMoscowISOString } from '../utils/dateUtils';
 
 export const useProjects = (
   workspaceId: string | null,
@@ -24,7 +21,7 @@ export const useProjects = (
     }
 
     try {
-      const unsubscribe = FirestoreService.subscribeToProjects(workspaceId, (newProjects) => {
+      const unsubscribe = projectRepository.subscribeToProjects(workspaceId, (newProjects) => {
         setProjects(newProjects);
       });
 
@@ -53,9 +50,8 @@ export const useProjects = (
     setError(null);
 
     try {
-      const now = getMoscowISOString();
       // Создаем объект проекта, исключая undefined значения
-      // НЕ включаем createdAt и updatedAt - они будут добавлены в FirestoreService.createProject
+      // НЕ включаем createdAt и updatedAt - они будут добавлены в ProjectRepository.createProject
       const projectData: any = {
         name: partial.name || 'Новый проект',
         description: partial.description || '',
@@ -73,33 +69,15 @@ export const useProjects = (
         projectData.endDate = partial.endDate;
       }
 
-      const created = await FirestoreService.createProject(projectData);
+      const created = await projectRepository.createProject(projectData);
       
-      // Уведомления через NotificationsService
-      if (workspaceId) {
-        const telegramRecipients = getAllTelegramRecipients(members);
-        const notificationData: Omit<Notification, 'id'> = {
-          workspaceId,
-          title: 'Проект создан',
-          message: `Проект "${created.name}" был создан`,
-          type: 'PROJECT_UPDATED',
-          readBy: [],
-          createdAt: getMoscowISOString()
-        };
-        
-        // Добавляем recipients только если есть получатели
-        if (telegramRecipients.length > 0) {
-          notificationData.recipients = telegramRecipients.map(r => r.userId);
-        }
-        
-        await NotificationsService.add(workspaceId, notificationData);
-      }
-
-      const recipients = getAllTelegramRecipients(members);
-      if (recipients.length > 0) {
-        const message = createTelegramMessage('PROJECT_CREATED', created);
-        await TelegramService.sendNotification(recipients, message);
-      }
+      // Обрабатываем уведомления через сервис
+      await ProjectNotificationsService.onProjectCreated({
+        workspaceId,
+        project: created,
+        members,
+        currentUser
+      });
 
       return created;
     } catch (err) {
@@ -132,24 +110,18 @@ export const useProjects = (
     setError(null);
 
     try {
-      await FirestoreService.updateProject(projectId, updates);
+      await projectRepository.updateProject(projectId, updates);
       
-      // Уведомления
-({
-        id: Date.now().toString(),
-        type: 'PROJECT_UPDATED',
-        title: 'Проект обновлен',
-        message: `Проект "${oldProject.name}" был обновлен`,
-        createdAt: getMoscowISOString(),
-        read: false
+      // Обрабатываем уведомления через сервис
+      const updatedProject = { ...oldProject, ...updates } as Project;
+      await ProjectNotificationsService.onProjectUpdated({
+        workspaceId,
+        project: updatedProject,
+        oldProject,
+        updates,
+        members,
+        currentUser
       });
-
-      const recipients = getAllTelegramRecipients(members);
-      if (recipients.length > 0 && (updates.name || updates.description || updates.status)) {
-        const updatedProject = { ...oldProject, ...updates } as Project;
-        const message = createTelegramMessage('PROJECT_UPDATED', updatedProject, updates);
-        await TelegramService.sendNotification(recipients, message);
-      }
     } catch (err) {
       const error = err instanceof Error ? err : new Error('Не удалось обновить проект');
       logger.error('Failed to update project', error);
@@ -174,23 +146,15 @@ export const useProjects = (
     setError(null);
 
     try {
-      await FirestoreService.deleteProject(projectId);
+      await projectRepository.deleteProject(projectId);
       
-      // Уведомления
-({
-        id: Date.now().toString(),
-        type: 'PROJECT_UPDATED',
-        title: 'Проект удален',
-        message: `Проект "${projectToDelete.name}" был удален`,
-        createdAt: getMoscowISOString(),
-        read: false
+      // Обрабатываем уведомления через сервис
+      await ProjectNotificationsService.onProjectDeleted({
+        workspaceId,
+        project: projectToDelete,
+        members,
+        currentUser
       });
-
-      const recipients = getAllTelegramRecipients(members);
-      if (recipients.length > 0) {
-        const message = createTelegramMessage('PROJECT_DELETED', projectToDelete);
-        await TelegramService.sendNotification(recipients, message);
-      }
     } catch (err) {
       const error = err instanceof Error ? err : new Error('Не удалось удалить проект');
       logger.error('Failed to delete project', error);

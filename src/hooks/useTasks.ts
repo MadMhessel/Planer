@@ -1,12 +1,10 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Task, Project, WorkspaceMember, User, TaskStatus, TaskPriority } from '../types';
-import { FirestoreService } from '../services/firestore';
-import { TelegramService } from '../services/telegram';
-import { NotificationsService } from '../services/notifications';
+import { taskRepository } from '../infrastructure/firestore/TaskRepository';
+import { TaskNotificationsService } from '../infrastructure/notifications/TaskNotificationsService';
 import { validateTask } from '../utils/validators';
-import { createTaskNotification, createTelegramMessage, getRecipientsForTask } from '../utils/notificationHelpers';
 import { logger } from '../utils/logger';
-import { getMoscowISOString, formatMoscowDate } from '../utils/dateUtils';
+import { getMoscowISOString } from '../utils/dateUtils';
 
 export const useTasks = (
   workspaceId: string | null,
@@ -40,7 +38,7 @@ export const useTasks = (
     }
 
     try {
-      const unsubscribe = FirestoreService.subscribeToTasks(workspaceId, (newTasks) => {
+      const unsubscribe = taskRepository.subscribeToTasks(workspaceId, (newTasks) => {
         setTasks(newTasks);
       });
 
@@ -77,7 +75,7 @@ export const useTasks = (
     try {
       const now = getMoscowISOString();
       
-      // Создаем объект задачи, исключая undefined значения и поля createdAt/updatedAt (они будут добавлены в FirestoreService)
+      // Создаем объект задачи, исключая undefined значения и поля createdAt/updatedAt (они будут добавлены в TaskRepository)
       const taskData: any = {
         title: partial.title || 'Новая задача',
         description: partial.description || '',
@@ -108,78 +106,16 @@ export const useTasks = (
         taskData.loggedHours = partial.loggedHours;
       }
 
-      const created = await FirestoreService.createTask(taskData);
+      const created = await taskRepository.createTask(taskData);
       
-      // Определяем получателей уведомления
-      // Используем assigneeIds, если есть, иначе assigneeId
-      const notificationRecipients = created.assigneeIds && created.assigneeIds.length > 0
-        ? created.assigneeIds
-        : (created.assigneeId 
-            ? [created.assigneeId]
-            : NotificationsService.getRecipients(members, undefined, true)); // Иначе уведомляем админов
-      
-      // Сохраняем уведомление в Firestore
-      const notification = createTaskNotification(
+      // Обрабатываем уведомления через сервис
+      await TaskNotificationsService.onTaskCreated({
         workspaceId,
-        'TASK_ASSIGNED',
-        created,
-        undefined,
-        notificationRecipients
-      );
-      await NotificationsService.add(workspaceId, notification);
-
-      // Telegram уведомление - отправляем всем участникам задачи
-      // Логируем для диагностики
-      logger.info('[addTask] Preparing Telegram notification', {
-        taskId: created.id,
-        taskTitle: created.title,
-        assigneeId: created.assigneeId,
-        assigneeIds: created.assigneeIds,
-        membersCount: members.length,
-        membersWithTelegram: members.filter(m => m.telegramChatId).length,
-        membersWithTelegramDetails: members.filter(m => m.telegramChatId).map(m => ({
-          userId: m.userId,
-          email: m.email,
-          hasTelegramChatId: !!m.telegramChatId
-        }))
+        task: created,
+        members,
+        projects,
+        currentUser
       });
-      
-      const telegramRecipients = getRecipientsForTask(created, members, currentUser.id, currentUser.email);
-      logger.info('[addTask] Telegram recipients determined', {
-        recipientsCount: telegramRecipients.length,
-        recipients: telegramRecipients.map(r => `${r.substring(0, 5)}...`)
-      });
-      
-      if (telegramRecipients && telegramRecipients.length > 0) {
-        const projectName = created.projectId ? projects.find(p => p.id === created.projectId)?.name : undefined;
-        const message = createTelegramMessage('TASK_ASSIGNED', created, undefined, undefined, projectName);
-        if (message) {
-          try {
-            const result = await TelegramService.sendNotification(telegramRecipients, message);
-            if (!result.success) {
-              logger.warn('Failed to send Telegram notification for task creation', { 
-                error: result.error, 
-                taskId: created.id,
-                recipientsCount: telegramRecipients.length
-              });
-            } else {
-              logger.info('Telegram notification sent for task creation', { 
-                taskId: created.id,
-                recipientsCount: telegramRecipients.length
-              });
-            }
-          } catch (err) {
-            logger.error('Exception sending Telegram notification for task creation', err);
-          }
-        }
-      } else {
-        logger.info('No Telegram recipients for task creation', { 
-          taskId: created.id,
-          hasAssigneeId: !!created.assigneeId,
-          hasAssigneeIds: !!created.assigneeIds,
-          membersCount: members.length
-        });
-      }
 
       return created;
     } catch (err) {
@@ -217,7 +153,7 @@ export const useTasks = (
         t.id === taskId ? { ...t, ...updates, updatedAt: getMoscowISOString() } : t
       ));
 
-      // Фильтруем undefined значения перед передачей в FirestoreService
+      // Фильтруем undefined значения перед передачей в TaskRepository
       const filteredUpdates: Partial<Task> = {
         updatedAt: getMoscowISOString()
       };
@@ -228,119 +164,18 @@ export const useTasks = (
         }
       }
       
-      await FirestoreService.updateTask(taskId, filteredUpdates);
+      await taskRepository.updateTask(taskId, filteredUpdates);
 
-      // Уведомления
+      // Обрабатываем уведомления через сервис
       const newTaskState = { ...oldTask, ...updates } as Task;
-      const recipients = getRecipientsForTask(newTaskState, members, currentUser.id, currentUser.email);
-      
-      let notificationTitle = '';
-      let notificationMessage = '';
-      let telegramMessage = '';
-
-      // Определяем тип изменения
-      // Проверяем изменения assigneeIds
-      const oldAssigneeIds = oldTask.assigneeIds || (oldTask.assigneeId ? [oldTask.assigneeId] : []);
-      const newAssigneeIds = updates.assigneeIds || (updates.assigneeId ? [updates.assigneeId] : oldAssigneeIds);
-      const assigneeIdsChanged = JSON.stringify(oldAssigneeIds.sort()) !== JSON.stringify(newAssigneeIds.sort());
-      
-      if (assigneeIdsChanged) {
-        notificationTitle = 'Участники задачи изменены';
-        notificationMessage = `Задача "${oldTask.title}" - изменены участники`;
-        telegramMessage = createTelegramMessage('TASK_UPDATED', newTaskState, updates, oldTask);
-      } else if (updates.status && updates.status !== oldTask.status) {
-        notificationTitle = 'Статус задачи изменен';
-        notificationMessage = `Задача "${oldTask.title}" изменена`;
-        telegramMessage = createTelegramMessage('TASK_UPDATED', newTaskState, updates, oldTask);
-      } else if (updates.dueDate && updates.dueDate !== oldTask.dueDate) {
-        notificationTitle = 'Срок задачи изменен';
-        const newDueDate = formatMoscowDate(updates.dueDate);
-        notificationMessage = `Задача "${oldTask.title}" - новый срок: ${newDueDate}`;
-        telegramMessage = createTelegramMessage('TASK_UPDATED', newTaskState, updates, oldTask);
-      } else if (updates.assigneeId && updates.assigneeId !== oldTask.assigneeId) {
-        const newAssignee = members.find(m => m.userId === updates.assigneeId);
-        const newAssigneeName = newAssignee ? newAssignee.email : 'Неизвестно';
-        notificationTitle = 'Задача назначена';
-        notificationMessage = `Задача "${oldTask.title}" назначена ${newAssigneeName}`;
-        telegramMessage = createTelegramMessage('TASK_UPDATED', newTaskState, updates, oldTask);
-      } else if (updates.priority && updates.priority !== oldTask.priority) {
-        notificationTitle = 'Приоритет задачи изменен';
-        notificationMessage = `Задача "${oldTask.title}" - приоритет изменен`;
-        telegramMessage = createTelegramMessage('TASK_UPDATED', newTaskState, updates, oldTask);
-      } else if (updates.title || updates.description) {
-        notificationTitle = 'Задача обновлена';
-        notificationMessage = `Задача "${updates.title || oldTask.title}" была обновлена`;
-        telegramMessage = createTelegramMessage('TASK_UPDATED', newTaskState, updates, oldTask);
-      } else if (Object.keys(updates).length > 1 || (Object.keys(updates).length === 1 && !updates.updatedAt)) {
-        // Любые другие изменения (кроме только updatedAt)
-        notificationTitle = 'Задача обновлена';
-        notificationMessage = `Задача "${oldTask.title}" была обновлена`;
-        telegramMessage = createTelegramMessage('TASK_UPDATED', newTaskState, updates, oldTask);
-      }
-
-      if (notificationTitle) {
-        // Определяем получателей для обновления задачи
-        // Используем assigneeIds, если есть, иначе assigneeId
-        const notificationRecipients = newTaskState.assigneeIds && newTaskState.assigneeIds.length > 0
-          ? newTaskState.assigneeIds
-          : (newTaskState.assigneeId 
-              ? [newTaskState.assigneeId]
-              : NotificationsService.getRecipients(members, undefined, true));
-        
-        const notification = createTaskNotification(
-          workspaceId,
-          'TASK_UPDATED',
-          newTaskState,
-          updates,
-          notificationRecipients
-        );
-        await NotificationsService.add(workspaceId, notification);
-      }
-
-      // Логируем для диагностики перед отправкой
-      logger.info('[updateTask] Preparing Telegram notification', {
-        taskId,
-        taskTitle: oldTask.title,
-        hasTelegramMessage: !!telegramMessage,
-        recipientsCount: recipients.length,
-        assigneeId: newTaskState.assigneeId,
-        assigneeIds: newTaskState.assigneeIds,
-        membersCount: members.length,
-        membersWithTelegram: members.filter(m => m.telegramChatId).length
+      await TaskNotificationsService.onTaskUpdated({
+        workspaceId,
+        task: newTaskState,
+        oldTask,
+        updates,
+        members,
+        currentUser
       });
-      
-      // Отправляем Telegram уведомления всем участникам задачи при любых изменениях
-      if (telegramMessage && recipients && recipients.length > 0) {
-        try {
-          const result = await TelegramService.sendNotification(recipients, telegramMessage);
-          if (!result.success) {
-            logger.warn('Failed to send Telegram notification for task update', { 
-              error: result.error, 
-              taskId,
-              recipientsCount: recipients.length
-            });
-          } else {
-            logger.info('Telegram notification sent for task update', { 
-              taskId,
-              recipientsCount: recipients.length
-            });
-          }
-        } catch (err) {
-          logger.error('Exception sending Telegram notification for task update', err);
-        }
-      } else {
-        if (!telegramMessage) {
-          logger.debug('No Telegram message generated for task update', { taskId });
-        }
-        if (!recipients || recipients.length === 0) {
-          logger.info('No Telegram recipients for task update', { 
-            taskId,
-            hasAssigneeId: !!newTaskState.assigneeId,
-            hasAssigneeIds: !!newTaskState.assigneeIds,
-            membersCount: members.length
-          });
-        }
-      }
     } catch (err) {
       // Откат при ошибке
       if (oldTask) {
@@ -372,62 +207,15 @@ export const useTasks = (
     setError(null);
 
     try {
-      await FirestoreService.deleteTask(taskId);
+      await taskRepository.deleteTask(taskId);
 
-      // Уведомление об удалении
-      // Используем assigneeIds, если есть, иначе assigneeId
-      const notificationRecipients = taskToDelete.assigneeIds && taskToDelete.assigneeIds.length > 0
-        ? taskToDelete.assigneeIds
-        : (taskToDelete.assigneeId 
-            ? [taskToDelete.assigneeId]
-            : NotificationsService.getRecipients(members, undefined, true));
-      
-      const deleteNotification: Omit<Notification, 'id'> = {
+      // Обрабатываем уведомления через сервис
+      await TaskNotificationsService.onTaskDeleted({
         workspaceId,
-        type: 'TASK_UPDATED',
-        title: 'Задача удалена',
-        message: `Задача "${taskToDelete.title}" была удалена`,
-        createdAt: getMoscowISOString(),
-        readBy: []
-      };
-      
-      // Добавляем recipients только если они есть
-      if (notificationRecipients && notificationRecipients.length > 0) {
-        deleteNotification.recipients = notificationRecipients;
-      }
-      
-      await NotificationsService.add(workspaceId, deleteNotification);
-
-      const recipients = getRecipientsForTask(taskToDelete, members, currentUser.id, currentUser.email);
-      if (recipients && recipients.length > 0) {
-        const message = createTelegramMessage('TASK_DELETED', taskToDelete);
-        if (message) {
-          try {
-            const result = await TelegramService.sendNotification(recipients, message);
-            if (!result.success) {
-              logger.warn('Failed to send Telegram notification for task deletion', { 
-                error: result.error, 
-                taskId,
-                recipientsCount: recipients.length
-              });
-            } else {
-              logger.info('Telegram notification sent for task deletion', { 
-                taskId,
-                recipientsCount: recipients.length
-              });
-            }
-          } catch (err) {
-            logger.error('Exception sending Telegram notification for task deletion', err);
-          }
-        }
-      } else {
-        logger.info('No Telegram recipients for task deletion', { 
-          taskId,
-          hasAssigneeId: !!taskToDelete.assigneeId,
-          hasAssigneeIds: !!taskToDelete.assigneeIds,
-          membersCount: members.length
-        });
-      }
+        task: taskToDelete,
+        members,
+        currentUser
+      });
     } catch (err) {
       const error = err instanceof Error ? err : new Error('Не удалось удалить задачу');
       logger.error('Failed to delete task', error);

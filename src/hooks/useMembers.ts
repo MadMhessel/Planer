@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { WorkspaceMember } from '../types';
-import { FirestoreService } from '../services/firestore';
+import { memberRepository } from '../infrastructure/firestore/MemberRepository';
 import { logger } from '../utils/logger';
 
 export const useMembers = (workspaceId: string | null) => {
@@ -19,7 +19,7 @@ export const useMembers = (workspaceId: string | null) => {
     setError(null);
 
     try {
-      const unsubscribe = FirestoreService.subscribeToMembers(workspaceId, (newMembers) => {
+      const unsubscribe = memberRepository.subscribeToMembers(workspaceId, (newMembers) => {
         logger.info('[useMembers] Members loaded', {
           workspaceId,
           membersCount: newMembers.length,

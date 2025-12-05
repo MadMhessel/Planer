@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { User, Workspace } from '../types';
-import { FirestoreService } from '../services/firestore';
+import { workspaceRepository } from '../infrastructure/firestore/WorkspaceRepository';
 import { StorageService } from '../services/storage';
 import { logger } from '../utils/logger';
 
@@ -22,7 +22,7 @@ export const useWorkspace = (currentUser: User | null) => {
     setError(null);
 
     try {
-      const unsubscribe = FirestoreService.subscribeToWorkspaces(currentUser, (ws) => {
+      const unsubscribe = workspaceRepository.subscribeToWorkspaces(currentUser, (ws) => {
         setWorkspaces(ws);
 
         // Если нет выбранной рабочей области, выбираем сохраненную или первую доступную
@@ -69,7 +69,7 @@ export const useWorkspace = (currentUser: User | null) => {
     }
 
     try {
-      const workspace = await FirestoreService.createWorkspace(name, currentUser);
+      const workspace = await workspaceRepository.createWorkspace(name, currentUser);
       setCurrentWorkspaceId(workspace.id);
       return workspace;
     } catch (err) {
